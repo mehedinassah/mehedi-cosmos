@@ -1,0 +1,155 @@
+'use client';
+
+import { useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
+import { useJourneyStore } from '@/state/journeyStore';
+import { useQualityStore } from '@/state/qualityStore';
+import { bodyById, universe } from '@/content/universe';
+import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
+
+/**
+ * CameraDirector — blueprint §5. Foundation build.
+ * - Travel: straight-line path with authored accel/cruise/decel easing profile
+ *   (authored Catmull-Rom splines replace the path in Camera System phase;
+ *   the easing profile, FSM plumbing, and ownership model are final).
+ * - Orbit: damped slow orbit at the body's revealFraming distance.
+ * - BreathingIdle: additive Perlin-ish drift, amplitude ≤ 0.3% focal distance,
+ *   zeroed under prefers-reduced-motion.
+ * There is NO other writer of camera transforms in the app.
+ */
+
+const ACCEL_END = 0.2;
+const DECEL_START = 0.8;
+
+/** Piecewise easing: power3-in accel → linear cruise → expo-out decel. Never linear overall. */
+function travelEase(t: number): number {
+  // Distance fractions allotted to each phase (accel covers 10%, cruise 70%, decel 20% of path)
+  const A = 0.1, C = 0.8;
+  if (t < ACCEL_END) {
+    const k = t / ACCEL_END;
+    return A * k * k * k;
+  }
+  if (t < DECEL_START) {
+    const k = (t - ACCEL_END) / (DECEL_START - ACCEL_END);
+    return A + C * k;
+  }
+  const k = (t - DECEL_START) / (1 - DECEL_START);
+  return A + C + (1 - A - C) * (1 - Math.pow(2, -8 * k) * (1 - k));
+}
+
+function edgeDuration(from: string, to: string): number {
+  const e = universe.edges.find(
+    (ed) => (ed.from === from && ed.to === to) || (ed.bidirectional && ed.from === to && ed.to === from),
+  );
+  return e?.durationS ?? 4;
+}
+
+export function CameraDirector() {
+  const camera = useThree((s) => s.camera);
+  const elapsed = useRef(0);
+  const duration = useRef(4);
+  const fromPos = useRef(new THREE.Vector3());
+  const toPos = useRef(new THREE.Vector3());
+  const orbitAngle = useRef(0);
+  const lookTarget = useRef(new THREE.Vector3());
+  const lastPhase = useRef('');
+  const baseFov = useRef(50);
+
+  useFrame((state, delta) => {
+    const j = useJourneyStore.getState();
+    const reducedMotion = useQualityStore.getState().reducedMotion;
+    const t = state.clock.elapsedTime;
+    const cam = camera as THREE.PerspectiveCamera;
+
+    // Phase entry setup
+    if (j.phase !== lastPhase.current) {
+      if (j.phase === 'ACCEL' && j.destination) {
+        elapsed.current = 0;
+        duration.current = reducedMotion ? 0.4 : edgeDuration(j.location, j.destination);
+        fromPos.current.copy(cam.position);
+        const dest = bodyById.get(j.destination)!;
+        const destCenter = bodyWorldPosition(dest);
+        // Arrive at revealFraming distance, offset toward approach direction
+        const approach = fromPos.current.clone().sub(destCenter).normalize();
+        toPos.current.copy(destCenter).addScaledVector(approach, dest.camera.revealFraming.distanceU);
+        toPos.current.y += dest.camera.revealFraming.distanceU * Math.tan(THREE.MathUtils.degToRad(dest.camera.revealFraming.elevationDeg));
+      }
+      if (j.phase === 'ORBIT') {
+        const body = bodyById.get(j.location)!;
+        const center = bodyWorldPosition(body);
+        const rel = cam.position.clone().sub(center);
+        orbitAngle.current = Math.atan2(rel.z, rel.x);
+      }
+      lastPhase.current = j.phase;
+    }
+
+    switch (j.phase) {
+      case 'INTRO': {
+        // Slow push-in toward the forming universe; IntroSequence owns phase timing
+        const r = 1400 - Math.min(t, 12) * 45;
+        cam.position.set(Math.sin(t * 0.02) * r * 0.15, 120, r);
+        lookTarget.current.set(0, 0, 0);
+        break;
+      }
+      case 'ACCEL':
+      case 'CRUISE':
+      case 'DECEL': {
+        elapsed.current += delta;
+        const raw = Math.min(elapsed.current / duration.current, 1);
+        j.setTravelProgress(raw);
+        // FSM checkpoints — legal transitions only
+        if (raw >= ACCEL_END && j.phase === 'ACCEL') j.transition('CRUISE');
+        if (raw >= DECEL_START && j.phase === 'CRUISE') j.transition('DECEL');
+
+        const s = travelEase(raw);
+        cam.position.lerpVectors(fromPos.current, toPos.current, s);
+
+        // FOV widening during accel/cruise — speed sensation (§5.2), off under reduced motion
+        if (!reducedMotion) {
+          const fovBoost = Math.sin(Math.min(raw / DECEL_START, 1) * Math.PI) * 3.5;
+          cam.fov = baseFov.current + fovBoost;
+          cam.updateProjectionMatrix();
+        }
+
+        if (j.destination) lookTarget.current.copy(bodyWorldPosition(bodyById.get(j.destination)!));
+        if (raw >= 1) {
+          cam.fov = baseFov.current;
+          cam.updateProjectionMatrix();
+          j.arrive();
+        }
+        break;
+      }
+      case 'IDLE':
+      case 'ORBIT':
+      case 'FOCUS':
+      case 'REVEAL': {
+        const body = bodyById.get(j.location)!;
+        const center = bodyWorldPosition(body);
+        const dist = body.camera.revealFraming.distanceU;
+        if (!reducedMotion) orbitAngle.current += delta * 0.03; // slow drift orbit
+        const elev = THREE.MathUtils.degToRad(body.camera.revealFraming.elevationDeg);
+        const target = new THREE.Vector3(
+          center.x + Math.cos(orbitAngle.current) * dist * Math.cos(elev),
+          center.y + dist * Math.sin(elev),
+          center.z + Math.sin(orbitAngle.current) * dist * Math.cos(elev),
+        );
+        cam.position.lerp(target, 1 - Math.exp(-2.5 * delta)); // damped follow
+        lookTarget.current.copy(center);
+        break;
+      }
+    }
+
+    // BreathingIdle — additive, always-on layer (§5.1); zero under reduced motion
+    if (!reducedMotion && j.phase !== 'INTRO') {
+      const focal = cam.position.distanceTo(lookTarget.current);
+      const amp = focal * 0.003;
+      cam.position.x += Math.sin(t * 0.31) * amp * delta * 3;
+      cam.position.y += Math.sin(t * 0.23 + 1.7) * amp * delta * 3;
+    }
+
+    cam.lookAt(lookTarget.current);
+  });
+
+  return null;
+}
