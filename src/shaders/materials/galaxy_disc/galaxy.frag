@@ -15,10 +15,11 @@ void main() {
   float rn = r / uOuterRadius; // 0..1
   if (rn > 1.0) discard;
 
-  // Logarithmic spiral bands
+  // Logarithmic spiral bands. Sharpened into narrow arms (rather than fat
+  // lobes) so the disc reads as a spiral galaxy, not a pinwheel.
   float logSpiral = theta - uTwist * log(max(r, 1.0));
-  float armWave = sin(uArms * logSpiral);
-  float arms = smoothstep(0.15, 0.85, armWave * 0.5 + 0.5);
+  float armWave = sin(uArms * logSpiral) * 0.5 + 0.5;
+  float arms = pow(smoothstep(0.28, 0.92, armWave), 1.3);
 
   // Dust lanes: independent fbm, darkens unevenly along/between arms
   vec3 dustP = vec3(vPosL.x * 0.00045, vPosL.y * 0.02, vPosL.z * 0.00045);

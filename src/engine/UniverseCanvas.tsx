@@ -56,16 +56,22 @@ export function UniverseCanvas() {
     >
       <CameraDirector />
       <ambientLight intensity={0.03} />
-      {/* The sun is the sole key light of the system */}
-      <pointLight position={[0, 0, 0]} intensity={2.2} distance={0} decay={0.35} color="#ffd9a0" />
       <Starfield />
       <DeepSpace />
-      <CentralStar />
-      <ImpostorField />
-      <RingSystem />
-      <OrbitalTraffic />
-      <ForegroundSilhouettes />
       <HeroGalaxy />
+      {/*
+        Galaxy-hero reframe: the sun + solar-system foreground are unmounted so
+        the spiral galaxy owns the frame (see the reference plate). The code and
+        content are all still in place — re-enable this block to restore the
+        interactive solar-system journey.
+
+        <pointLight position={[0, 0, 0]} intensity={2.2} distance={0} decay={0.35} color="#ffd9a0" />
+        <CentralStar />
+        <ImpostorField />
+        <RingSystem />
+        <OrbitalTraffic />
+        <ForegroundSilhouettes />
+      */}
       <CinematicEffects />
     </Canvas>
   );

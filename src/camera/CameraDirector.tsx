@@ -7,7 +7,7 @@ import { useJourneyStore } from '@/state/journeyStore';
 import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
-import { GALAXY_CENTER, GALAXY_TILT } from '@/world/galaxy/HeroGalaxy';
+import { GALAXY_CAM_POS, GALAXY_LOOK } from '@/world/galaxy/HeroGalaxy';
 
 
 /**
@@ -102,11 +102,13 @@ export function CameraDirector() {
 
     switch (j.phase) {
       case 'INTRO': {
-        // Slow push-in toward the forming universe; IntroSequence owns phase timing
-        const r = 1400 - Math.min(t, 12) * 45;
-        cam.position.set(Math.sin(t * 0.02) * r * 0.15 - r * 0.1, 150, r);
-        // The forming star sits low-left of frame, not passport-centered
-        lookTarget.current.set(120, -60, 0);
+        // Cinematic push into the galaxy hero pose while the disc forms.
+        // Starts farther out and slightly off-axis, eases to the resting vantage.
+        const p = Math.min(t / 12, 1);
+        const ease = 1 - Math.pow(1 - p, 3);
+        const startPos = GALAXY_CAM_POS.clone().add(new THREE.Vector3(-7000, -2400, 16000));
+        cam.position.lerpVectors(startPos, GALAXY_CAM_POS, ease);
+        lookTarget.current.copy(GALAXY_LOOK);
         break;
       }
       case 'ACCEL':
@@ -137,7 +139,19 @@ export function CameraDirector() {
         }
         break;
       }
-      case 'IDLE':
+      case 'IDLE': {
+        // Galaxy hero rest — hold the vantage with a very slow orbital drift so
+        // the disc feels alive without the camera ever wandering off-frame.
+        const center = GALAXY_LOOK;
+        if (!reducedMotion) orbitAngle.current += delta * 0.008;
+        const offset = GALAXY_CAM_POS.clone()
+          .sub(center)
+          .applyAxisAngle(new THREE.Vector3(0, 1, 0), orbitAngle.current);
+        const target = center.clone().add(offset);
+        cam.position.lerp(target, 1 - Math.exp(-1.5 * delta));
+        lookTarget.current.copy(center);
+        break;
+      }
       case 'ORBIT':
       case 'FOCUS':
       case 'REVEAL': {

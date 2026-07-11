@@ -24,18 +24,34 @@ import { useUiStore } from '@/state/uiStore';
  */
 
 const OUTER_RADIUS = 24000;
-const ARMS = 2.2;
-const TWIST = 0.62;
+// ARMS must be an integer: the spiral pattern wraps across the atan() angle
+// seam at the -x axis, and only an integer arm count stays continuous there
+// (a fractional count leaves a hard bright seam line through the disc).
+const ARMS = 2.0;
+// Higher twist = tighter logarithmic wrap. 0.62 barely curled (two lobes);
+// ~2.6 gives arms that sweep more than a full turn like a real spiral.
+const TWIST = 2.6;
 
 // Galaxy world placement — tilted ~28° like the reference, positioned so
 // it dominates frame per the intro camera's fixed approach vector, and
 // off-center per rule of thirds (never perfectly centered on the origin axis).
 export const GALAXY_CENTER = new THREE.Vector3(9000, 3800, -46000);
 export const GALAXY_TILT = new THREE.Euler(
-  THREE.MathUtils.degToRad(58),
-  THREE.MathUtils.degToRad(18),
-  THREE.MathUtils.degToRad(-12),
+  THREE.MathUtils.degToRad(38),
+  THREE.MathUtils.degToRad(22),
+  THREE.MathUtils.degToRad(-14),
 );
+
+// Hero camera framing — a fixed cinematic vantage that frames the inclined
+// disc off-center like the reference plate. INTRO eases into this pose while
+// the disc forms; IDLE holds it with a slow drift. Distance ≈ 2.15× the outer
+// radius fills the frame at fov 50 with a little breathing room.
+const GALAXY_VIEW_DIR = new THREE.Vector3(0.06, 0.2, 1).normalize();
+export const GALAXY_CAM_POS = GALAXY_CENTER.clone().addScaledVector(
+  GALAXY_VIEW_DIR,
+  OUTER_RADIUS * 3.0,
+);
+export const GALAXY_LOOK = GALAXY_CENTER.clone();
 
 function mulberry32(a: number) {
   return () => {
@@ -58,6 +74,15 @@ function spiralDensity(r: number, theta: number): number {
 
 function GalaxyDisc() {
   const matRef = useRef<THREE.ShaderMaterial>(null);
+  // The disc must lie in the XZ plane: the fragment shader derives radius/angle
+  // from vPosL.xz and the star layer is placed in XZ too. A raw circleGeometry
+  // sits in XY (z=0), which collapses the spiral into vertical bands — so bake
+  // a -90° X rotation into the geometry to align all three.
+  const geometry = useMemo(() => {
+    const g = new THREE.CircleGeometry(OUTER_RADIUS, 256);
+    g.rotateX(-Math.PI / 2);
+    return g;
+  }, []);
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -87,8 +112,7 @@ function GalaxyDisc() {
   });
 
   return (
-    <mesh position={GALAXY_CENTER} rotation={GALAXY_TILT}>
-      <circleGeometry args={[OUTER_RADIUS, 128]} />
+    <mesh position={GALAXY_CENTER} rotation={GALAXY_TILT} geometry={geometry}>
       <primitive object={material} ref={matRef} attach="material" />
     </mesh>
   );

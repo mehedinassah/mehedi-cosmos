@@ -1,34 +1,25 @@
 'use client';
 
-import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, GodRays, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
-import { BlendFunction, KernelSize } from 'postprocessing';
+import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
+import { BlendFunction } from 'postprocessing';
 import { useQualityStore } from '@/state/qualityStore';
-import { useSunRefStore } from '@/state/sunRefStore';
 
 /**
  * Cinematic post pipeline. Every pass is restrained by design — nothing
- * announces itself. Bloom catches only true light sources (sun, corona,
- * city lights, star cores). GodRays anchor to the sun mesh once mounted.
- * Color grade nudges toward navy/gold, away from neutral-gray render default.
+ * announces itself. Bloom catches only true light sources (galaxy core,
+ * arm clusters, bright stars). Color grade nudges toward navy/gold, away
+ * from the neutral-gray render default.
+ *
+ * NOTE: the sun-anchored GodRays pass was removed with the galaxy-hero
+ * reframe (the sun is no longer in-frame). Restore it from git history if
+ * the solar-system journey is brought back.
  */
 export function CinematicEffects() {
   const postEnabled = useQualityStore((s) => s.postEnabled);
-  const sunMesh = useSunRefStore((s) => s.mesh);
-  if (!postEnabled || !sunMesh) return null;
+  if (!postEnabled) return null;
 
   return (
     <EffectComposer multisampling={0}>
-      <GodRays
-        sun={sunMesh}
-        samples={40}
-        density={0.92}
-        decay={0.94}
-        weight={0.35}
-        exposure={0.28}
-        clampMax={0.9}
-        blur
-        kernelSize={KernelSize.SMALL}
-      />
       <Bloom
         intensity={0.62}
         luminanceThreshold={0.78}

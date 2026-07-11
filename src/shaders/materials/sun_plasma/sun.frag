@@ -16,14 +16,14 @@ void main() {
   float plasma = mix(macro, granulation, 0.4);
 
   // Active regions: brighter knotted patches that hint at magnetic structure
-  float active = smoothstep(0.66, 0.92, fbm(p * 5.5 - vec3(uTime * 0.01)));
+  float activity = smoothstep(0.66, 0.92, fbm(p * 5.5 - vec3(uTime * 0.01)));
 
   vec3 core  = vec3(1.00, 0.90, 0.68);
   vec3 mid   = vec3(0.99, 0.66, 0.30);
   vec3 deep  = vec3(0.62, 0.24, 0.07);
   vec3 col = mix(deep, mid, smoothstep(0.25, 0.6, plasma));
   col = mix(col, core, smoothstep(0.6, 0.9, plasma));
-  col += vec3(1.0, 0.85, 0.5) * active * 0.5;
+  col += vec3(1.0, 0.85, 0.5) * activity * 0.5;
 
   // Limb darkening — photosphere is optically thinner at the edge, so it's
   // actually DARKER at grazing angles (the physically correct opposite of
