@@ -37,7 +37,10 @@ export function UniverseCanvas() {
       }}
       dpr={Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, dprClamp) * resolutionScale}
       camera={{ fov: 50, near: 1, far: 120000, position: [0, 120, 1400] }}
-      onCreated={({ gl }) => gl.setClearColor('#020207')}
+      onCreated={({ gl }) => {
+        gl.setClearColor('#010104');
+        gl.toneMappingExposure = 1.18;
+      }}
     >
       <CameraDirector />
       <ambientLight intensity={0.03} />

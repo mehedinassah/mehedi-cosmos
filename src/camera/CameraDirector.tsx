@@ -89,8 +89,9 @@ export function CameraDirector() {
       case 'INTRO': {
         // Slow push-in toward the forming universe; IntroSequence owns phase timing
         const r = 1400 - Math.min(t, 12) * 45;
-        cam.position.set(Math.sin(t * 0.02) * r * 0.15, 120, r);
-        lookTarget.current.set(0, 0, 0);
+        cam.position.set(Math.sin(t * 0.02) * r * 0.15 - r * 0.1, 150, r);
+        // The forming star sits low-left of frame, not passport-centered
+        lookTarget.current.set(120, -60, 0);
         break;
       }
       case 'ACCEL':
@@ -136,7 +137,10 @@ export function CameraDirector() {
           center.z + Math.sin(orbitAngle.current) * dist * Math.cos(elev),
         );
         cam.position.lerp(target, 1 - Math.exp(-2.5 * delta)); // damped follow
-        lookTarget.current.copy(center);
+        // Rule-of-thirds framing: shift the gaze so the body sits off-center
+        const fwd = center.clone().sub(cam.position).normalize();
+        const right = new THREE.Vector3().crossVectors(fwd, cam.up).normalize();
+        lookTarget.current.copy(center).addScaledVector(right, dist * 0.14).addScaledVector(cam.up, dist * 0.05);
         break;
       }
     }

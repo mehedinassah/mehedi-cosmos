@@ -1,6 +1,6 @@
 'use client';
 
-import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, BrightnessContrast, HueSaturation } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 import { useQualityStore } from '@/state/qualityStore';
 
@@ -15,7 +15,7 @@ export function CinematicEffects() {
   if (!postEnabled) return null;
 
   return (
-    <EffectComposer multisampling={0}>
+    <EffectComposer multisampling={4}>
       <Bloom
         intensity={0.85}
         luminanceThreshold={0.72}
@@ -25,6 +25,8 @@ export function CinematicEffects() {
       />
       <ChromaticAberration offset={[0.00045, 0.00045]} radialModulation modulationOffset={0.6} />
       <Noise premultiply blendFunction={BlendFunction.SCREEN} opacity={0.045} />
+      <BrightnessContrast brightness={0.015} contrast={0.08} />
+      <HueSaturation saturation={-0.05} />
       <Vignette eskil={false} offset={0.22} darkness={0.62} />
     </EffectComposer>
   );

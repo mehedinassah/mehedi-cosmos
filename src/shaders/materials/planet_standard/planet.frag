@@ -27,8 +27,16 @@ void main() {
   float detail = fbm(sp * 14.0 + uSeed * 7.1);
   float micro = vnoise(sp * 42.0 + uSeed);
 
-  vec3 surf = mix(uDeep, uMid, smoothstep(0.34, 0.55, h));
+  // Ocean depth gradient: shallows brighten toward coasts
+  vec3 ocean3 = mix(uDeep * 0.45, uDeep * 1.15, smoothstep(0.12, 0.34, h));
+  vec3 surf = mix(ocean3, uMid, smoothstep(0.34, 0.55, h));
   surf = mix(surf, uHigh, smoothstep(0.62, 0.84, h));
+  // Climate zones: polar ice caps with noisy, terrain-following edges
+  float lat = abs(sp.y);
+  float ice = smoothstep(0.72, 0.88, lat + (h - 0.5) * 0.25 + (detail - 0.5) * 0.1);
+  surf = mix(surf, vec3(0.93, 0.95, 0.98), ice);
+  // Equatorial warming: subtle saturation lift near the equator
+  surf *= 1.0 + (1.0 - lat) * 0.06;
   surf *= 0.78 + 0.32 * detail + 0.12 * micro; // macro + micro relief
 
   vec3 L = normalize(uSunPos - vPosW);
@@ -40,7 +48,9 @@ void main() {
   float ocean = 1.0 - smoothstep(0.30, 0.38, h);
   float spec = pow(max(dot(reflect(-L, normalize(vNormalW)), V), 0.0), 48.0) * ocean;
 
-  vec3 col = surf * (0.016 + day * 1.1) + vec3(1.0, 0.94, 0.82) * spec * 0.35 * day;
+  // Earthshine: the atmosphere faintly lights the night side — never dead black
+  vec3 nightAmbient = surf * uAtmo * 0.10 * (1.0 - day);
+  vec3 col = surf * (0.016 + day * 1.1) + nightAmbient + vec3(1.0, 0.94, 0.82) * spec * 0.35 * day;
 
   // Cloud shadows: same field as the cloud shell, projected onto the surface
   if (uCloudCover > 0.0) {
@@ -54,8 +64,12 @@ void main() {
     col += vec3(1.0, 0.82, 0.55) * cities * (1.0 - day) * uNight * 1.4; // bloom-gated glow
   }
 
-  float fres = pow(1.0 - max(dot(normalize(vNormalW), V), 0.0), 3.2);
+  // Horizon haze: air whitens the surface itself near the limb
+  float ndv = max(dot(normalize(vNormalW), V), 0.0);
+  float fres = pow(1.0 - ndv, 3.2);
+  float haze = pow(1.0 - ndv, 6.0);
   col += uAtmo * fres * (0.12 + 0.85 * day);
+  col = mix(col, uAtmo * (0.2 + 0.9 * day), haze * 0.35 * uCloudCover);
 
   gl_FragColor = vec4(col, 1.0);
 }

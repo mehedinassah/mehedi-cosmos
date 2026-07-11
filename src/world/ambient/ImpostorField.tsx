@@ -16,6 +16,8 @@ import atmoVert from '@/shaders/materials/atmosphere/atmo.vert';
 import atmoFrag from '@/shaders/materials/atmosphere/atmo.frag';
 import cloudsVert from '@/shaders/materials/clouds/clouds.vert';
 import cloudsFrag from '@/shaders/materials/clouds/clouds.frag';
+import ringsVert from '@/shaders/materials/rings/rings.vert';
+import ringsFrag from '@/shaders/materials/rings/rings.frag';
 
 /**
  * WARM-state bodies — cinematic upgrade of the COLD impostors.
@@ -248,11 +250,42 @@ function PlanetBody({ body, seed }: { body: CelestialBody; seed: number }) {
         <primitive object={atmosphere} attach="material" />
       </mesh>
       <ScaleSatellites radius={body.scaleU} count={body.kind === 'planet' ? 3 : 1} seed={seed * 3 + 1} />
+      {body.id === 'planet.perico' && <PlanetRing body={body} seed={seed} />}
     </>
   );
 }
 
 /** Black hole placeholder: pure void + warm accretion rim. Lensing shader in World Rendering. */
+/** Planetary ring — the scale device. Banded, sun-lit, planet-shadowed. */
+function PlanetRing({ body, seed }: { body: CelestialBody; seed: number }) {
+  const material = useMemo(() => {
+    const inner = body.scaleU * 1.5;
+    const outer = body.scaleU * 2.6;
+    return new THREE.ShaderMaterial({
+      vertexShader: ringsVert,
+      fragmentShader: assembleShader(ringsFrag, { OCTAVES: 3 }),
+      uniforms: {
+        uSunPos: { value: new THREE.Vector3(0, 0, 0) },
+        uPlanetPos: { value: bodyWorldPosition(body) },
+        uPlanetR: { value: body.scaleU },
+        uInnerR: { value: inner },
+        uOuterR: { value: outer },
+        uSeed: { value: seed * 17.3 },
+      },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+  }, [body, seed]);
+
+  return (
+    <mesh rotation={[Math.PI / 2 + 0.12, 0, 0.18]}>
+      <ringGeometry args={[body.scaleU * 1.5, body.scaleU * 2.6, 180, 4]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+}
+
 function VoidBody({ body }: { body: CelestialBody }) {
   const ringRef = useRef<THREE.Mesh>(null);
   useFrame((state, delta) => {
