@@ -9,6 +9,7 @@ import { ImpostorField } from '@/world/ambient/ImpostorField';
 import { PlanetaryRing } from '@/world/ambient/PlanetaryRing';
 import { OrbitalTraffic } from '@/world/ambient/OrbitalTraffic';
 import { ForegroundSilhouettes } from '@/world/ambient/ForegroundSilhouettes';
+import { HeroGalaxy } from '@/world/galaxy/HeroGalaxy';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
 import { bodyById } from '@/content/universe';
 import { CentralStar } from '@/world/sun/CentralStar';
@@ -64,6 +65,7 @@ export function UniverseCanvas() {
       <RingSystem />
       <OrbitalTraffic />
       <ForegroundSilhouettes />
+      <HeroGalaxy />
       <CinematicEffects />
     </Canvas>
   );

@@ -30,8 +30,8 @@ export function CinematicEffects() {
         kernelSize={KernelSize.SMALL}
       />
       <Bloom
-        intensity={0.9}
-        luminanceThreshold={0.72}
+        intensity={0.62}
+        luminanceThreshold={0.78}
         luminanceSmoothing={0.28}
         mipmapBlur
         radius={0.74}

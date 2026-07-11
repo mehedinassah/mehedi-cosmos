@@ -7,6 +7,8 @@ import { useJourneyStore } from '@/state/journeyStore';
 import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
+import { GALAXY_CENTER, GALAXY_TILT } from '@/world/galaxy/HeroGalaxy';
+
 
 /**
  * CameraDirector — blueprint §5. Foundation build.
