@@ -19,6 +19,17 @@ import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
  * There is NO other writer of camera transforms in the app.
  */
 
+function hashOffset(id: string): [number, number] {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  const ux = ((h >>> 0) % 100) / 100; // 0..1
+  const uy = ((h >>> 8) % 100) / 100;
+  // Map to rule-of-thirds quadrants, biased away from dead center, never 0.5/0.5
+  const qx = ux < 0.5 ? 0.30 + ux * 0.16 : 0.70 - (ux - 0.5) * 0.16; // ~left or right third
+  const qy = uy < 0.5 ? 0.32 + uy * 0.12 : 0.68 - (uy - 0.5) * 0.12; // ~upper or lower third
+  return [qx, qy];
+}
+
 const ACCEL_END = 0.2;
 const DECEL_START = 0.8;
 
@@ -56,6 +67,8 @@ export function CameraDirector() {
   const currentLook = useRef(new THREE.Vector3());
   const lastPhase = useRef('');
   const baseFov = useRef(50);
+  const size = useThree((s) => s.size);
+  const gl = useThree((s) => s.gl);
 
   useFrame((state, delta) => {
     const j = useJourneyStore.getState();
@@ -156,6 +169,23 @@ export function CameraDirector() {
     // Look-lag: the gaze trails the intent — drone weight, never a rigid rig
     currentLook.current.lerp(lookTarget.current, 1 - Math.exp(-3.2 * delta));
     cam.lookAt(currentLook.current);
+
+    // Rule of thirds: shift the frustum so the subject composes off-center
+    // (setViewOffset — the subject stays correctly tracked/lit, only the
+    // framing shifts). Never dead-center on arrival. Cleared mid-travel.
+    const w = size.width || gl.domElement.width || 1920;
+    const h = size.height || gl.domElement.height || 1080;
+    if ((j.phase === 'ORBIT' || j.phase === 'FOCUS' || j.phase === 'REVEAL') && j.location !== 'sun') {
+      const [qx, qy] = hashOffset(j.location);
+      // setViewOffset(fullW, fullH, offsetX, offsetY, windowW, windowH):
+      // shifting the window off the full-frame center pushes the subject
+      // toward the opposite third.
+      const shiftX = (qx - 0.5) * w * 0.5;
+      const shiftY = (qy - 0.5) * h * 0.5;
+      cam.setViewOffset(w, h, shiftX, shiftY, w, h);
+    } else {
+      cam.clearViewOffset();
+    }
   });
 
   return null;

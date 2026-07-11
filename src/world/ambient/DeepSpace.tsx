@@ -77,7 +77,7 @@ export function DeepSpace() {
     const q = new THREE.Quaternion().setFromEuler(MILKY_TILT);
     return buildCloud(
       {
-        count: Math.floor(9000 * particleScale) || 400,
+        count: Math.floor(13000 * particleScale) || 600,
         wobble: 0,
         place: (rng) => {
           const r = 30000 + rng() * 28000;
@@ -86,7 +86,7 @@ export function DeepSpace() {
           const v = new THREE.Vector3(Math.cos(a) * r, thick, Math.sin(a) * r).applyQuaternion(q);
           return [v.x, v.y, v.z];
         },
-        size: (rng) => 6 + rng() * 16,
+        size: (rng) => 8 + rng() * 22,
         color: (rng) => {
           const t = rng();
           return t < 0.6 ? [1.0, 0.95, 0.86] : t < 0.85 ? [0.8, 0.86, 1.0] : [1.0, 0.8, 0.66];
@@ -125,10 +125,10 @@ export function DeepSpace() {
     () =>
       buildCloud(
         {
-          count: 26,
+          count: 38,
           wobble: 0,
           place: (rng) => {
-            const r = 40000 + rng() * 16000;
+            const r = 18000 + rng() * 26000; // pulled closer — some now read as frame-filling
             const theta = rng() * Math.PI * 2;
             const phi = Math.acos(2 * rng() - 1);
             return [
@@ -137,10 +137,10 @@ export function DeepSpace() {
               r * Math.sin(phi) * Math.sin(theta),
             ];
           },
-          size: (rng) => 3200 + rng() * 5200,
+          size: (rng) => 3800 + rng() * 9500, // hero nebulae, up from 3200-8400
           color: (rng) => {
             const t = rng();
-            return t < 0.4 ? [0.1, 0.05, 0.09] : t < 0.7 ? [0.05, 0.08, 0.1] : [0.1, 0.07, 0.05];
+            return t < 0.4 ? [0.22, 0.08, 0.16] : t < 0.7 ? [0.07, 0.13, 0.2] : [0.22, 0.12, 0.06];
           },
         },
         23,
@@ -181,10 +181,10 @@ export function DeepSpace() {
     () =>
       buildCloud(
         {
-          count: Math.floor(1600 * particleScale) || 100,
-          wobble: 40,
+          count: Math.floor(3400 * particleScale) || 150,
+          wobble: 55,
           place: (rng) => {
-            const r = 600 + rng() * 7500;
+            const r = 250 + rng() * 5200; // closer-biased — stronger foreground depth cue
             const theta = rng() * Math.PI * 2;
             const phi = Math.acos(2 * rng() - 1);
             return [

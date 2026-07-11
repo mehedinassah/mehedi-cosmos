@@ -6,6 +6,10 @@ import * as THREE from 'three';
 import { Starfield } from '@/world/ambient/Starfield';
 import { DeepSpace } from '@/world/ambient/DeepSpace';
 import { ImpostorField } from '@/world/ambient/ImpostorField';
+import { PlanetaryRing } from '@/world/ambient/PlanetaryRing';
+import { OrbitalTraffic } from '@/world/ambient/OrbitalTraffic';
+import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
+import { bodyById } from '@/content/universe';
 import { CentralStar } from '@/world/sun/CentralStar';
 import { CameraDirector } from '@/camera/CameraDirector';
 import { CinematicEffects } from '@/engine/CinematicEffects';
@@ -16,6 +20,12 @@ import { useQualityStore } from '@/state/qualityStore';
  * The single persistent Canvas — blueprint §3.1. The page never changes;
  * this canvas IS the site.
  */
+function RingSystem() {
+  const host = bodyById.get('planet.perico')!;
+  const center = bodyWorldPosition(host);
+  return <PlanetaryRing center={center} radius={host.scaleU} tiltDeg={24} tint="#c9b48f" />;
+}
+
 export function UniverseCanvas() {
   const dprClamp = useQualityStore((s) => s.dprClamp);
   const resolutionScale = useQualityStore((s) => s.resolutionScale);
@@ -50,6 +60,8 @@ export function UniverseCanvas() {
       <DeepSpace />
       <CentralStar />
       <ImpostorField />
+      <RingSystem />
+      <OrbitalTraffic />
       <CinematicEffects />
     </Canvas>
   );
