@@ -14,6 +14,8 @@ import planetVert from '@/shaders/materials/planet_standard/planet.vert';
 import planetFrag from '@/shaders/materials/planet_standard/planet.frag';
 import atmoVert from '@/shaders/materials/atmosphere/atmo.vert';
 import atmoFrag from '@/shaders/materials/atmosphere/atmo.frag';
+import cloudsVert from '@/shaders/materials/clouds/clouds.vert';
+import cloudsFrag from '@/shaders/materials/clouds/clouds.frag';
 
 /**
  * WARM-state bodies — cinematic upgrade of the COLD impostors.
@@ -39,20 +41,20 @@ export function bodyWorldPosition(b: CelestialBody): THREE.Vector3 {
 /** Muted palettes per visual.paletteRef — scientific realism, never neon. */
 const PALETTES: Record<
   string,
-  { deep: string; mid: string; high: string; atmo: string; night: number }
+  { deep: string; mid: string; high: string; atmo: string; night: number; clouds: number }
 > = {
-  'terrestrial-warm': { deep: '#1b3a52', mid: '#5d6b46', high: '#c9c4b4', atmo: '#6fa8dc', night: 0.25 },
-  'industrial-steel': { deep: '#2a2d33', mid: '#565b63', high: '#9aa0a8', atmo: '#8fa5c0', night: 1.0 },
-  'commercial-glass': { deep: '#24384a', mid: '#5f7285', high: '#b9c4cf', atmo: '#a7c4e2', night: 0.8 },
-  'fog-violet': { deep: '#241f30', mid: '#453c58', high: '#8d84a3', atmo: '#9b8fc0', night: 0.1 },
-  'lab-cyan-muted': { deep: '#16303a', mid: '#3d6570', high: '#a4c3c9', atmo: '#7fc0cc', night: 0.6 },
-  'satellite-white': { deep: '#3a3d42', mid: '#7d8188', high: '#d5d8dc', atmo: '#b9c2cf', night: 0.3 },
-  'station-steel': { deep: '#32302c', mid: '#6b665c', high: '#b3ab9c', atmo: '#c0b49a', night: 0.9 },
-  'observatory-dark': { deep: '#1d2733', mid: '#41566b', high: '#9db4c9', atmo: '#7d9cc0', night: 0.4 },
-  'fleet-graphite': { deep: '#26282c', mid: '#54585f', high: '#a2a7ae', atmo: '#8f99a8', night: 0.5 },
-  starlight: { deep: '#2c3444', mid: '#6a7690', high: '#cdd6ea', atmo: '#aebadb', night: 0 },
-  'nebula-rose-teal': { deep: '#2c2030', mid: '#5c4258', high: '#a98ca0', atmo: '#b58fa6', night: 0 },
-  void: { deep: '#050507', mid: '#0a0a0f', high: '#131318', atmo: '#c98a4f', night: 0 },
+  'terrestrial-warm': { deep: '#1b3a52', mid: '#5d6b46', high: '#c9c4b4', atmo: '#6fa8dc', clouds: 0.85, night: 0.25 },
+  'industrial-steel': { deep: '#2a2d33', mid: '#565b63', high: '#9aa0a8', atmo: '#8fa5c0', clouds: 0.35, night: 1.0 },
+  'commercial-glass': { deep: '#24384a', mid: '#5f7285', high: '#b9c4cf', atmo: '#a7c4e2', clouds: 0.6, night: 0.8 },
+  'fog-violet': { deep: '#241f30', mid: '#453c58', high: '#8d84a3', atmo: '#9b8fc0', clouds: 1.0, night: 0.1 },
+  'lab-cyan-muted': { deep: '#16303a', mid: '#3d6570', high: '#a4c3c9', atmo: '#7fc0cc', clouds: 0.5, night: 0.6 },
+  'satellite-white': { deep: '#3a3d42', mid: '#7d8188', high: '#d5d8dc', atmo: '#b9c2cf', clouds: 0.0, night: 0.3 },
+  'station-steel': { deep: '#32302c', mid: '#6b665c', high: '#b3ab9c', atmo: '#c0b49a', clouds: 0.15, night: 0.9 },
+  'observatory-dark': { deep: '#1d2733', mid: '#41566b', high: '#9db4c9', atmo: '#7d9cc0', clouds: 0.45, night: 0.4 },
+  'fleet-graphite': { deep: '#26282c', mid: '#54585f', high: '#a2a7ae', atmo: '#8f99a8', clouds: 0.2, night: 0.5 },
+  starlight: { deep: '#2c3444', mid: '#6a7690', high: '#cdd6ea', atmo: '#aebadb', clouds: 0.0, night: 0 },
+  'nebula-rose-teal': { deep: '#2c2030', mid: '#5c4258', high: '#a98ca0', atmo: '#b58fa6', clouds: 0.0, night: 0 },
+  void: { deep: '#050507', mid: '#0a0a0f', high: '#131318', atmo: '#c98a4f', clouds: 0.0, night: 0 },
 };
 
 function usePlanetMaterials(body: CelestialBody, seed: number) {
@@ -65,7 +67,7 @@ function usePlanetMaterials(body: CelestialBody, seed: number) {
       uCameraPos: { value: new THREE.Vector3() },
     };
     const surface = new THREE.ShaderMaterial({
-      vertexShader: planetVert,
+      vertexShader: assembleShader(planetVert, { OCTAVES: Math.min(octaves, 4) }),
       fragmentShader: assembleShader(planetFrag, { OCTAVES: octaves }),
       uniforms: {
         ...shared,
@@ -76,6 +78,7 @@ function usePlanetMaterials(body: CelestialBody, seed: number) {
         uHigh: { value: new THREE.Color(p.high) },
         uAtmo: { value: new THREE.Color(p.atmo) },
         uNight: { value: p.night },
+        uCloudCover: { value: p.clouds },
       },
     });
     const atmosphere = new THREE.ShaderMaterial({
@@ -91,7 +94,20 @@ function usePlanetMaterials(body: CelestialBody, seed: number) {
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    return { surface, atmosphere };
+    const clouds = new THREE.ShaderMaterial({
+      vertexShader: cloudsVert,
+      fragmentShader: assembleShader(cloudsFrag, { OCTAVES: Math.min(octaves, 4) }),
+      uniforms: {
+        uTime: { value: 0 },
+        uSeed: { value: seed },
+        uCloudCover: { value: p.clouds },
+        uSunPos: { value: new THREE.Vector3(0, 0, 0) },
+        uCameraPos: { value: new THREE.Vector3() },
+      },
+      transparent: true,
+      depthWrite: false,
+    });
+    return { surface, atmosphere, clouds };
   }, [body.visual.paletteRef, seed, tier]);
 }
 
@@ -202,21 +218,30 @@ function ScaleSatellites({ radius, count, seed }: { radius: number; count: numbe
 }
 
 function PlanetBody({ body, seed }: { body: CelestialBody; seed: number }) {
-  const { surface, atmosphere } = usePlanetMaterials(body, seed);
+  const { surface, atmosphere, clouds } = usePlanetMaterials(body, seed);
   const meshRef = useRef<THREE.Mesh>(null);
+  const cloudRef = useRef<THREE.Mesh>(null);
 
   useFrame((state, delta) => {
     if (meshRef.current) meshRef.current.rotation.y += delta * 0.02;
-    surface.uniforms.uTime.value = state.clock.elapsedTime;
+    if (cloudRef.current) cloudRef.current.rotation.y += delta * 0.008; // clouds lag the surface
+    const t = state.clock.elapsedTime;
+    surface.uniforms.uTime.value = t;
+    clouds.uniforms.uTime.value = t;
     surface.uniforms.uCameraPos.value.copy(state.camera.position);
     atmosphere.uniforms.uCameraPos.value.copy(state.camera.position);
+    clouds.uniforms.uCameraPos.value.copy(state.camera.position);
   });
 
   return (
     <>
       <mesh ref={meshRef}>
-        <sphereGeometry args={[body.scaleU, 64, 64]} />
+        <sphereGeometry args={[body.scaleU, 128, 128]} />
         <primitive object={surface} attach="material" />
+      </mesh>
+      <mesh ref={cloudRef} scale={1.018}>
+        <sphereGeometry args={[body.scaleU, 64, 64]} />
+        <primitive object={clouds} attach="material" />
       </mesh>
       <mesh scale={1.06}>
         <sphereGeometry args={[body.scaleU, 48, 48]} />

@@ -148,6 +148,34 @@ export function DeepSpace() {
     [],
   );
 
+  // Tiny distant galaxies: pale smudges beyond the stars — the deepest layer
+  const galaxiesGeo = useMemo(
+    () =>
+      buildCloud(
+        {
+          count: 70,
+          wobble: 0,
+          place: (rng) => {
+            const r = 52000 + rng() * 9000;
+            const theta = rng() * Math.PI * 2;
+            const phi = Math.acos(2 * rng() - 1);
+            return [
+              r * Math.sin(phi) * Math.cos(theta),
+              r * Math.cos(phi) * 0.85,
+              r * Math.sin(phi) * Math.sin(theta),
+            ];
+          },
+          size: (rng) => 90 + rng() * 260,
+          color: (rng) => {
+            const t = rng();
+            return t < 0.5 ? [0.16, 0.17, 0.22] : t < 0.8 ? [0.2, 0.16, 0.15] : [0.14, 0.17, 0.21];
+          },
+        },
+        41,
+      ),
+    [],
+  );
+
   // Foreground dust: near-field motes that drift — depth cue during travel
   const dustGeo = useMemo(
     () =>
@@ -176,8 +204,9 @@ export function DeepSpace() {
   const milkyMat = useCloudMaterial(0);
   const hazeMat = useCloudMaterial(0);
   const nebulaMat = useCloudMaterial(0);
+  const galaxiesMat = useCloudMaterial(0);
   const dustMat = useCloudMaterial(40);
-  mats.current = [milkyMat, hazeMat, nebulaMat, dustMat];
+  mats.current = [milkyMat, hazeMat, nebulaMat, galaxiesMat, dustMat];
 
   useFrame((state, delta) => {
     const phase = useUiStore.getState().introPhase;
@@ -198,6 +227,9 @@ export function DeepSpace() {
       </points>
       <points frustumCulled={false} geometry={nebulaGeo}>
         <primitive object={nebulaMat} attach="material" />
+      </points>
+      <points frustumCulled={false} geometry={galaxiesGeo}>
+        <primitive object={galaxiesMat} attach="material" />
       </points>
       <points frustumCulled={false} geometry={dustGeo}>
         <primitive object={dustMat} attach="material" />

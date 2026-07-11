@@ -8,6 +8,7 @@ import { DeepSpace } from '@/world/ambient/DeepSpace';
 import { ImpostorField } from '@/world/ambient/ImpostorField';
 import { CentralStar } from '@/world/sun/CentralStar';
 import { CameraDirector } from '@/camera/CameraDirector';
+import { CinematicEffects } from '@/engine/CinematicEffects';
 import { probeCapabilities, prefersReducedMotion } from '@/engine/capabilities';
 import { useQualityStore } from '@/state/qualityStore';
 
@@ -46,6 +47,7 @@ export function UniverseCanvas() {
       <DeepSpace />
       <CentralStar />
       <ImpostorField />
+      <CinematicEffects />
     </Canvas>
   );
 }
