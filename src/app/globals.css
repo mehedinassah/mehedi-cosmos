@@ -3,8 +3,9 @@
   --void: #020207;
   --ink: #e8eaf0;
   --ink-dim: #9aa1b0;
-  --holo-bg: rgba(16, 20, 30, 0.55);
-  --holo-border: rgba(200, 214, 240, 0.18);
+  --holo-bg: rgba(140, 155, 185, 0.10);
+  --holo-border: rgba(220, 230, 250, 0.10);
+  --holo-glow: 0 0 24px rgba(160, 180, 220, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 * { box-sizing: border-box; }
@@ -36,10 +37,11 @@ main { position: fixed; inset: 0; }
   padding: 10px 14px;
   max-width: 260px;
   background: var(--holo-bg);
-  border: 1px solid var(--holo-border);
-  border-radius: 14px;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  border: none;
+  border-radius: 18px;
+  box-shadow: var(--holo-glow);
+  backdrop-filter: blur(28px) saturate(1.5);
+  -webkit-backdrop-filter: blur(28px) saturate(1.5);
   transform: translateY(-8px);
   animation: holo-rise 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -62,11 +64,14 @@ main { position: fixed; inset: 0; }
   gap: 16px;
   padding: 8px 18px;
   background: var(--holo-bg);
-  border: 1px solid var(--holo-border);
+  border: none;
   border-radius: 999px;
-  backdrop-filter: blur(14px);
+  box-shadow: var(--holo-glow);
+  backdrop-filter: blur(28px) saturate(1.5);
+  -webkit-backdrop-filter: blur(28px) saturate(1.5);
   font-size: 12px;
-  letter-spacing: 0.08em;
+  font-weight: 300;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-dim);
 }

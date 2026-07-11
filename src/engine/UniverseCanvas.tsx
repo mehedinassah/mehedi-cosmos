@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Starfield } from '@/world/ambient/Starfield';
+import { DeepSpace } from '@/world/ambient/DeepSpace';
 import { ImpostorField } from '@/world/ambient/ImpostorField';
 import { CentralStar } from '@/world/sun/CentralStar';
 import { CameraDirector } from '@/camera/CameraDirector';
@@ -38,10 +39,11 @@ export function UniverseCanvas() {
       onCreated={({ gl }) => gl.setClearColor('#020207')}
     >
       <CameraDirector />
-      <ambientLight intensity={0.12} />
+      <ambientLight intensity={0.03} />
       {/* The sun is the sole key light of the system */}
       <pointLight position={[0, 0, 0]} intensity={2.2} distance={0} decay={0.35} color="#ffd9a0" />
       <Starfield />
+      <DeepSpace />
       <CentralStar />
       <ImpostorField />
     </Canvas>

@@ -25,6 +25,7 @@ export function Starfield() {
     const size = new Float32Array(count);
     const seed = new Float32Array(count);
     const order = new Float32Array(count);
+    const color = new Float32Array(count * 3);
     const rng = mulberry32(42);
     for (let i = 0; i < count; i++) {
       // Shell distribution: distant sphere with mild galactic-plane bias
@@ -38,12 +39,17 @@ export function Starfield() {
       size[i] = 8 + rng() * 26;
       seed[i] = rng();
       order[i] = rng();
+      const t = rng();
+      if (t < 0.7) color.set([1.0, 0.96, 0.9], i * 3);
+      else if (t < 0.9) color.set([0.78, 0.84, 1.0], i * 3);
+      else color.set([1.0, 0.82, 0.7], i * 3);
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
     g.setAttribute('aTwinkleSeed', new THREE.BufferAttribute(seed, 1));
     g.setAttribute('aIgniteOrder', new THREE.BufferAttribute(order, 1));
+    g.setAttribute('aColor', new THREE.BufferAttribute(color, 3));
     return g;
   }, [particleScale]);
 
@@ -52,7 +58,7 @@ export function Starfield() {
       new THREE.ShaderMaterial({
         vertexShader: starVert,
         fragmentShader: starFrag,
-        uniforms: { uTime: { value: 0 }, uFormation: { value: 0 } },
+        uniforms: { uTime: { value: 0 }, uFormation: { value: 0 }, uWobble: { value: 0 } },
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,

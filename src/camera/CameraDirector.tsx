@@ -53,6 +53,7 @@ export function CameraDirector() {
   const toPos = useRef(new THREE.Vector3());
   const orbitAngle = useRef(0);
   const lookTarget = useRef(new THREE.Vector3());
+  const currentLook = useRef(new THREE.Vector3());
   const lastPhase = useRef('');
   const baseFov = useRef(50);
 
@@ -148,7 +149,9 @@ export function CameraDirector() {
       cam.position.y += Math.sin(t * 0.23 + 1.7) * amp * delta * 3;
     }
 
-    cam.lookAt(lookTarget.current);
+    // Look-lag: the gaze trails the intent — drone weight, never a rigid rig
+    currentLook.current.lerp(lookTarget.current, 1 - Math.exp(-3.2 * delta));
+    cam.lookAt(currentLook.current);
   });
 
   return null;

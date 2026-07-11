@@ -8,15 +8,18 @@ import { universe, bodyById } from '@/content/universe';
 import type { CelestialBody } from '@/content/schema';
 import { useJourneyStore } from '@/state/journeyStore';
 import { useUiStore } from '@/state/uiStore';
+import { useQualityStore } from '@/state/qualityStore';
+import { assembleShader } from '@/shaders/assemble';
+import planetVert from '@/shaders/materials/planet_standard/planet.vert';
+import planetFrag from '@/shaders/materials/planet_standard/planet.frag';
+import atmoVert from '@/shaders/materials/atmosphere/atmo.vert';
+import atmoFrag from '@/shaders/materials/atmosphere/atmo.frag';
 
 /**
- * COLD-state impostors — blueprint §3.2. Every body exists from frame one
- * as a cheap placeholder at its true position; full-fidelity region builds
- * replace these in the World Rendering phase.
- *
- * NOTE(foundation): orbital positions are frozen at `phase` (bodies self-rotate,
- * don't yet revolve). Live revolution requires travel targets that track moving
- * bodies — deferred to Camera System phase per plan.
+ * WARM-state bodies — cinematic upgrade of the COLD impostors.
+ * Sun-lit surfaces with real terminators, atmospheric rim scattering,
+ * scale satellites, per-kind identity. Full per-planet worlds still
+ * arrive in the World Rendering phase; this is the believable baseline.
  */
 
 export function bodyWorldPosition(b: CelestialBody): THREE.Vector3 {
@@ -33,36 +36,93 @@ export function bodyWorldPosition(b: CelestialBody): THREE.Vector3 {
   return origin.add(local);
 }
 
-const KIND_TINT: Record<string, string> = {
-  planet: '#8fa3b8',
-  moon: '#9d93b5',
-  constellation: '#cdd6ea',
-  station: '#a8b0a6',
-  observatory: '#7f8ea3',
-  fleet: '#b0b6bd',
-  nebula: '#b58fa6',
-  blackhole: '#2a2a33',
+/** Muted palettes per visual.paletteRef — scientific realism, never neon. */
+const PALETTES: Record<
+  string,
+  { deep: string; mid: string; high: string; atmo: string; night: number }
+> = {
+  'terrestrial-warm': { deep: '#1b3a52', mid: '#5d6b46', high: '#c9c4b4', atmo: '#6fa8dc', night: 0.25 },
+  'industrial-steel': { deep: '#2a2d33', mid: '#565b63', high: '#9aa0a8', atmo: '#8fa5c0', night: 1.0 },
+  'commercial-glass': { deep: '#24384a', mid: '#5f7285', high: '#b9c4cf', atmo: '#a7c4e2', night: 0.8 },
+  'fog-violet': { deep: '#241f30', mid: '#453c58', high: '#8d84a3', atmo: '#9b8fc0', night: 0.1 },
+  'lab-cyan-muted': { deep: '#16303a', mid: '#3d6570', high: '#a4c3c9', atmo: '#7fc0cc', night: 0.6 },
+  'satellite-white': { deep: '#3a3d42', mid: '#7d8188', high: '#d5d8dc', atmo: '#b9c2cf', night: 0.3 },
+  'station-steel': { deep: '#32302c', mid: '#6b665c', high: '#b3ab9c', atmo: '#c0b49a', night: 0.9 },
+  'observatory-dark': { deep: '#1d2733', mid: '#41566b', high: '#9db4c9', atmo: '#7d9cc0', night: 0.4 },
+  'fleet-graphite': { deep: '#26282c', mid: '#54585f', high: '#a2a7ae', atmo: '#8f99a8', night: 0.5 },
+  starlight: { deep: '#2c3444', mid: '#6a7690', high: '#cdd6ea', atmo: '#aebadb', night: 0 },
+  'nebula-rose-teal': { deep: '#2c2030', mid: '#5c4258', high: '#a98ca0', atmo: '#b58fa6', night: 0 },
+  void: { deep: '#050507', mid: '#0a0a0f', high: '#131318', atmo: '#c98a4f', night: 0 },
 };
 
-function Impostor({ body }: { body: CelestialBody }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+function usePlanetMaterials(body: CelestialBody, seed: number) {
+  const tier = useQualityStore((s) => s.tier);
+  return useMemo(() => {
+    const p = PALETTES[body.visual.paletteRef] ?? PALETTES['fleet-graphite'];
+    const octaves = tier >= 3 ? 5 : tier === 2 ? 4 : 3;
+    const shared = {
+      uSunPos: { value: new THREE.Vector3(0, 0, 0) },
+      uCameraPos: { value: new THREE.Vector3() },
+    };
+    const surface = new THREE.ShaderMaterial({
+      vertexShader: planetVert,
+      fragmentShader: assembleShader(planetFrag, { OCTAVES: octaves }),
+      uniforms: {
+        ...shared,
+        uTime: { value: 0 },
+        uSeed: { value: seed },
+        uDeep: { value: new THREE.Color(p.deep) },
+        uMid: { value: new THREE.Color(p.mid) },
+        uHigh: { value: new THREE.Color(p.high) },
+        uAtmo: { value: new THREE.Color(p.atmo) },
+        uNight: { value: p.night },
+      },
+    });
+    const atmosphere = new THREE.ShaderMaterial({
+      vertexShader: atmoVert,
+      fragmentShader: atmoFrag,
+      uniforms: {
+        uSunPos: { value: new THREE.Vector3(0, 0, 0) },
+        uCameraPos: { value: new THREE.Vector3() },
+        uAtmo: { value: new THREE.Color(p.atmo) },
+      },
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    return { surface, atmosphere };
+  }, [body.visual.paletteRef, seed, tier]);
+}
+
+/** Interaction wrapper: hover glow ring → holo label → click → travel. */
+function Interactive({
+  body,
+  radius,
+  children,
+}: {
+  body: CelestialBody;
+  radius: number;
+  children: React.ReactNode;
+}) {
   const [hovered, setHovered] = useState(false);
-  const position = useMemo(() => bodyWorldPosition(body), [body]);
   const requestTravel = useJourneyStore((s) => s.requestTravel);
   const setHoverTarget = useUiStore((s) => s.setHoverTarget);
+  const ringRef = useRef<THREE.Mesh>(null);
 
-  useFrame((_, delta) => {
-    const m = meshRef.current;
-    if (!m) return;
-    m.rotation.y += delta * 0.05; // everything drifts, nothing is still
-    const mat = m.material as THREE.MeshStandardMaterial;
-    mat.emissiveIntensity = THREE.MathUtils.damp(mat.emissiveIntensity, hovered ? 0.9 : 0.15, 8, delta);
+  useFrame((state, delta) => {
+    const r = ringRef.current;
+    if (!r) return;
+    const mat = r.material as THREE.MeshBasicMaterial;
+    mat.opacity = THREE.MathUtils.damp(mat.opacity, hovered ? 0.35 : 0, 8, delta);
+    r.visible = mat.opacity > 0.01;
+    r.lookAt(state.camera.position);
   });
 
   return (
-    <group position={position}>
+    <group>
+      {/* invisible raycast proxy, oversized for reachability */}
       <mesh
-        ref={meshRef}
         userData={{ bodyId: body.id }}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -80,23 +140,182 @@ function Impostor({ body }: { body: CelestialBody }) {
           requestTravel(body.id);
         }}
       >
-        <sphereGeometry args={[body.scaleU, 24, 24]} />
-        <meshStandardMaterial
-          color={KIND_TINT[body.kind] ?? '#888'}
-          emissive={KIND_TINT[body.kind] ?? '#888'}
-          emissiveIntensity={0.15}
-          roughness={0.85}
-          metalness={0.1}
-        />
+        <sphereGeometry args={[radius * 1.25, 12, 12]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      {/* orbit-reticle hover ring */}
+      <mesh ref={ringRef} visible={false}>
+        <ringGeometry args={[radius * 1.45, radius * 1.5, 64]} />
+        <meshBasicMaterial color="#cdd6ea" transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       {hovered && (
-        <Html center distanceFactor={body.scaleU * 12} style={{ pointerEvents: 'none' }}>
+        <Html center distanceFactor={radius * 14} style={{ pointerEvents: 'none' }}>
           <div className="holo-label">
             <span className="holo-label__name">{body.name}</span>
             <span className="holo-label__meaning">{body.meaning}</span>
           </div>
         </Html>
       )}
+      {children}
+    </group>
+  );
+}
+
+/** Tiny satellites — the scale cue. A world is big because small things orbit it. */
+function ScaleSatellites({ radius, count, seed }: { radius: number; count: number; seed: number }) {
+  const pivots = useRef<THREE.Group[]>([]);
+  const specs = useMemo(() => {
+    const rng = mulberry32(seed);
+    return Array.from({ length: count }, () => ({
+      dist: radius * (1.6 + rng() * 1.2),
+      speed: 0.05 + rng() * 0.12,
+      incl: (rng() - 0.5) * 0.9,
+      phase: rng() * Math.PI * 2,
+      size: radius * (0.012 + rng() * 0.02),
+    }));
+  }, [radius, count, seed]);
+
+  useFrame((_, delta) => {
+    pivots.current.forEach((p, i) => {
+      if (p) p.rotation.y += delta * specs[i].speed;
+    });
+  });
+
+  return (
+    <>
+      {specs.map((s, i) => (
+        <group
+          key={i}
+          ref={(el) => {
+            if (el) pivots.current[i] = el;
+          }}
+          rotation={[s.incl, s.phase, 0]}
+        >
+          <mesh position={[s.dist, 0, 0]}>
+            <sphereGeometry args={[s.size, 8, 8]} />
+            <meshStandardMaterial color="#c8ccd2" roughness={0.4} metalness={0.6} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+function PlanetBody({ body, seed }: { body: CelestialBody; seed: number }) {
+  const { surface, atmosphere } = usePlanetMaterials(body, seed);
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state, delta) => {
+    if (meshRef.current) meshRef.current.rotation.y += delta * 0.02;
+    surface.uniforms.uTime.value = state.clock.elapsedTime;
+    surface.uniforms.uCameraPos.value.copy(state.camera.position);
+    atmosphere.uniforms.uCameraPos.value.copy(state.camera.position);
+  });
+
+  return (
+    <>
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[body.scaleU, 64, 64]} />
+        <primitive object={surface} attach="material" />
+      </mesh>
+      <mesh scale={1.06}>
+        <sphereGeometry args={[body.scaleU, 48, 48]} />
+        <primitive object={atmosphere} attach="material" />
+      </mesh>
+      <ScaleSatellites radius={body.scaleU} count={body.kind === 'planet' ? 3 : 1} seed={seed * 3 + 1} />
+    </>
+  );
+}
+
+/** Black hole placeholder: pure void + warm accretion rim. Lensing shader in World Rendering. */
+function VoidBody({ body }: { body: CelestialBody }) {
+  const ringRef = useRef<THREE.Mesh>(null);
+  useFrame((state, delta) => {
+    if (ringRef.current) {
+      ringRef.current.rotation.z += delta * 0.05;
+      ringRef.current.lookAt(state.camera.position);
+    }
+  });
+  return (
+    <>
+      <mesh>
+        <sphereGeometry args={[body.scaleU, 48, 48]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+      <mesh ref={ringRef}>
+        <ringGeometry args={[body.scaleU * 1.15, body.scaleU * 1.9, 96]} />
+        <meshBasicMaterial
+          color="#c98a4f"
+          transparent
+          opacity={0.28}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </>
+  );
+}
+
+/** Constellations / fleets / nebulae render as luminous point clusters, not spheres. */
+function ClusterBody({ body, seed }: { body: CelestialBody; seed: number }) {
+  const matRef = useRef<THREE.PointsMaterial>(null);
+  const geometry = useMemo(() => {
+    const rng = mulberry32(seed);
+    const count = body.kind === 'nebula' ? 42 : body.kind === 'constellation' ? 26 : 14;
+    const spread = body.scaleU * (body.kind === 'nebula' ? 0.9 : 0.55);
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos.set(
+        [(rng() - 0.5) * 2 * spread, (rng() - 0.5) * 1.1 * spread, (rng() - 0.5) * 2 * spread],
+        i * 3,
+      );
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    return g;
+  }, [body, seed]);
+
+  const color =
+    body.kind === 'nebula' ? '#b58fa6' : body.kind === 'constellation' ? '#dfe6f5' : '#c2c8d0';
+  const size = body.kind === 'nebula' ? body.scaleU * 0.4 : body.scaleU * 0.06;
+
+  useFrame((state) => {
+    if (matRef.current) {
+      matRef.current.opacity = 0.55 + 0.2 * Math.sin(state.clock.elapsedTime * 0.4 + seed);
+    }
+  });
+
+  return (
+    <points geometry={geometry}>
+      <pointsMaterial
+        ref={matRef}
+        color={color}
+        size={size}
+        sizeAttenuation
+        transparent
+        opacity={0.7}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
+  );
+}
+
+function Body({ body, seed }: { body: CelestialBody; seed: number }) {
+  const position = useMemo(() => bodyWorldPosition(body), [body]);
+  const isCluster = body.kind === 'constellation' || body.kind === 'fleet' || body.kind === 'nebula';
+  return (
+    <group position={position}>
+      <Interactive body={body} radius={body.scaleU}>
+        {body.kind === 'blackhole' ? (
+          <VoidBody body={body} />
+        ) : isCluster ? (
+          <ClusterBody body={body} seed={seed} />
+        ) : (
+          <PlanetBody body={body} seed={seed} />
+        )}
+      </Interactive>
     </group>
   );
 }
@@ -104,10 +323,20 @@ function Impostor({ body }: { body: CelestialBody }) {
 export function ImpostorField() {
   const bodies = universe.bodies.filter((b) => b.id !== 'sun');
   return (
-    <group name="impostors">
-      {bodies.map((b) => (
-        <Impostor key={b.id} body={b} />
+    <group name="bodies">
+      {bodies.map((b, i) => (
+        <Body key={b.id} body={b} seed={i + 1} />
       ))}
     </group>
   );
+}
+
+function mulberry32(a: number) {
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
