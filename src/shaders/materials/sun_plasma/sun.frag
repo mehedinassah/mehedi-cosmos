@@ -1,5 +1,5 @@
 uniform float uTime;
-uniform float uIgnite; // 0 → 1 during intro identity emergence
+uniform float uIgnite;
 varying vec3 vNormal;
 varying vec3 vPos;
 varying vec3 vView;
@@ -9,34 +9,35 @@ varying vec3 vView;
 void main() {
   vec3 p = normalize(vPos);
 
-  // Domain-warped plasma: convection cells that shear, not lava-lamp blobs
-  vec3 warp = vec3(
-    fbm(p * 2.2 + vec3(uTime * 0.03, 0.0, 0.0)),
-    fbm(p * 2.2 + vec3(0.0, uTime * 0.025, 7.3)),
-    fbm(p * 2.2 + vec3(3.1, 0.0, uTime * 0.02))
-  ) - 0.5;
-  float n1 = fbm(p * 3.0 + warp * 1.4 + vec3(uTime * 0.045, uTime * 0.02, 0.0));
-  float n2 = fbm(p * 7.0 + warp * 2.2 - vec3(0.0, uTime * 0.06, uTime * 0.03));
-  // Photosphere granulation: fine convection texture
-  float gran = vnoise(p * 34.0 + warp * 3.0 + vec3(uTime * 0.08));
-  float plasma = n1 * 0.55 + n2 * 0.3 + gran * 0.15;
+  // Photosphere granulation: fine convection cells (high-freq, slow churn)
+  // layered under coarser active-region structure (low-freq, drifting).
+  float granulation = fbm(p * 22.0 + vec3(uTime * 0.06, uTime * 0.03, 0.0));
+  float macro = fbm(p * 3.2 + vec3(uTime * 0.02, -uTime * 0.015, 0.0));
+  float plasma = mix(macro, granulation, 0.4);
 
-  // Muted solar palette — scientific realism, never neon
-  vec3 core  = vec3(1.00, 0.86, 0.62);
-  vec3 mid   = vec3(0.98, 0.62, 0.28);
-  vec3 deep  = vec3(0.55, 0.22, 0.08);
+  // Active regions: brighter knotted patches that hint at magnetic structure
+  float active = smoothstep(0.66, 0.92, fbm(p * 5.5 - vec3(uTime * 0.01)));
+
+  vec3 core  = vec3(1.00, 0.90, 0.68);
+  vec3 mid   = vec3(0.99, 0.66, 0.30);
+  vec3 deep  = vec3(0.62, 0.24, 0.07);
   vec3 col = mix(deep, mid, smoothstep(0.25, 0.6, plasma));
   col = mix(col, core, smoothstep(0.6, 0.9, plasma));
+  col += vec3(1.0, 0.85, 0.5) * active * 0.5;
 
-  // Fresnel limb brightening (corona hint; real corona is a separate shell later)
-  float fresnel = pow(1.0 - max(dot(vNormal, vView), 0.0), 2.5);
-  col += vec3(1.0, 0.8, 0.55) * fresnel * 0.9;
+  // Limb darkening — photosphere is optically thinner at the edge, so it's
+  // actually DARKER at grazing angles (the physically correct opposite of
+  // a naive fresnel rim). This alone reads as "real star" vs "glowing ball".
+  float mu = clamp(dot(vNormal, vView), 0.0, 1.0);
+  float limbDark = mix(0.35, 1.0, pow(mu, 0.42));
+  col *= limbDark;
 
-  // Energy pulse — slow, breathing
-  col *= 0.92 + 0.08 * sin(uTime * 0.7 + plasma * 6.2831);
+  // Corona bleed right at the true limb (thin, bright, separate from the
+  // darkened photosphere edge below it)
+  float coronaEdge = smoothstep(0.0, 0.09, 1.0 - mu) * smoothstep(0.16, 0.0, 1.0 - mu);
+  col += vec3(1.0, 0.82, 0.55) * coronaEdge * 1.4;
 
-  // Push peaks past the bloom threshold — the sun must burn, not sit
-  col *= 1.35;
+  col *= 0.94 + 0.06 * sin(uTime * 0.8 + plasma * 6.2831);
   col *= uIgnite;
   gl_FragColor = vec4(col, 1.0);
 }

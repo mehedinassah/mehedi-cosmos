@@ -8,6 +8,7 @@ import { DeepSpace } from '@/world/ambient/DeepSpace';
 import { ImpostorField } from '@/world/ambient/ImpostorField';
 import { PlanetaryRing } from '@/world/ambient/PlanetaryRing';
 import { OrbitalTraffic } from '@/world/ambient/OrbitalTraffic';
+import { ForegroundSilhouettes } from '@/world/ambient/ForegroundSilhouettes';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
 import { bodyById } from '@/content/universe';
 import { CentralStar } from '@/world/sun/CentralStar';
@@ -62,6 +63,7 @@ export function UniverseCanvas() {
       <ImpostorField />
       <RingSystem />
       <OrbitalTraffic />
+      <ForegroundSilhouettes />
       <CinematicEffects />
     </Canvas>
   );
