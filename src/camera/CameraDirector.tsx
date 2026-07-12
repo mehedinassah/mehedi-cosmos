@@ -294,10 +294,11 @@ export function CameraDirector() {
     // Applied after lookAt, which re-levels the camera every frame, so the
     // roll never accumulates.
     if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
-      // Level out for the arrival flash, then keep a half-amplitude float
-      // through the system chapter — the ship never becomes a tripod
+      // Level out for the arrival flash, then keep only a WHISPER of float
+      // through the system chapter — parked thirty units from a planet,
+      // anything more reads as the camera shaking
       const settle =
-        descent.stage === 'ARRIVED' ? 0.5 : 1 - THREE.MathUtils.smoothstep(dp, 0.88, 1);
+        descent.stage === 'ARRIVED' ? 0.18 : 1 - THREE.MathUtils.smoothstep(dp, 0.88, 1);
       cam.rotateZ((Math.sin(t * 0.07) * 0.013 + Math.sin(t * 0.023 + 2.0) * 0.009) * settle);
     }
 

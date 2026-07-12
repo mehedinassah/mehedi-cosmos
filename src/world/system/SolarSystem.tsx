@@ -592,6 +592,78 @@ function Comet() {
   );
 }
 
+/* ------------------------- shooting stars ------------------------- */
+
+/** Rare, subtle meteor streaks near the camera — space rewarding attention.
+ *  Three pooled streaks, each living ~1.2s with a long random cooldown. */
+function ShootingStars() {
+  const COUNT = 3;
+  const lineRef = useRef<THREE.LineSegments>(null);
+  const streaks = useRef(
+    Array.from({ length: COUNT }, (_, i) => ({
+      base: new THREE.Vector3(),
+      dir: new THREE.Vector3(1, 0, 0),
+      speed: 500,
+      life: -(3 + i * 4), // negative life = waiting to spawn
+      dur: 1.2,
+    })),
+  );
+  const geometry = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(COUNT * 6), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(COUNT * 6), 3));
+    return g;
+  }, []);
+  const rng = useMemo(() => mulberry32(1747), []);
+
+  useFrame((state, delta) => {
+    const pos = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const col = geometry.getAttribute('color') as THREE.BufferAttribute;
+    streaks.current.forEach((s, i) => {
+      s.life += delta;
+      if (s.life > s.dur) s.life = -(4 + rng() * 8); // rest, then return
+      if (s.life < 0) {
+        pos.setXYZ(i * 2, 0, 0, 0);
+        pos.setXYZ(i * 2 + 1, 0, 0, 0);
+        col.setXYZ(i * 2, 0, 0, 0);
+        col.setXYZ(i * 2 + 1, 0, 0, 0);
+        if (s.life > -delta * 2) {
+          // spawn ahead-ish of the camera, crossing the frame diagonally
+          s.base
+            .set(rng() * 2 - 1, rng() * 1.2 - 0.6, rng() * 2 - 1)
+            .normalize()
+            .multiplyScalar(700 + rng() * 1600)
+            .add(state.camera.position);
+          s.dir.set(rng() * 2 - 1, rng() * 0.8 - 0.4, rng() * 2 - 1).normalize();
+          s.speed = 500 + rng() * 700;
+          s.dur = 0.9 + rng() * 0.7;
+        }
+        return;
+      }
+      const head = s.base.clone().addScaledVector(s.dir, s.speed * s.life);
+      const tail = head.clone().addScaledVector(s.dir, -s.speed * 0.12);
+      pos.setXYZ(i * 2, tail.x, tail.y, tail.z);
+      pos.setXYZ(i * 2 + 1, head.x, head.y, head.z);
+      const a = Math.sin(Math.min(s.life / s.dur, 1) * Math.PI) * 0.55;
+      col.setXYZ(i * 2, 0, 0, 0);
+      col.setXYZ(i * 2 + 1, a, a * 0.95, a * 0.85);
+    });
+    pos.needsUpdate = true;
+    col.needsUpdate = true;
+  });
+
+  return (
+    <lineSegments ref={lineRef} geometry={geometry} frustumCulled={false}>
+      <lineBasicMaterial
+        vertexColors
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </lineSegments>
+  );
+}
+
 /* ---------------------------- assembly ---------------------------- */
 
 export function SolarSystem() {
@@ -605,13 +677,16 @@ export function SolarSystem() {
       <EarthMoon />
       {/* Venus wears its skills as a ring of satellites */}
       <OrbitGlints center={venus.position} count={13} radius={18} speed={0.08} size={5} color={[0.55, 0.66, 0.8]} seed={311} />
-      {/* Earth's spacecraft: fast, small, blinking */}
-      <OrbitGlints center={earth.position} count={4} radius={12} speed={0.32} size={4} color={[0.8, 0.76, 0.68]} seed={733} />
+      {/* Earth's spacecraft: two orbital shells — low fast traffic (ISS,
+          station lights) and a slower, wider ring of satellites */}
+      <OrbitGlints center={earth.position} count={5} radius={10.5} speed={0.34} size={0.9} color={[0.85, 0.8, 0.7]} seed={733} />
+      <OrbitGlints center={earth.position} count={8} radius={14} speed={0.14} size={0.55} color={[0.6, 0.64, 0.72]} seed={947} />
       <AsteroidBelt />
       <KuiperBelt />
       <ZodiacalDust />
       <SolarWind />
       <Comet />
+      <ShootingStars />
     </group>
   );
 }

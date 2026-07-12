@@ -17,9 +17,9 @@ import { CHAPTERS } from '@/world/system/systemSpec';
  */
 
 const WHEEL_TRAVEL_PX = 6500; // full descent in ~6.5k px of wheel
-const WHEEL_TRAVEL_SYSTEM_PX = 34000; // eleven destinations, never a race
-const TOUCH_TRAVEL_PX = 2400;
-const TOUCH_TRAVEL_SYSTEM_PX = 12500;
+const WHEEL_TRAVEL_SYSTEM_PX = 52000; // drift, don't race: a flick of the
+const TOUCH_TRAVEL_PX = 2400; //          wheel should barely nudge the ship
+const TOUCH_TRAVEL_SYSTEM_PX = 19000;
 
 function DescentController() {
   useEffect(() => {
@@ -48,7 +48,7 @@ function DescentController() {
 
     const onKey = (e: KeyboardEvent) => {
       if (!canScroll()) return;
-      const step = arrived() ? 0.02 : 0.03;
+      const step = arrived() ? 0.012 : 0.03;
       if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
         useDescentStore.getState().addScroll(step);
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {

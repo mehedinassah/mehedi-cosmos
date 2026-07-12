@@ -144,18 +144,18 @@ function passArc(p: THREE.Vector3, offset: number) {
   };
 }
 
-// Standoff scales with planet size (~6 radii): the hero shot frames the
-// whole world at roughly 40% of the viewport, never cropped
+// Standoff ~4 radii: the hero worlds are LARGE, filling roughly 60% of the
+// viewport height — close enough to appreciate the surface, never cropped
 export const CHAPTER_ARCS: Record<string, { pre: THREE.Vector3; hero: THREE.Vector3; post: THREE.Vector3 }> = {
-  mercury: passArc(MERCURY_POS, 30),
-  venus: passArc(VENUS_POS, 52),
-  earth: passArc(EARTH_POS, 48),
-  mars: passArc(MARS_POS, 44),
-  jupiter: passArc(JUPITER_POS, 185),
-  saturn: passArc(SATURN_POS, 160),
-  uranus: passArc(URANUS_POS, 80),
-  neptune: passArc(NEPTUNE_POS, 76),
-  pluto: passArc(PLUTO_POS, 11),
+  mercury: passArc(MERCURY_POS, 10),
+  venus: passArc(VENUS_POS, 30),
+  earth: passArc(EARTH_POS, 32),
+  mars: passArc(MARS_POS, 17),
+  jupiter: passArc(JUPITER_POS, 120),
+  saturn: passArc(SATURN_POS, 100),
+  uranus: passArc(URANUS_POS, 52),
+  neptune: passArc(NEPTUNE_POS, 50),
+  pluto: passArc(PLUTO_POS, 8),
 };
 
 /** Departure waypoint: a sunward pass must leave around the planet's FLANK.
@@ -374,12 +374,38 @@ const REMAP: [number, number][] = [
   [1, 1],
 ].sort((a, b) => a[0] - b[0]) as [number, number][];
 
+// Monotone cubic (PCHIP / Fritsch-Carlson) through the anchors. A piecewise
+// LINEAR remap has a velocity discontinuity at every anchor — each one felt
+// like a kick as the camera crossed it. C1 continuity is the difference
+// between a scripted cutscene and drifting through space.
+const RX = REMAP.map((p) => p[0]);
+const RY = REMAP.map((p) => p[1]);
+const RM: number[] = (() => {
+  const n = RX.length;
+  const d: number[] = [];
+  for (let i = 0; i < n - 1; i++) d.push((RY[i + 1] - RY[i]) / Math.max(1e-6, RX[i + 1] - RX[i]));
+  const m = [d[0]];
+  for (let i = 1; i < n - 1; i++) {
+    m.push(d[i - 1] * d[i] <= 0 ? 0 : (2 * d[i - 1] * d[i]) / (d[i - 1] + d[i]));
+  }
+  m.push(d[n - 2]);
+  return m;
+})();
+
 function remapU(sp: number): number {
-  for (let i = 1; i < REMAP.length; i++) {
-    if (sp <= REMAP[i][0]) {
-      const [s0, u0] = REMAP[i - 1];
-      const [s1, u1] = REMAP[i];
-      return THREE.MathUtils.lerp(u0, u1, (sp - s0) / Math.max(1e-6, s1 - s0));
+  if (sp <= 0) return 0;
+  for (let i = 1; i < RX.length; i++) {
+    if (sp <= RX[i]) {
+      const h = RX[i] - RX[i - 1];
+      const t = (sp - RX[i - 1]) / Math.max(1e-6, h);
+      const t2 = t * t;
+      const t3 = t2 * t;
+      return (
+        RY[i - 1] * (2 * t3 - 3 * t2 + 1) +
+        RM[i - 1] * h * (t3 - 2 * t2 + t) +
+        RY[i] * (-2 * t3 + 3 * t2) +
+        RM[i] * h * (t3 - t2)
+      );
     }
   }
   return 1;
@@ -426,20 +452,34 @@ export function systemPose(
   if (vDir.lengthSq() < 1) vDir.copy(PLUTO_POS).sub(outPos);
   vDir.normalize();
 
+  // The look point sits at the SUBJECT's distance, not at a fixed range:
+  // downstream, breathing/idle motion scales with focal distance, so a
+  // fixed 2000u look point makes the camera visibly shake when it is
+  // parked thirty units from a world.
+  let lookDist = 2000;
+  let bestW = 0;
+  const track = (target: THREE.Vector3, w: number) => {
+    if (w > bestW) {
+      bestW = w;
+      lookDist = THREE.MathUtils.lerp(2000, outPos.distanceTo(target), w);
+    }
+    pull(vDir, outPos, target, w);
+  };
+
   // The sun holds the eye while we swing past it, then lets go
-  pull(vDir, outPos, ORIGIN, (1 - THREE.MathUtils.smoothstep(sp, 0.045, 0.09)) * 0.8);
+  track(ORIGIN, (1 - THREE.MathUtils.smoothstep(sp, 0.045, 0.09)) * 0.8);
   for (const c of CHAPTERS) {
     if (c.id === 'sun') continue;
     if (c.id === 'pluto') {
-      pull(vDir, outPos, c.target, THREE.MathUtils.smoothstep(sp, c.sp - 0.04, c.sp - 0.01));
+      track(c.target, THREE.MathUtils.smoothstep(sp, c.sp - 0.04, c.sp - 0.01));
       continue;
     }
     // Wide hold: the gaze stays with the world through the whole micro-orbit
-    pull(vDir, outPos, c.target, windowW(sp, c.sp - 0.052, c.sp - 0.026, c.sp + 0.032, c.sp + 0.062) * 0.85);
+    track(c.target, windowW(sp, c.sp - 0.052, c.sp - 0.026, c.sp + 0.032, c.sp + 0.062) * 0.85);
   }
   // The Moon's silent beat: no panel, just the sweep past a lit face
-  pull(vDir, outPos, MOON_ANCHOR, windowW(sp, 0.328, 0.345, 0.372, 0.392) * 0.85);
+  track(MOON_ANCHOR, windowW(sp, 0.328, 0.345, 0.372, 0.392) * 0.85);
 
-  outLook.copy(outPos).addScaledVector(vDir, 2000);
+  outLook.copy(outPos).addScaledVector(vDir, lookDist);
   void t;
 }
