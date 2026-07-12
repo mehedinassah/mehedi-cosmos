@@ -10,9 +10,9 @@ import { bodyById } from '@/content/universe';
  * Minimal diegetic HUD — location readout + aria-live narration channel (§15).
  * No menus, no nav bar. Fades with journey state.
  *
- * First impression rule: the entire galaxy chapter plays without ANY chrome.
- * The HUD exists only after the descent lands in the solar system — until
- * then nothing reminds the viewer they're on a website.
+ * First impression rule: the ENTIRE journey plays without any chrome — the
+ * HUD exists only once the flight settles at Earth, the portfolio's
+ * doorstep. Until then nothing reminds the viewer they're on a website.
  */
 const HUD_REVEAL_DELAY_MS = 1600;
 
@@ -21,7 +21,7 @@ export function JourneyHud() {
   const destination = useJourneyStore((s) => s.destination);
   const phase = useJourneyStore((s) => s.phase);
   const toggleLog = useUiStore((s) => s.toggleMissionLog);
-  const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
+  const arrived = useDescentStore((s) => s.stage === 'ARRIVED' && s.sysSmoothed > 0.96);
   const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {

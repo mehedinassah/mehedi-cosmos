@@ -10,24 +10,26 @@ import atmoVert from '@/shaders/materials/atmosphere/atmo.vert';
 import atmoFrag from '@/shaders/materials/atmosphere/atmo.frag';
 import cloudsVert from '@/shaders/materials/clouds/clouds.vert';
 import cloudsFrag from '@/shaders/materials/clouds/clouds.frag';
-import ringsVert from '@/shaders/materials/rings/rings.vert';
-import ringsFrag from '@/shaders/materials/rings/rings.frag';
 import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 import { useQualityStore } from '@/state/qualityStore';
 import { useDescentStore } from '@/state/descentStore';
-import { PLANETS, planetPosition, type PlanetSpec } from '@/world/system/systemSpec';
+import {
+  HEROES,
+  EARTH_POS,
+  MOON_ANCHOR,
+  MOON_RADIUS,
+  type HeroSpec,
+} from '@/world/system/systemSpec';
 
 /**
- * The solar system as a place, not an illustration: worlds in continuous
- * inclined orbits with moons, a rubble belt, the Kuiper fringe, comets,
- * solar wind and sunlit dust. Everything reveals progressively as the
- * scroll dolly travels outward (bands keyed to each planet's sp) — the
- * frame never holds the whole system at once.
+ * The star-system flight scenery. Three worlds, one moon, and the living
+ * medium around the flight line: solar wind, sunlit dust, one wandering
+ * comet. NOTHING here is a diagram — no orbit lines, no belts, no layout
+ * that reads as an astronomy model. Worlds sit where the flight path meets
+ * them and are met the way a traveler meets them: briefly, then gone.
  */
-
-const band = (p: number, a: number, b: number) => THREE.MathUtils.smoothstep(p, a, b);
 
 function mulberry32(a: number) {
   return () => {
@@ -39,16 +41,14 @@ function mulberry32(a: number) {
   };
 }
 
-const sysProgress = () => useDescentStore.getState().sysSmoothed;
+/* ---------------------------- worlds ---------------------------- */
 
-/* ---------------------------- planets ---------------------------- */
-
-function usePlanetMaterials(spec: PlanetSpec) {
+function useHeroMaterials(spec: HeroSpec) {
   const tier = useQualityStore((s) => s.tier);
   return useMemo(() => {
     const p = spec.palette;
     const octaves = tier >= 3 ? 5 : tier === 2 ? 4 : 3;
-    const seed = spec.orbitRadius * 0.013;
+    const seed = spec.position.length() * 0.013;
     const surface = new THREE.ShaderMaterial({
       vertexShader: assembleShader(planetVert, { OCTAVES: Math.min(octaves, 4) }),
       fragmentShader: assembleShader(planetFrag, { OCTAVES: octaves }),
@@ -95,76 +95,37 @@ function usePlanetMaterials(spec: PlanetSpec) {
   }, [spec, tier]);
 }
 
-function SaturnRings({ spec }: { spec: PlanetSpec }) {
-  const material = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        vertexShader: ringsVert,
-        fragmentShader: assembleShader(ringsFrag, { OCTAVES: 3 }),
-        uniforms: {
-          uSunPos: { value: new THREE.Vector3(0, 0, 0) },
-          uPlanetPos: { value: new THREE.Vector3() },
-          uPlanetR: { value: spec.radius },
-          uInnerR: { value: spec.radius * 1.35 },
-          uOuterR: { value: spec.radius * 2.4 },
-          uSeed: { value: 7.31 },
-        },
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      }),
-    [spec],
-  );
-  // uPlanetPos follows the moving planet (parent group carries the position)
+const MOON_UP = new THREE.Vector3(0, 1, 0);
+
+/** The Moon starts exactly at the flight path's gaze anchor and drifts
+ *  around Earth imperceptibly — the sweep-past must land where the camera
+ *  and the caption say it is. */
+function EarthMoon() {
   const meshRef = useRef<THREE.Mesh>(null);
-  useFrame(() => {
+  const local = useMemo(() => MOON_ANCHOR.clone().sub(EARTH_POS), []);
+  useFrame((state) => {
     const m = meshRef.current;
-    if (m) material.uniforms.uPlanetPos.value.setFromMatrixPosition(m.matrixWorld);
+    if (!m) return;
+    m.position
+      .copy(local)
+      .applyAxisAngle(MOON_UP, state.clock.elapsedTime * 0.001)
+      .add(EARTH_POS);
   });
   return (
-    <mesh ref={meshRef} rotation={[Math.PI / 2 + 0.32, 0, 0.2]}>
-      <ringGeometry args={[spec.radius * 1.35, spec.radius * 2.4, 180, 4]} />
-      <primitive object={material} attach="material" />
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[MOON_RADIUS, 32, 32]} />
+      <meshStandardMaterial color="#b8b3aa" roughness={0.95} metalness={0.02} />
     </mesh>
   );
 }
 
-function Moons({ moons }: { moons: NonNullable<PlanetSpec['moons']> }) {
-  const pivots = useRef<(THREE.Group | null)[]>([]);
-  useFrame((_, delta) => {
-    pivots.current.forEach((p, i) => {
-      if (p) p.rotation.y += delta * moons[i].speed;
-    });
-  });
-  return (
-    <>
-      {moons.map((m, i) => (
-        <group
-          key={i}
-          ref={(el) => {
-            pivots.current[i] = el;
-          }}
-          rotation={[m.incl, m.phase, 0]}
-        >
-          <mesh position={[m.dist, 0, 0]}>
-            <sphereGeometry args={[m.radius, 24, 24]} />
-            <meshStandardMaterial color="#b8b3aa" roughness={0.95} metalness={0.02} />
-          </mesh>
-        </group>
-      ))}
-    </>
-  );
-}
-
-function Planet({ spec }: { spec: PlanetSpec }) {
-  const { surface, atmosphere, clouds } = usePlanetMaterials(spec);
-  const groupRef = useRef<THREE.Group>(null);
+function Hero({ spec }: { spec: HeroSpec }) {
+  const { surface, atmosphere, clouds } = useHeroMaterials(spec);
   const meshRef = useRef<THREE.Mesh>(null);
   const cloudRef = useRef<THREE.Mesh>(null);
 
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
-    if (groupRef.current) planetPosition(spec, t, groupRef.current.position);
     if (meshRef.current) meshRef.current.rotation.y += delta * 0.03;
     if (cloudRef.current) cloudRef.current.rotation.y += delta * 0.012;
     surface.uniforms.uTime.value = t;
@@ -175,7 +136,7 @@ function Planet({ spec }: { spec: PlanetSpec }) {
   });
 
   return (
-    <group ref={groupRef}>
+    <group position={spec.position}>
       <mesh ref={meshRef}>
         <sphereGeometry args={[spec.radius, 64, 64]} />
         <primitive object={surface} attach="material" />
@@ -190,54 +151,11 @@ function Planet({ spec }: { spec: PlanetSpec }) {
         <sphereGeometry args={[spec.radius, 32, 32]} />
         <primitive object={atmosphere} attach="material" />
       </mesh>
-      {spec.rings && <SaturnRings spec={spec} />}
-      {spec.moons && <Moons moons={spec.moons} />}
     </group>
   );
 }
 
-/* ---------------------------- orbit paths ---------------------------- */
-
-function OrbitPath({ spec }: { spec: PlanetSpec }) {
-  const material = useMemo(
-    () =>
-      new THREE.LineBasicMaterial({
-        color: '#9db4d8',
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    [],
-  );
-  const geometry = useMemo(() => {
-    const pts: THREE.Vector3[] = [];
-    const inc = THREE.MathUtils.degToRad(spec.inclinationDeg);
-    for (let i = 0; i < 256; i++) {
-      const a = (i / 256) * Math.PI * 2;
-      pts.push(
-        new THREE.Vector3(
-          Math.cos(a) * spec.orbitRadius,
-          Math.sin(a + 1.0) * Math.sin(inc) * spec.orbitRadius,
-          Math.sin(a) * spec.orbitRadius,
-        ),
-      );
-    }
-    return new THREE.BufferGeometry().setFromPoints(pts);
-  }, [spec]);
-
-  useFrame(() => {
-    // The path is the herald: it fades in just before its planet is reached,
-    // then dims once passed so the frame never turns into an orbit diagram
-    const sp = sysProgress();
-    const dimPassed = 1 - 0.65 * band(sp, spec.sp + 0.12, spec.sp + 0.3);
-    material.opacity = band(sp, spec.sp - 0.07, spec.sp - 0.02) * 0.16 * dimPassed;
-  });
-
-  return <lineLoop geometry={geometry} frustumCulled={false} material={material} />;
-}
-
-/* ---------------------------- belts & dust ---------------------------- */
+/* ------------------------ the living medium ------------------------ */
 
 function makeStarMaterial(wobble = 0) {
   return new THREE.ShaderMaterial({
@@ -250,97 +168,11 @@ function makeStarMaterial(wobble = 0) {
   });
 }
 
-function buildBeltGeometry(
-  count: number,
-  seed: number,
-  rMin: number,
-  rMax: number,
-  thickness: number,
-  sizeMin: number,
-  sizeMax: number,
-  color: (rng: () => number) => [number, number, number],
-) {
-  const rng = mulberry32(seed);
-  const pos = new Float32Array(count * 3);
-  const size = new Float32Array(count);
-  const tw = new Float32Array(count);
-  const order = new Float32Array(count);
-  const col = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const r = rMin + Math.pow(rng(), 0.8) * (rMax - rMin);
-    const a = rng() * Math.PI * 2;
-    const y = ((rng() + rng() + rng() - 1.5) / 1.5) * thickness * (r / rMax);
-    pos.set([Math.cos(a) * r, y, Math.sin(a) * r], i * 3);
-    size[i] = sizeMin + rng() * (sizeMax - sizeMin);
-    tw[i] = rng();
-    order[i] = rng() * 0.7;
-    col.set(color(rng), i * 3);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
-  g.setAttribute('aTwinkleSeed', new THREE.BufferAttribute(tw, 1));
-  g.setAttribute('aIgniteOrder', new THREE.BufferAttribute(order, 1));
-  g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
-  return g;
-}
-
-function AsteroidBelt() {
-  const groupRef = useRef<THREE.Group>(null);
-  const mat = useMemo(() => makeStarMaterial(), []);
-  const geometry = useMemo(
-    () =>
-      buildBeltGeometry(3200, 8117, 4300, 5600, 220, 18, 48, (rng) => {
-        const v = 0.35 + rng() * 0.3;
-        return [v * 0.62, v * 0.55, v * 0.47]; // sunlit rock, never sparkle
-      }),
-    [],
-  );
-  useFrame((state, delta) => {
-    mat.uniforms.uTime.value = state.clock.elapsedTime;
-    mat.uniforms.uFormation.value = band(sysProgress(), 0.56, 0.68);
-    if (groupRef.current) groupRef.current.rotation.y += delta * 0.0045; // averaged Kepler drift
-  });
-  return (
-    <group ref={groupRef}>
-      <points geometry={geometry} frustumCulled={false}>
-        <primitive object={mat} attach="material" />
-      </points>
-    </group>
-  );
-}
-
-function KuiperBelt() {
-  const groupRef = useRef<THREE.Group>(null);
-  const mat = useMemo(() => makeStarMaterial(), []);
-  const geometry = useMemo(
-    () =>
-      buildBeltGeometry(2200, 4159, 21500, 27500, 1600, 45, 120, (rng) => {
-        const v = 0.25 + rng() * 0.25;
-        return [v * 0.55, v * 0.62, v * 0.72]; // dim ice
-      }),
-    [],
-  );
-  useFrame((state, delta) => {
-    mat.uniforms.uTime.value = state.clock.elapsedTime;
-    mat.uniforms.uFormation.value = band(sysProgress(), 0.88, 0.98);
-    if (groupRef.current) groupRef.current.rotation.y += delta * 0.0006;
-  });
-  return (
-    <group ref={groupRef}>
-      <points geometry={geometry} frustumCulled={false}>
-        <primitive object={mat} attach="material" />
-      </points>
-    </group>
-  );
-}
-
-/** Zodiacal dust — the ecliptic plane made faintly visible by sunlight.
- *  Brightness falls with distance from the sun (baked into vertex color). */
+/** Zodiacal dust — the inner system shimmers faintly in sunlight. */
 function ZodiacalDust() {
   const mat = useMemo(() => makeStarMaterial(12), []);
   const geometry = useMemo(() => {
-    const count = 1500;
+    const count = 900;
     const rng = mulberry32(2953);
     const pos = new Float32Array(count * 3);
     const size = new Float32Array(count);
@@ -348,14 +180,14 @@ function ZodiacalDust() {
     const order = new Float32Array(count);
     const col = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      const r = 700 + Math.pow(rng(), 1.6) * 15000;
+      const r = 600 + Math.pow(rng(), 1.4) * 2800;
       const a = rng() * Math.PI * 2;
-      const y = ((rng() + rng() + rng() - 1.5) / 1.5) * (120 + r * 0.045);
+      const y = ((rng() + rng() + rng() - 1.5) / 1.5) * (90 + r * 0.05);
       pos.set([Math.cos(a) * r, y, Math.sin(a) * r], i * 3);
       size[i] = 2 + rng() * 3;
       tw[i] = rng();
       order[i] = rng() * 0.5;
-      const lit = Math.min(1, 900 / r) * 0.6; // sun-illuminated falloff, kept faint
+      const lit = Math.min(1, 900 / r) * 0.6;
       col.set([0.55 * lit, 0.45 * lit, 0.34 * lit], i * 3);
     }
     const g = new THREE.BufferGeometry();
@@ -368,7 +200,11 @@ function ZodiacalDust() {
   }, []);
   useFrame((state) => {
     mat.uniforms.uTime.value = state.clock.elapsedTime;
-    mat.uniforms.uFormation.value = band(sysProgress(), 0.02, 0.12);
+    mat.uniforms.uFormation.value = THREE.MathUtils.smoothstep(
+      useDescentStore.getState().sysSmoothed,
+      0.01,
+      0.1,
+    );
   });
   return (
     <points geometry={geometry} frustumCulled={false}>
@@ -377,8 +213,7 @@ function ZodiacalDust() {
   );
 }
 
-/* ---------------------------- solar wind ---------------------------- */
-
+/* Solar wind — charged streams leaving the star, felt while passing it */
 const windVert = /* glsl */ `
 attribute vec3 aDir;
 attribute float aSeed;
@@ -386,10 +221,10 @@ attribute float aSize;
 uniform float uTime;
 varying float vAlpha;
 varying vec3 vColor;
-const float R0 = 260.0;
-const float SPAN = 15000.0;
+const float R0 = 240.0;
+const float SPAN = 3200.0;
 void main() {
-  float r = R0 + mod(aSeed * SPAN + uTime * (260.0 + aSeed * 420.0), SPAN);
+  float r = R0 + mod(aSeed * SPAN + uTime * (200.0 + aSeed * 340.0), SPAN);
   vec3 p = aDir * r;
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   float fade = 1.0 - (r - R0) / SPAN;
@@ -414,9 +249,9 @@ function SolarWind() {
     [],
   );
   const geometry = useMemo(() => {
-    const count = 800;
+    const count = 700;
     const rng = mulberry32(6089);
-    const pos = new Float32Array(count * 3); // unused by the shader, required attr
+    const pos = new Float32Array(count * 3);
     const dir = new Float32Array(count * 3);
     const seed = new Float32Array(count);
     const size = new Float32Array(count);
@@ -445,16 +280,12 @@ function SolarWind() {
   );
 }
 
-/* ---------------------------- comets ---------------------------- */
+/* One wandering comet — distant flavor, never a labeled exhibit */
+const COMET = { perihelion: 760, aphelion: 15000, incl: 0.42, node: 1.1, theta0: 0.9, k: 90000 };
 
-const COMET_SPECS = [
-  { perihelion: 700, aphelion: 15000, incl: 0.42, node: 1.1, theta0: 0.4, k: 90000 },
-  { perihelion: 1100, aphelion: 22000, incl: -0.3, node: 3.9, theta0: 2.6, k: 110000 },
-];
-
-function Comet({ spec }: { spec: (typeof COMET_SPECS)[number] }) {
+function Comet() {
   const TAIL = 90;
-  const theta = useRef(spec.theta0);
+  const theta = useRef(COMET.theta0);
   const nucleusRef = useRef<THREE.Sprite>(null);
   const tailGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -468,13 +299,13 @@ function Comet({ spec }: { spec: (typeof COMET_SPECS)[number] }) {
     return g;
   }, []);
   const jitter = useMemo(() => {
-    const rng = mulberry32(Math.floor(spec.k));
+    const rng = mulberry32(90210);
     return Array.from({ length: TAIL }, () => [
       (rng() - 0.5) * 2,
       (rng() - 0.5) * 2,
       (rng() - 0.5) * 2,
     ]);
-  }, [spec]);
+  }, []);
   const glowTex = useMemo(
     () =>
       makeGlowTexture([
@@ -485,18 +316,16 @@ function Comet({ spec }: { spec: (typeof COMET_SPECS)[number] }) {
     [],
   );
 
-  const e = (spec.aphelion - spec.perihelion) / (spec.aphelion + spec.perihelion);
-  const p = spec.perihelion * (1 + e);
+  const e = (COMET.aphelion - COMET.perihelion) / (COMET.aphelion + COMET.perihelion);
+  const p = COMET.perihelion * (1 + e);
   const plane = useMemo(
-    () =>
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(spec.incl, spec.node, 0)),
-    [spec],
+    () => new THREE.Quaternion().setFromEuler(new THREE.Euler(COMET.incl, COMET.node, 0)),
+    [],
   );
 
   useFrame((_, delta) => {
-    // Angular-momentum pacing: fast at perihelion, glacial far out
     const r0 = p / (1 + e * Math.cos(theta.current));
-    theta.current += (spec.k / (r0 * r0)) * delta;
+    theta.current += (COMET.k / (r0 * r0)) * delta;
     const r = p / (1 + e * Math.cos(theta.current));
     const nucleus = new THREE.Vector3(
       Math.cos(theta.current) * r,
@@ -510,7 +339,6 @@ function Comet({ spec }: { spec: (typeof COMET_SPECS)[number] }) {
       nucleusRef.current.scale.set(s, s, 1);
     }
 
-    // Tail streams anti-sunward, longer the closer the comet swings
     const tailDir = nucleus.clone().normalize();
     const len = THREE.MathUtils.clamp(900 * (2000 / r), 90, 2600);
     const posAttr = tailGeo.getAttribute('position') as THREE.BufferAttribute;
@@ -540,8 +368,6 @@ function Comet({ spec }: { spec: (typeof COMET_SPECS)[number] }) {
         />
       </sprite>
       <points geometry={tailGeo} frustumCulled={false}>
-        {/* map gives each particle a soft round falloff — an unmapped
-            PointsMaterial rasterizes square points */}
         <pointsMaterial
           size={26}
           sizeAttenuation
@@ -562,19 +388,13 @@ function Comet({ spec }: { spec: (typeof COMET_SPECS)[number] }) {
 export function SolarSystem() {
   return (
     <group name="solar-system">
-      {PLANETS.map((p) => (
-        <Planet key={p.id} spec={p} />
+      {HEROES.map((h) => (
+        <Hero key={h.id} spec={h} />
       ))}
-      {PLANETS.map((p) => (
-        <OrbitPath key={`${p.id}-orbit`} spec={p} />
-      ))}
-      <AsteroidBelt />
-      <KuiperBelt />
+      <EarthMoon />
       <ZodiacalDust />
       <SolarWind />
-      {COMET_SPECS.map((c, i) => (
-        <Comet key={i} spec={c} />
-      ))}
+      <Comet />
     </group>
   );
 }

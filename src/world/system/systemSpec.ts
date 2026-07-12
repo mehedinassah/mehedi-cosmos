@@ -1,170 +1,133 @@
 import * as THREE from 'three';
 
 /**
- * The solar-system chapter spec — a physically plausible star system, not a
- * decorative composition. One shared source of truth for:
- *   - planet scales / orbit radii / inclinations / Kepler-scaled speeds
- *   - the outbound camera dolly (exponential radius, slow azimuth sweep)
- *   - reveal bands: where along the scroll each world enters the story
+ * The star-system chapter — a CINEMATIC FLIGHT, not a simulation.
  *
- * Scale philosophy: relative planet sizes stay plausible (Mercury a speck,
- * Earth small, the giants clearly larger but still distant); absolute sizes
- * are compressed against the sun (r=120) so worlds remain visible at all.
- * Distances keep real pacing: vast emptiness between orbits.
+ * The solar system is a transitional chapter in the narrative, never a
+ * destination or a diagram. No orbital paths, no educational layouts, no
+ * frame that shows "the solar system". The camera flies one continuous
+ * line: swings past the sun, Mercury flashes by almost unnoticed, Venus
+ * rushes past, Earth appears ahead and grows, the Moon sweeps past the
+ * camera, and the journey ends holding Earth — the portfolio's doorstep.
+ * Every beat introduces one hero; astronomy only supports the story.
  */
 
-export interface MoonSpec {
-  radius: number;
-  dist: number;
-  speed: number; // rad/s around the parent
-  incl: number; // radians
-  phase: number;
-}
-
-export interface PlanetSpec {
+export interface HeroSpec {
   id: string;
   name: string;
   radius: number;
-  orbitRadius: number;
-  inclinationDeg: number;
-  /** Radians at t=0 — aligned so the planet is near the camera's azimuth
-   *  when the dolly crosses its orbit. */
-  phase0: number;
-  /** Kepler-scaled angular speed, rad/s. */
-  omega: number;
-  /** Scroll position where the camera crosses this orbit. */
-  sp: number;
+  /** World position — static: the flight path is authored around these. */
+  position: THREE.Vector3;
   palette: { deep: string; mid: string; high: string; atmo: string; night: number; clouds: number };
-  rings?: boolean;
-  moons?: MoonSpec[];
 }
 
-/* ------------------------- camera dolly ------------------------- */
+const UP = new THREE.Vector3(0, 1, 0);
 
-export const CAM_R0 = 440; // sun fills the frame
-export const CAM_R1 = 20500; // just inside Neptune's orbit
-const CAM_LN = Math.log(CAM_R1 / CAM_R0);
-const CAM_THETA0 = 0.6;
-const CAM_SWEEP = Math.PI * 1.15; // ~207 degrees of azimuth over the journey
+/* --------------------- the heroes of the flight --------------------- */
 
-export function cameraRadiusAt(sp: number): number {
-  return CAM_R0 * Math.exp(CAM_LN * sp);
-}
-function spAtRadius(r: number): number {
-  return Math.log(r / CAM_R0) / CAM_LN;
-}
+const MERCURY_POS = new THREE.Vector3(Math.cos(0.92) * 900, 14, Math.sin(0.92) * 900);
+const VENUS_POS = new THREE.Vector3(Math.cos(1.08) * 1500, -26, Math.sin(1.08) * 1500);
+export const EARTH_POS = new THREE.Vector3(Math.cos(1.22) * 2300, 0, Math.sin(1.22) * 2300);
 
-/** Kepler scaling: omega = K * r^-1.5. K chosen so Mercury laps in ~12min —
- *  motion is perceptible on a pass, but slow enough that the phase-aligned
- *  compositions below survive however long the viewer lingers. */
-const KEPLER_K = 0.0088 * Math.pow(900, 1.5);
-const omegaAt = (r: number) => KEPLER_K * Math.pow(r, -1.5);
-
-/** Planet sits slightly ahead of the camera azimuth at its reveal, offset
- *  scaled so every world subtends a similar comfortable angle on the pass. */
-function alignedPhase(orbitRadius: number, radius: number): number {
-  const sp = spAtRadius(orbitRadius);
-  const offset = THREE.MathUtils.clamp((radius * 16) / orbitRadius, 0.04, 0.3);
-  return CAM_THETA0 + CAM_SWEEP * sp + offset;
-}
-
-function planet(
-  id: string,
-  name: string,
-  radius: number,
-  orbitRadius: number,
-  inclinationDeg: number,
-  palette: PlanetSpec['palette'],
-  extra?: Partial<Pick<PlanetSpec, 'rings' | 'moons'>>,
-): PlanetSpec {
-  return {
-    id,
-    name,
-    radius,
-    orbitRadius,
-    inclinationDeg,
-    phase0: alignedPhase(orbitRadius, radius),
-    omega: omegaAt(orbitRadius),
-    sp: spAtRadius(orbitRadius),
-    palette,
-    ...extra,
-  };
-}
-
-export const PLANETS: PlanetSpec[] = [
-  planet('mercury', 'Mercury', 2.2, 900, 7.0, {
-    deep: '#2e2a26', mid: '#5c554c', high: '#9a9188', atmo: '#6b655c', night: 0, clouds: 0,
-  }),
-  planet('venus', 'Venus', 5.4, 1500, 3.4, {
-    deep: '#6b5433', mid: '#a8874e', high: '#e0c890', atmo: '#d9b877', night: 0, clouds: 1.0,
-  }),
-  planet('earth', 'Earth', 5.7, 2300, 0.0, {
-    deep: '#0d2b4d', mid: '#2e5d3a', high: '#c9c4b4', atmo: '#6fa8dc', night: 0.35, clouds: 0.75,
-  }, {
-    moons: [{ radius: 1.55, dist: 16, speed: 0.28, incl: 0.09, phase: 1.2 }],
-  }),
-  planet('mars', 'Mars', 3.0, 3400, 1.9, {
-    deep: '#4a2a1c', mid: '#8a4f33', high: '#c88a62', atmo: '#b07a58', night: 0, clouds: 0.06,
-  }),
-  planet('jupiter', 'Jupiter', 30, 7000, 1.3, {
-    deep: '#6e5238', mid: '#a8845e', high: '#d9c3a4', atmo: '#c0a480', night: 0, clouds: 0.55,
-  }, {
-    moons: [
-      { radius: 1.1, dist: 48, speed: 0.2, incl: 0.03, phase: 0.4 },
-      { radius: 1.0, dist: 62, speed: 0.15, incl: 0.05, phase: 2.5 },
-      { radius: 1.7, dist: 82, speed: 0.11, incl: 0.02, phase: 4.4 },
-      { radius: 1.5, dist: 108, speed: 0.08, incl: 0.06, phase: 5.6 },
-    ],
-  }),
-  planet('saturn', 'Saturn', 26, 10200, 2.5, {
-    deep: '#7a6543', mid: '#b09468', high: '#e2cfa4', atmo: '#cdb384', night: 0, clouds: 0.45,
-  }, {
-    rings: true,
-    moons: [{ radius: 1.6, dist: 96, speed: 0.09, incl: 0.08, phase: 2.0 }],
-  }),
-  planet('uranus', 'Uranus', 13, 14500, 0.8, {
-    deep: '#2b4b52', mid: '#4f7d86', high: '#a4ccd2', atmo: '#8fc4cc', night: 0, clouds: 0.3,
-  }),
-  planet('neptune', 'Neptune', 12.5, 18500, 1.8, {
-    deep: '#16305c', mid: '#2f5590', high: '#7c9cd0', atmo: '#6a8fc8', night: 0, clouds: 0.4,
-  }),
+export const HEROES: HeroSpec[] = [
+  {
+    id: 'mercury',
+    name: 'Mercury',
+    radius: 2.4,
+    position: MERCURY_POS,
+    palette: { deep: '#2e2a26', mid: '#5c554c', high: '#9a9188', atmo: '#6b655c', night: 0, clouds: 0 },
+  },
+  {
+    id: 'venus',
+    name: 'Venus',
+    radius: 7.5,
+    position: VENUS_POS,
+    palette: { deep: '#6b5433', mid: '#a8874e', high: '#e0c890', atmo: '#d9b877', night: 0, clouds: 1.0 },
+  },
+  {
+    id: 'earth',
+    name: 'Earth',
+    radius: 8,
+    position: EARTH_POS,
+    // Ocean-forward: Earth must read as the pale BLUE dot, not a jungle world
+    palette: { deep: '#0e3a66', mid: '#2f6152', high: '#d8d2c4', atmo: '#7db4e8', night: 0.35, clouds: 0.7 },
+  },
 ];
 
-/* ------------------------- live orbital state ------------------------- */
+/* --------------------- the flight path --------------------- */
 
-export function planetPosition(spec: PlanetSpec, t: number, out: THREE.Vector3): THREE.Vector3 {
-  const a = spec.phase0 + spec.omega * t;
-  const inc = THREE.MathUtils.degToRad(spec.inclinationDeg);
-  out.set(
-    Math.cos(a) * spec.orbitRadius,
-    Math.sin(a + 1.0) * Math.sin(inc) * spec.orbitRadius,
-    Math.sin(a) * spec.orbitRadius,
-  );
-  return out;
+// Lane geometry: side = perpendicular to the sun->planet line at each pass,
+// so flybys happen at small offsets (small offset = high angular sweep =
+// the "rushes past" feeling; the scroll speed itself never changes)
+function sideAt(p: THREE.Vector3): THREE.Vector3 {
+  return new THREE.Vector3().crossVectors(UP, p.clone().normalize()).normalize();
 }
 
-/* ------------------------- camera pose ------------------------- */
+const approachDir = EARTH_POS.clone().sub(VENUS_POS).normalize();
+const earthSide = sideAt(EARTH_POS);
 
-const vPlanet = new THREE.Vector3();
-const vDirSun = new THREE.Vector3();
-const vDirPlanet = new THREE.Vector3();
+// Final hold: on the sunlit side so Earth faces the camera lit, slightly
+// raised — the portfolio's establishing shot
+const holdDir = EARTH_POS.clone()
+  .negate()
+  .normalize()
+  .addScaledVector(earthSide, 0.55)
+  .addScaledVector(UP, 0.22)
+  .normalize();
+export const EARTH_HOLD = EARTH_POS.clone().addScaledVector(holdDir, 30);
 
-/** Gaze window: how strongly the camera looks at a planet around its pass. */
-function lookWeight(sp: number, planetSp: number): number {
-  const rampIn = THREE.MathUtils.smoothstep(sp, planetSp - 0.055, planetSp - 0.015);
-  const rampOut = 1 - THREE.MathUtils.smoothstep(sp, planetSp + 0.04, planetSp + 0.1);
-  return rampIn * rampOut * 0.85;
+/** Moon placed just off the approach lane — it sweeps past the camera in
+ *  the last moments before the hold. The RENDERED moon (SolarSystem's
+ *  EarthMoon) starts exactly here and drifts imperceptibly, so the gaze
+ *  anchor and the world stay in agreement. */
+export const MOON_RADIUS = 2.2;
+export const MOON_ANCHOR = EARTH_POS.clone()
+  .addScaledVector(approachDir, -26)
+  .addScaledVector(earthSide, 9)
+  .setY(EARTH_POS.y + 5);
+
+const FLIGHT_POINTS: THREE.Vector3[] = [
+  // Arrival pose: matches the descent handoff (close on the photosphere)
+  new THREE.Vector3(Math.cos(0.6) * 438, 46, Math.sin(0.6) * 438),
+  // Swing past the sun — it slides across and out of the frame
+  new THREE.Vector3(Math.cos(0.95) * 560, 70, Math.sin(0.95) * 560),
+  // Mercury flyby: 30 units off the stone
+  MERCURY_POS.clone().addScaledVector(sideAt(MERCURY_POS), 30).setY(MERCURY_POS.y + 9),
+  // Venus flyby: 52 units off the cloud deck
+  VENUS_POS.clone().addScaledVector(sideAt(VENUS_POS), 52).setY(VENUS_POS.y - 12),
+  // The long Earth approach begins
+  EARTH_POS.clone().addScaledVector(approachDir, -470).addScaledVector(earthSide, 34).setY(-8),
+  // Past the Moon, easing into the hold
+  EARTH_HOLD,
+];
+
+export const FLIGHT_CURVE = new THREE.CatmullRomCurve3(FLIGHT_POINTS, false, 'centripetal');
+FLIGHT_CURVE.arcLengthDivisions = 600;
+
+/* --------------------- camera pose --------------------- */
+
+const vAhead = new THREE.Vector3();
+const vDir = new THREE.Vector3();
+const vTo = new THREE.Vector3();
+
+function windowW(sp: number, a: number, b: number, c: number, d: number): number {
+  return (
+    THREE.MathUtils.smoothstep(sp, a, b) * (1 - THREE.MathUtils.smoothstep(sp, c, d))
+  );
+}
+
+/** nlerp the gaze toward a world point by weight w. */
+function pull(dir: THREE.Vector3, from: THREE.Vector3, target: THREE.Vector3, w: number) {
+  if (w <= 0.001) return;
+  vTo.copy(target).sub(from).normalize();
+  dir.lerp(vTo, w).normalize();
 }
 
 /**
- * The outbound dolly: exponential pull-away from the photosphere, slow
- * azimuth sweep, gentle elevation S-curve. Gaze rests on the sun and hands
- * over to each world for the stretch of its pass, so the frame never shows
- * the whole system at once — worlds are met one at a time.
- *
- * The gaze blend works in DIRECTION space, not position space: a nearby
- * planet can be 60+ degrees away from the sun line, so lerping world points
- * would leave it out of frame while the caption names it.
+ * One continuous flight. The gaze rides the path direction; each hero pulls
+ * the eye for the seconds of its pass, and Earth takes the frame for good
+ * at the end. Weights blend in DIRECTION space (world-point lerps leave
+ * close flybys outside the frustum).
  */
 export function systemPose(
   sp: number,
@@ -172,49 +135,39 @@ export function systemPose(
   outPos: THREE.Vector3,
   outLook: THREE.Vector3,
 ): void {
-  const r = cameraRadiusAt(sp);
-  const theta = CAM_THETA0 + CAM_SWEEP * sp;
-  // Kept shallow so planet passes stay close to the ecliptic (a steep
-  // camera turns every pass into a distant top-down look)
-  const elev = THREE.MathUtils.degToRad(6 - 16 * sp + 18 * sp * sp);
-  outPos.set(
-    Math.cos(theta) * r * Math.cos(elev),
-    Math.sin(elev) * r,
-    Math.sin(theta) * r * Math.cos(elev),
-  );
+  const u = THREE.MathUtils.clamp(sp, 0, 1);
+  FLIGHT_CURVE.getPointAt(u, outPos);
 
-  // Strongest active pass wins the gaze (windows are spaced, never overlap)
-  let bestW = 0;
-  let best: PlanetSpec | null = null;
-  for (const p of PLANETS) {
-    const w = lookWeight(sp, p.sp);
-    if (w > bestW) {
-      bestW = w;
-      best = p;
-    }
-  }
+  // Base gaze: down the flight line
+  FLIGHT_CURVE.getPointAt(Math.min(u + 0.05, 1), vAhead);
+  vDir.copy(vAhead).sub(outPos);
+  if (vDir.lengthSq() < 1) vDir.copy(EARTH_POS).sub(outPos); // at rest: Earth
+  vDir.normalize();
 
-  vDirSun.copy(outPos).negate().normalize(); // the sun anchors the gaze
-  if (best && bestW > 0.001) {
-    planetPosition(best, t, vPlanet);
-    vDirPlanet.copy(vPlanet).sub(outPos).normalize();
-    vDirSun.lerp(vDirPlanet, bestW).normalize();
-  }
-  outLook.copy(outPos).addScaledVector(vDirSun, 4000);
+  // The sun holds the eye while we swing past it, then lets go
+  pull(vDir, outPos, ORIGIN, (1 - THREE.MathUtils.smoothstep(sp, 0.08, 0.2)) * 0.8);
+  // Heroes take the frame one at a time — nothing else is on stage
+  pull(vDir, outPos, MERCURY_POS, windowW(sp, 0.2, 0.26, 0.33, 0.4) * 0.85);
+  pull(vDir, outPos, VENUS_POS, windowW(sp, 0.47, 0.53, 0.6, 0.68) * 0.85);
+  pull(vDir, outPos, EARTH_POS, THREE.MathUtils.smoothstep(sp, 0.68, 0.8) * 0.5);
+  // The Moon flashes past only in the last stretch, when the camera is
+  // actually near it — then Earth takes the frame for good
+  pull(vDir, outPos, MOON_ANCHOR, windowW(sp, 0.895, 0.925, 0.95, 0.97) * 0.85);
+  pull(vDir, outPos, EARTH_POS, THREE.MathUtils.smoothstep(sp, 0.955, 0.985));
+
+  outLook.copy(outPos).addScaledVector(vDir, 2000);
+  void t;
 }
 
-/* ------------------------- captions ------------------------- */
+const ORIGIN = new THREE.Vector3(0, 0, 0);
+
+/* --------------------- captions --------------------- */
 
 export const SYSTEM_CAPTIONS: { at: number; primary: string; secondary: string }[] = [
   { at: 0.02, primary: 'the Sun', secondary: 'a G-type star, four billion years in' },
-  { at: 0.17, primary: 'Mercury', secondary: 'a scorched stone, easy to miss' },
-  { at: 0.3, primary: 'Venus', secondary: 'wrapped in acid cloud' },
-  { at: 0.42, primary: 'Earth', secondary: 'the pale blue dot' },
-  { at: 0.51, primary: 'Mars', secondary: 'rust and thin wind' },
-  { at: 0.6, primary: 'the Asteroid Belt', secondary: 'rubble that never became a world' },
-  { at: 0.7, primary: 'Jupiter', secondary: 'guardian of the inner worlds' },
-  { at: 0.8, primary: 'Saturn', secondary: 'rings of ice, a hundred meters thin' },
-  { at: 0.89, primary: 'Uranus', secondary: 'rolling on its side' },
-  { at: 0.95, primary: 'Neptune', secondary: 'the last giant' },
-  { at: 0.985, primary: 'the Kuiper Belt', secondary: 'the frozen frontier' },
+  { at: 0.24, primary: 'Mercury', secondary: 'a scorched stone, gone in a blink' },
+  { at: 0.5, primary: 'Venus', secondary: 'wrapped in acid cloud' },
+  { at: 0.7, primary: 'Earth', secondary: 'the pale blue dot' },
+  { at: 0.89, primary: 'the Moon', secondary: 'a quarter million miles out' },
+  { at: 0.96, primary: 'Earth', secondary: 'home' },
 ];
