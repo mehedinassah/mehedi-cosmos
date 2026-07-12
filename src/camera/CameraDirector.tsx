@@ -124,7 +124,7 @@ export function CameraDirector() {
     } else {
       // System-chapter rig: HEAVY damping — a twenty-ton spacecraft, not a
       // cursor. Scroll intent arrives; the ship leans into it, then settles.
-      sp = THREE.MathUtils.damp(descent.sysSmoothed, descent.sysTarget, 1.4, delta);
+      sp = THREE.MathUtils.damp(descent.sysSmoothed, descent.sysTarget, 1.7, delta);
       const sysCaptionIndex = chapterIndexAt(sp);
       if (sp !== descent.sysSmoothed || sysCaptionIndex !== descent.sysCaptionIndex) {
         useDescentStore.setState({ sysSmoothed: sp, sysCaptionIndex });

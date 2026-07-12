@@ -150,86 +150,11 @@ function ClusterStars() {
   );
 }
 
-/* ---------------- Constellations — figures connect near the arm's heart - */
-const CONSTELLATION_SPECS: { u: number; ox: number; oy: number; oz: number }[] = [
-  { u: 0.84, ox: 2200, oy: 1400, oz: -900 },
-  { u: 0.89, ox: -2600, oy: 600, oz: 1500 },
-  { u: 0.94, ox: 900, oy: -1800, oz: 2100 },
-];
-
-function Constellations() {
-  const starsMat = useMemo(() => makePointsMaterial(starFrag), []);
-  const lineMat = useMemo(
-    () =>
-      new THREE.LineBasicMaterial({
-        color: '#9fb8ff',
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    [],
-  );
-
-  const [starsGeo, linesGeo] = useMemo(() => {
-    const rng = mulberry32(3517);
-    const center = new THREE.Vector3();
-    const vertices: THREE.Vector3[] = [];
-    const linePos: number[] = [];
-
-    for (const spec of CONSTELLATION_SPECS) {
-      REFERENCE_CURVE.getPoint(spec.u, center);
-      center.x += spec.ox;
-      center.y += spec.oy;
-      center.z += spec.oz;
-      const figure: THREE.Vector3[] = [];
-      for (let s = 0; s < 5; s++) {
-        figure.push(
-          new THREE.Vector3(
-            center.x + gauss(rng) * 900,
-            center.y + gauss(rng) * 700,
-            center.z + gauss(rng) * 900,
-          ),
-        );
-      }
-      vertices.push(...figure);
-      for (let s = 0; s < figure.length - 1; s++) {
-        linePos.push(...figure[s].toArray(), ...figure[s + 1].toArray());
-      }
-    }
-
-    const stars = makePointsGeometry(vertices.length, (i, pos, size, col, order, seed) => {
-      pos.set(vertices[i].toArray(), i * 3);
-      size[i] = 140 + rng() * 160;
-      order[i] = rng() * 0.5;
-      seed[i] = rng();
-      col.set([0.78, 0.85, 1.0], i * 3);
-    });
-    const lines = new THREE.BufferGeometry();
-    lines.setAttribute('position', new THREE.Float32BufferAttribute(linePos, 3));
-    return [stars, lines];
-  }, []);
-
-  useFrame((state) => {
-    starsMat.uniforms.uTime.value = state.clock.elapsedTime;
-    const p = useDescentStore.getState().smoothed;
-    const v = band(p, 0.72, 0.88);
-    starsMat.uniforms.uFormation.value = v;
-    // Lines trail the stars: the points appear first, then the figure joins
-    lineMat.opacity = band(p, 0.76, 0.9) * 0.3;
-  });
-
-  return (
-    <group>
-      <points geometry={starsGeo} frustumCulled={false}>
-        <primitive object={starsMat} attach="material" />
-      </points>
-      <lineSegments geometry={linesGeo} frustumCulled={false}>
-        <primitive object={lineMat} attach="material" />
-      </lineSegments>
-    </group>
-  );
-}
+// NOTE: the constellation figures (star points joined by additive lines)
+// were removed — the connecting lines read as a star-map overlay flashing in
+// for a fraction of a second, which broke the immersion of a continuous dive.
+// The cluster tube and nebulae already carry the "detail resolves ahead"
+// reveal; nothing here draws literal figures anymore.
 
 /* ---------------- Destination star — grows, then flares into arrival ---- */
 function DestinationStar() {
@@ -301,7 +226,6 @@ export function DescentField() {
     <group name="descent-field">
       <ArmNebulae />
       <ClusterStars />
-      <Constellations />
       <DestinationStar />
     </group>
   );

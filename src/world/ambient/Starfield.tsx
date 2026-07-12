@@ -12,7 +12,7 @@ import { useUiStore } from '@/state/uiStore';
  * Procedural instanced starfield — blueprint §7.1 (procedural-first).
  * Stars ignite progressively during formation (loading-paced intro, §13 L1).
  */
-const BASE_COUNT = 14000;
+const BASE_COUNT = 24000;
 
 export function Starfield() {
   const matRef = useRef<THREE.ShaderMaterial>(null);
@@ -36,13 +36,24 @@ export function Starfield() {
       pos[i * 3 + 0] = r * Math.sin(phi) * Math.cos(theta);
       pos[i * 3 + 1] = r * Math.cos(phi) * 0.55;
       pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-      size[i] = 8 + rng() * 26;
+      // Magnitude range (gl_PointSize = aSize * 300 / dist, so at 20-60k these
+      // are the on-screen classes): a faint sharp majority, a scattering of
+      // brighter stars, and rare luminous giants the bloom catches.
+      let s = 14 + rng() * rng() * 90; // faint pinpoints
+      if (rng() < 0.1) s = 170 + rng() * 280; // brighter stars
+      if (rng() < 0.022) s = 520 + rng() * 760; // rare giants (bloom)
+      size[i] = s;
       seed[i] = rng();
       order[i] = rng();
+      // Full stellar palette: white/yellow dwarfs, hot blue-white, blue
+      // giants, orange, red giants, and faint distant blue-gray.
       const t = rng();
-      if (t < 0.7) color.set([1.0, 0.96, 0.9], i * 3);
-      else if (t < 0.9) color.set([0.78, 0.84, 1.0], i * 3);
-      else color.set([1.0, 0.82, 0.7], i * 3);
+      if (t < 0.46) color.set([1.0, 0.97, 0.9], i * 3); // white / warm white
+      else if (t < 0.64) color.set([0.74, 0.82, 1.0], i * 3); // blue-white
+      else if (t < 0.75) color.set([0.55, 0.68, 1.0], i * 3); // blue giant
+      else if (t < 0.86) color.set([1.0, 0.82, 0.55], i * 3); // orange
+      else if (t < 0.94) color.set([1.0, 0.58, 0.42], i * 3); // red giant
+      else color.set([0.66, 0.73, 0.86], i * 3); // faint distant
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));

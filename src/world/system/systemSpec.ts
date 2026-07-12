@@ -151,10 +151,17 @@ function berthAt(orbit: number, f: number, yOff: number): THREE.Vector3 {
 //   [1] sun    — a berth beside the star; the rail swings past it, not through
 //   [2..10]    — the nine worlds, each on its own bearing
 //   [11] end   — the ship keeps cruising past Pluto into the dark
-const START_KNOT = M.clone().multiplyScalar(-1600).addScaledVector(UP, 150);
-const SUN_KNOT = PERP.clone().multiplyScalar(300).addScaledVector(UP, 70);
+const START_KNOT = M.clone().multiplyScalar(-1600).addScaledVector(UP, 140);
+// The ship flies straight in toward the star; SUN_APPROACH is the hero beat
+// (star large, dead ahead), then SUN_KNOT swings the rail past it, clearing
+// the sun, and out to Mercury.
+const SUN_APPROACH = M.clone().multiplyScalar(-470).addScaledVector(UP, 60);
+// Swing to the -PERP side so the star frames to the RIGHT (panel on the left),
+// matching every world's composition.
+const SUN_KNOT = PERP.clone().multiplyScalar(-340).addScaledVector(UP, 45);
 const BERTHS: THREE.Vector3[] = [
   START_KNOT,
+  SUN_APPROACH,
   SUN_KNOT,
   ...DEFS.map((d, i) => berthAt(d.orbit, i / (DEFS.length - 1), d.yOff)),
 ];
@@ -195,8 +202,16 @@ function railTangent(u: number, out: THREE.Vector3): THREE.Vector3 {
 // the right so it composes on the right third with the panel on the left.
 // Standoff in planet radii sets how large it looks; the yaw keeps the rail
 // clearing the surface as it slides past.
-const STANDOFF = 6.5; // planet radii
-const FRAME_YAW = 0.34; // rad, toward the right of travel
+// Per-world standoff in planet radii — smaller = the world fills more of the
+// frame at its hero stop. Tuned so each world hits its target apparent size
+// (giants dominate). Saturn's factor is large because its rings extend the
+// silhouette ~2.3x, and the rail has to clear them as it slides past.
+const VIEW_K: Record<string, number> = {
+  mercury: 6.0, venus: 6.0, earth: 5.2, mars: 6.0,
+  jupiter: 4.4, saturn: 7.5, uranus: 5.0, neptune: 5.0, pluto: 6.5,
+};
+const STANDOFF = 6.0; // fallback planet radii
+const FRAME_YAW = 0.36; // rad, toward the right of travel
 
 const _tan = new THREE.Vector3();
 const _fdir = new THREE.Vector3();
@@ -210,7 +225,7 @@ function placeWorld(def: BodyDef, knotIndex: number): THREE.Vector3 {
   _fdir.copy(_tan).applyAxisAngle(UP, -FRAME_YAW);
   _fdir.y = 0;
   _fdir.normalize();
-  const d = def.radius * STANDOFF;
+  const d = def.radius * (VIEW_K[def.id] ?? STANDOFF);
   // A gentle downward gaze: drop the world a little below the berth so the
   // level (tangent-following) view looks slightly down onto it, ~above the
   // ecliptic. The drop scales with the standoff, so the framing is identical
@@ -230,7 +245,7 @@ export const HEROES: HeroSpec[] = DEFS.map((d, i) => ({
   palette: d.palette,
   rings: d.rings,
   moons: d.moons,
-  position: placeWorld(d, i + 2),
+  position: placeWorld(d, i + 3),
 }));
 
 export const EARTH_POS = HEROES.find((h) => h.id === 'earth')!.position;
@@ -239,7 +254,7 @@ export const EARTH_POS = HEROES.find((h) => h.id === 'earth')!.position;
  *  Earth, no panel — it drifts through frame as the ship coasts toward Mars. */
 export const MOON_RADIUS = 2.2;
 export const MOON_ANCHOR = (() => {
-  const earthU = knotU(2 + DEFS.findIndex((d) => d.id === 'earth'));
+  const earthU = knotU(3 + DEFS.findIndex((d) => d.id === 'earth'));
   railTangent(earthU, _tan);
   const toward = _tan.clone();
   toward.y = 0;
@@ -359,25 +374,33 @@ export const CHAPTER_SP: Record<string, number> = Object.fromEntries(
 
 // Where each chapter parks on the rail. The sun berth is knot 1; every world
 // is its own knot (index 2..10), so its dwell u is exactly the knot's u.
-const CHAP_U: Record<string, number> = { sun: 0.06 };
+const CHAP_U: Record<string, number> = { sun: knotU(1) };
 DEFS.forEach((d, i) => {
-  CHAP_U[d.id] = knotU(i + 2);
+  CHAP_U[d.id] = knotU(i + 3);
 });
 
 const DWELL = 0.011; // how much rail a world holds while it's the hero
 
+// Wide dwell windows: a big slice of scroll maps to the tiny bit of rail
+// around each world, so the ship slows to a crawl and lets the viewer admire
+// the hero before the narrow gaps glide on to the next.
+const PRE = 0.04;
+const POST = 0.045;
+
 const REMAP: [number, number][] = (() => {
   const pts: [number, number][] = [
-    [0, 0.014],
+    // At rest the star already sits ahead, mid-approach; the first scroll
+    // flies in until it dominates the frame at its hero stop.
+    [0, 0.05],
     [0.02, CHAP_U.sun],
-    [0.06, CHAP_U.sun + 0.03],
+    [0.05, CHAP_U.sun + 0.02],
   ];
   for (const c of CHAPTERS) {
     if (c.id === 'sun') continue;
     const u = CHAP_U[c.id];
-    pts.push([c.sp - 0.03, u - DWELL]);
+    pts.push([c.sp - PRE, u - DWELL]);
     pts.push([c.sp, u]);
-    pts.push([c.sp + 0.035, u + DWELL]);
+    pts.push([c.sp + POST, u + DWELL]);
   }
   pts.push([1, 1]);
   // Sort and enforce strict monotonicity in both axes.

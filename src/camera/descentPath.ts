@@ -74,11 +74,13 @@ export function buildDescentCurve(start: THREE.Vector3): THREE.CatmullRomCurve3 
 /** Canonical curve for placing descent scenery (clusters, nebulae, lines). */
 export const REFERENCE_CURVE = buildDescentCurve(GALAXY_CAM_POS.clone());
 
-// Off-center rest composition: the galaxy sits slightly off-frame-center at
-// idle (product shots center their subject; astrophotography rarely does).
+// Rest composition: the bright core sits near the vertical center of frame,
+// majestic rather than sinking toward the bottom edge. A small aim BELOW the
+// core lifts it just above center; a light horizontal offset keeps it off
+// dead-center without dropping it low.
 const axis = GALAXY_CENTER.clone().sub(GALAXY_CAM_POS).normalize();
 const frameRight = new THREE.Vector3().crossVectors(axis, new THREE.Vector3(0, 1, 0)).normalize();
 const frameUp = new THREE.Vector3().crossVectors(frameRight, axis).normalize();
 export const GALAXY_REST_LOOK = GALAXY_LOOK.clone()
-  .addScaledVector(frameRight, 2600)
-  .addScaledVector(frameUp, 900);
+  .addScaledVector(frameRight, 1500)
+  .addScaledVector(frameUp, -650);

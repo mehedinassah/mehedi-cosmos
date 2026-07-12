@@ -23,17 +23,19 @@ export function CinematicEffects() {
       {/* Threshold sits high enough that the sun close-up (system chapter)
           reads as plasma with a corona, not a full-frame white wash */}
       <Bloom
-        intensity={0.5}
-        luminanceThreshold={0.9}
-        luminanceSmoothing={0.24}
+        intensity={0.62}
+        luminanceThreshold={0.86}
+        luminanceSmoothing={0.26}
         mipmapBlur
-        radius={0.7}
+        radius={0.74}
       />
       <ChromaticAberration offset={[0.0005, 0.0005]} radialModulation modulationOffset={0.6} />
-      <HueSaturation hue={0} saturation={-0.06} />
-      <BrightnessContrast brightness={-0.015} contrast={0.06} />
-      <Noise premultiply blendFunction={BlendFunction.SCREEN} opacity={0.04} />
-      <Vignette eskil={false} offset={0.24} darkness={0.66} />
+      {/* Nudge back toward richer color and deeper, higher-contrast blacks —
+          cinematic NASA look without oversaturation. */}
+      <HueSaturation hue={0} saturation={0.06} />
+      <BrightnessContrast brightness={-0.03} contrast={0.11} />
+      <Noise premultiply blendFunction={BlendFunction.SCREEN} opacity={0.035} />
+      <Vignette eskil={false} offset={0.24} darkness={0.68} />
     </EffectComposer>
   );
 }
