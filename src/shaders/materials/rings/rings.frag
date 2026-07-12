@@ -38,6 +38,9 @@ void main() {
   float shadow = (along > 0.0) ? smoothstep(uPlanetR * 0.98, uPlanetR * 1.25, perp) : 1.0;
 
   col *= 0.06 + 0.94 * shadow;
+  // Kept below full brightness: sunlit ice at this exposure reads as
+  // blown white vinyl otherwise
+  col *= 0.78;
 
-  gl_FragColor = vec4(col, gaps * edge * 0.85);
+  gl_FragColor = vec4(col, gaps * edge * 0.72);
 }

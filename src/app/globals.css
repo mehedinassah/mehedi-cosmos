@@ -164,6 +164,79 @@ main { position: fixed; inset: 0; }
   to { opacity: 1; transform: translateX(-50%); }
 }
 
+/* Career chapter panel — quiet typography beside each world */
+.chapter-panel {
+  position: fixed;
+  left: 6%;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 360px;
+  pointer-events: none;
+  z-index: 5;
+  animation: chapter-in 1.4s ease both;
+  text-shadow: 0 0 16px rgba(1, 1, 4, 0.9);
+}
+.chapter-panel__planet {
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(190, 202, 230, 0.55);
+}
+.chapter-panel__title {
+  margin: 14px 0 18px;
+  font-size: 30px;
+  font-weight: 200;
+  letter-spacing: 0.12em;
+  color: rgba(240, 244, 255, 0.94);
+}
+.chapter-panel__line {
+  margin: 8px 0;
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  line-height: 1.65;
+  color: rgba(206, 216, 238, 0.72);
+}
+.chapter-panel__links {
+  margin-top: 22px;
+  display: flex;
+  gap: 22px;
+  pointer-events: auto;
+}
+.chapter-panel__links a {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(235, 240, 255, 0.85);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(160, 175, 210, 0.4);
+  padding-bottom: 3px;
+}
+.chapter-panel__links a:hover,
+.chapter-panel__links a:focus-visible {
+  color: #fff;
+  border-bottom-color: rgba(235, 240, 255, 0.9);
+}
+@keyframes chapter-in {
+  from { opacity: 0; transform: translateY(calc(-50% + 14px)); }
+  to { opacity: 1; transform: translateY(-50%); }
+}
+@media (max-width: 720px) {
+  .chapter-panel {
+    left: 7%;
+    right: 7%;
+    max-width: none;
+    top: auto;
+    bottom: 12%;
+    transform: none;
+  }
+  @keyframes chapter-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
 .arrival-flash {
   position: fixed;
   inset: 0;

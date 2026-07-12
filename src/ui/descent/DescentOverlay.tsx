@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useJourneyStore } from '@/state/journeyStore';
 import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
-import { SYSTEM_CAPTIONS } from '@/world/system/systemSpec';
+import { CHAPTERS } from '@/world/system/systemSpec';
 
 /**
  * Descent chapter DOM layer — three quiet elements and an input bridge:
@@ -17,9 +17,9 @@ import { SYSTEM_CAPTIONS } from '@/world/system/systemSpec';
  */
 
 const WHEEL_TRAVEL_PX = 6500; // full descent in ~6.5k px of wheel
-const WHEEL_TRAVEL_SYSTEM_PX = 11000; // the system is a longer, slower journey
+const WHEEL_TRAVEL_SYSTEM_PX = 26000; // eleven career chapters: a long ride
 const TOUCH_TRAVEL_PX = 2400;
-const TOUCH_TRAVEL_SYSTEM_PX = 4200;
+const TOUCH_TRAVEL_SYSTEM_PX = 9500;
 
 function DescentController() {
   useEffect(() => {
@@ -99,23 +99,43 @@ function TitleCard() {
 
 function DescentCaption() {
   const idx = useDescentStore((s) => s.captionIndex);
-  const sysIdx = useDescentStore((s) => s.sysCaptionIndex);
   const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
-
-  const c = arrived
-    ? sysIdx >= 0
-      ? SYSTEM_CAPTIONS[sysIdx]
-      : null
-    : idx >= 0
-      ? DESCENT_CAPTIONS[idx]
-      : null;
-  if (!c) return null;
-
+  if (arrived || idx < 0) return null;
+  const c = DESCENT_CAPTIONS[idx];
   return (
-    <div key={`${arrived ? 's' : 'd'}${arrived ? sysIdx : idx}`} className="descent-caption" aria-live="polite">
+    <div key={idx} className="descent-caption" aria-live="polite">
       <div className="descent-caption__primary">{c.primary}</div>
       <div className="descent-caption__secondary">{c.secondary}</div>
     </div>
+  );
+}
+
+/** Career chapter panel — the reason the journey exists. One celestial
+ *  body, one chapter; quiet typography beside the world it belongs to. */
+function ChapterPanel() {
+  const idx = useDescentStore((s) => s.sysCaptionIndex);
+  const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
+  if (!arrived || idx < 0) return null;
+  const c = CHAPTERS[idx];
+  return (
+    <aside key={c.id} className="chapter-panel" aria-live="polite">
+      <div className="chapter-panel__planet">{c.planet}</div>
+      <h2 className="chapter-panel__title">{c.title}</h2>
+      {c.body.map((line) => (
+        <p key={line} className="chapter-panel__line">
+          {line}
+        </p>
+      ))}
+      {c.links && (
+        <div className="chapter-panel__links">
+          {c.links.map((l) => (
+            <a key={l.href} href={l.href} target="_blank" rel="noreferrer">
+              {l.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </aside>
   );
 }
 
@@ -147,6 +167,7 @@ export function DescentOverlay() {
       <DescentController />
       <TitleCard />
       <DescentCaption />
+      <ChapterPanel />
       <ArrivalFlash />
     </>
   );

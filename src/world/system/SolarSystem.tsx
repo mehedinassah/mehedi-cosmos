@@ -10,6 +10,8 @@ import atmoVert from '@/shaders/materials/atmosphere/atmo.vert';
 import atmoFrag from '@/shaders/materials/atmosphere/atmo.frag';
 import cloudsVert from '@/shaders/materials/clouds/clouds.vert';
 import cloudsFrag from '@/shaders/materials/clouds/clouds.frag';
+import ringsVert from '@/shaders/materials/rings/rings.vert';
+import ringsFrag from '@/shaders/materials/rings/rings.frag';
 import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
@@ -20,6 +22,7 @@ import {
   EARTH_POS,
   MOON_ANCHOR,
   MOON_RADIUS,
+  CHAPTER_SP,
   type HeroSpec,
 } from '@/world/system/systemSpec';
 
@@ -95,7 +98,65 @@ function useHeroMaterials(spec: HeroSpec) {
   }, [spec, tier]);
 }
 
+const band = (p: number, a: number, b: number) => THREE.MathUtils.smoothstep(p, a, b);
 const MOON_UP = new THREE.Vector3(0, 1, 0);
+
+/** Generic moons (Jupiter's four, Titan, Charon) — slow pivot orbits. */
+function Moons({ moons }: { moons: NonNullable<HeroSpec['moons']> }) {
+  const pivots = useRef<(THREE.Group | null)[]>([]);
+  useFrame((_, delta) => {
+    pivots.current.forEach((p, i) => {
+      if (p) p.rotation.y += delta * moons[i].speed;
+    });
+  });
+  return (
+    <>
+      {moons.map((m, i) => (
+        <group
+          key={i}
+          ref={(el) => {
+            pivots.current[i] = el;
+          }}
+          rotation={[m.incl, m.phase, 0]}
+        >
+          <mesh position={[m.dist, 0, 0]}>
+            <sphereGeometry args={[m.radius, 24, 24]} />
+            <meshStandardMaterial color="#b8b3aa" roughness={0.95} metalness={0.02} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+function SaturnRings({ spec }: { spec: HeroSpec }) {
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: ringsVert,
+        fragmentShader: assembleShader(ringsFrag, { OCTAVES: 3 }),
+        uniforms: {
+          uSunPos: { value: new THREE.Vector3(0, 0, 0) },
+          uPlanetPos: { value: spec.position.clone() },
+          uPlanetR: { value: spec.radius },
+          uInnerR: { value: spec.radius * 1.35 },
+          uOuterR: { value: spec.radius * 2.4 },
+          uSeed: { value: 7.31 },
+        },
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    [spec],
+  );
+  // Tilted open toward the flight lane — edge-on rings vanish into a line
+  return (
+    <mesh rotation={[Math.PI / 2 + 0.5, 0, 0.24]}>
+      <ringGeometry args={[spec.radius * 1.35, spec.radius * 2.4, 180, 4]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+}
 
 /** The Moon starts exactly at the flight path's gaze anchor and drifts
  *  around Earth imperceptibly — the sweep-past must land where the camera
@@ -135,22 +196,89 @@ function Hero({ spec }: { spec: HeroSpec }) {
     clouds.uniforms.uCameraPos.value.copy(state.camera.position);
   });
 
+  // The giants fill real screen space on their pass — they need the density
+  const segs = spec.radius >= 20 ? 96 : 64;
   return (
     <group position={spec.position}>
       <mesh ref={meshRef}>
-        <sphereGeometry args={[spec.radius, 64, 64]} />
+        <sphereGeometry args={[spec.radius, segs, segs]} />
         <primitive object={surface} attach="material" />
       </mesh>
       {spec.palette.clouds > 0.05 && (
         <mesh ref={cloudRef} scale={1.02}>
-          <sphereGeometry args={[spec.radius, 48, 48]} />
+          <sphereGeometry args={[spec.radius, Math.min(segs, 64), Math.min(segs, 64)]} />
           <primitive object={clouds} attach="material" />
         </mesh>
       )}
       <mesh scale={1.07}>
-        <sphereGeometry args={[spec.radius, 32, 32]} />
+        <sphereGeometry args={[spec.radius, 48, 48]} />
         <primitive object={atmosphere} attach="material" />
       </mesh>
+      {spec.rings && <SaturnRings spec={spec} />}
+      {spec.moons && <Moons moons={spec.moons} />}
+    </group>
+  );
+}
+
+/** Orbiting glints: Venus wears its skills as satellites; Earth carries a
+ *  handful of fast, blinking spacecraft. Small lights, not labels. */
+function OrbitGlints({
+  center,
+  count,
+  radius,
+  speed,
+  size,
+  color,
+  seed,
+}: {
+  center: THREE.Vector3;
+  count: number;
+  radius: number;
+  speed: number;
+  size: number;
+  color: [number, number, number];
+  seed: number;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const mat = useMemo(() => makeStarMaterial(), []);
+  const geometry = useMemo(() => {
+    const rng = mulberry32(seed);
+    const pos = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    const tw = new Float32Array(count);
+    const order = new Float32Array(count);
+    const col = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + rng() * 0.5;
+      const r = radius * (0.9 + rng() * 0.25);
+      pos.set([Math.cos(a) * r, (rng() - 0.5) * radius * 0.35, Math.sin(a) * r], i * 3);
+      sizes[i] = size * (0.7 + rng() * 0.6);
+      tw[i] = rng();
+      order[i] = rng() * 0.3;
+      col.set(color, i * 3);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+    g.setAttribute('aTwinkleSeed', new THREE.BufferAttribute(tw, 1));
+    g.setAttribute('aIgniteOrder', new THREE.BufferAttribute(order, 1));
+    g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+    return g;
+  }, [count, radius, size, color, seed]);
+
+  useFrame((state, delta) => {
+    mat.uniforms.uTime.value = state.clock.elapsedTime;
+    mat.uniforms.uFormation.value = 1;
+    if (groupRef.current) groupRef.current.rotation.y += delta * speed;
+  });
+
+  return (
+    <group position={center}>
+      <group ref={groupRef}>
+        <points geometry={geometry} frustumCulled={false}>
+          <primitive object={mat} attach="material" />
+        </points>
+      </group>
     </group>
   );
 }
@@ -166,6 +294,95 @@ function makeStarMaterial(wobble = 0) {
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
+}
+
+function buildBeltGeometry(
+  count: number,
+  seed: number,
+  rMin: number,
+  rMax: number,
+  thickness: number,
+  sizeMin: number,
+  sizeMax: number,
+  color: (rng: () => number) => [number, number, number],
+) {
+  const rng = mulberry32(seed);
+  const pos = new Float32Array(count * 3);
+  const size = new Float32Array(count);
+  const tw = new Float32Array(count);
+  const order = new Float32Array(count);
+  const col = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = rMin + Math.pow(rng(), 0.8) * (rMax - rMin);
+    const a = rng() * Math.PI * 2;
+    const y = ((rng() + rng() + rng() - 1.5) / 1.5) * thickness * (r / rMax);
+    pos.set([Math.cos(a) * r, y, Math.sin(a) * r], i * 3);
+    size[i] = sizeMin + rng() * (sizeMax - sizeMin);
+    tw[i] = rng();
+    order[i] = rng() * 0.7;
+    col.set(color(rng), i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+  g.setAttribute('aTwinkleSeed', new THREE.BufferAttribute(tw, 1));
+  g.setAttribute('aIgniteOrder', new THREE.BufferAttribute(order, 1));
+  g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+/** The rubble between Mars and Jupiter — the flight passes THROUGH it. */
+function AsteroidBelt() {
+  const groupRef = useRef<THREE.Group>(null);
+  const mat = useMemo(() => makeStarMaterial(), []);
+  const geometry = useMemo(
+    () =>
+      buildBeltGeometry(3200, 8117, 4200, 5500, 220, 18, 48, (rng) => {
+        const v = 0.35 + rng() * 0.3;
+        return [v * 0.62, v * 0.55, v * 0.47];
+      }),
+    [],
+  );
+  useFrame((state, delta) => {
+    mat.uniforms.uTime.value = state.clock.elapsedTime;
+    const sp = useDescentStore.getState().sysSmoothed;
+    mat.uniforms.uFormation.value = band(sp, CHAPTER_SP.mars - 0.04, CHAPTER_SP.mars + 0.04);
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.0035;
+  });
+  return (
+    <group ref={groupRef}>
+      <points geometry={geometry} frustumCulled={false}>
+        <primitive object={mat} attach="material" />
+      </points>
+    </group>
+  );
+}
+
+/** The Kuiper fringe — Pluto's neighborhood, the frozen frontier. */
+function KuiperBelt() {
+  const groupRef = useRef<THREE.Group>(null);
+  const mat = useMemo(() => makeStarMaterial(), []);
+  const geometry = useMemo(
+    () =>
+      buildBeltGeometry(2200, 4159, 17000, 22500, 1400, 45, 120, (rng) => {
+        const v = 0.25 + rng() * 0.25;
+        return [v * 0.55, v * 0.62, v * 0.72];
+      }),
+    [],
+  );
+  useFrame((state, delta) => {
+    mat.uniforms.uTime.value = state.clock.elapsedTime;
+    const sp = useDescentStore.getState().sysSmoothed;
+    mat.uniforms.uFormation.value = band(sp, CHAPTER_SP.neptune - 0.03, CHAPTER_SP.pluto - 0.02);
+    if (groupRef.current) groupRef.current.rotation.y += delta * 0.0005;
+  });
+  return (
+    <group ref={groupRef}>
+      <points geometry={geometry} frustumCulled={false}>
+        <primitive object={mat} attach="material" />
+      </points>
+    </group>
+  );
 }
 
 /** Zodiacal dust — the inner system shimmers faintly in sunlight. */
@@ -200,11 +417,11 @@ function ZodiacalDust() {
   }, []);
   useFrame((state) => {
     mat.uniforms.uTime.value = state.clock.elapsedTime;
-    mat.uniforms.uFormation.value = THREE.MathUtils.smoothstep(
-      useDescentStore.getState().sysSmoothed,
-      0.01,
-      0.1,
-    );
+    const sp = useDescentStore.getState().sysSmoothed;
+    // An inner-sun phenomenon: gone before Earth, or grains passing the
+    // lens render as giant capped blobs over the project chapters
+    mat.uniforms.uFormation.value =
+      band(sp, 0.01, 0.1) * (1 - band(sp, CHAPTER_SP.earth - 0.09, CHAPTER_SP.earth - 0.02));
   });
   return (
     <points geometry={geometry} frustumCulled={false}>
@@ -386,12 +603,20 @@ function Comet() {
 /* ---------------------------- assembly ---------------------------- */
 
 export function SolarSystem() {
+  const venus = HEROES.find((h) => h.id === 'venus')!;
+  const earth = HEROES.find((h) => h.id === 'earth')!;
   return (
     <group name="solar-system">
       {HEROES.map((h) => (
         <Hero key={h.id} spec={h} />
       ))}
       <EarthMoon />
+      {/* Venus wears its skills as a ring of satellites */}
+      <OrbitGlints center={venus.position} count={13} radius={18} speed={0.08} size={5} color={[0.55, 0.66, 0.8]} seed={311} />
+      {/* Earth's spacecraft: fast, small, blinking */}
+      <OrbitGlints center={earth.position} count={4} radius={12} speed={0.32} size={4} color={[0.8, 0.76, 0.68]} seed={733} />
+      <AsteroidBelt />
+      <KuiperBelt />
       <ZodiacalDust />
       <SolarWind />
       <Comet />

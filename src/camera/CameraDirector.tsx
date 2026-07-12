@@ -14,7 +14,7 @@ import {
   GALAXY_REST_LOOK,
 } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
-import { systemPose, SYSTEM_CAPTIONS } from '@/world/system/systemSpec';
+import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
 
 
 /**
@@ -122,12 +122,10 @@ export function CameraDirector() {
         pointerSmooth.current.set(0, 0);
       }
     } else {
-      // System-chapter rig: same damping treatment for the outward dolly
+      // System-chapter rig: same damping treatment for the flight, and the
+      // career-chapter index that drives the DOM panel
       sp = THREE.MathUtils.damp(descent.sysSmoothed, descent.sysTarget, 2.0, delta);
-      let sysCaptionIndex = -1;
-      for (let k = 0; k < SYSTEM_CAPTIONS.length; k++) {
-        if (sp >= SYSTEM_CAPTIONS[k].at) sysCaptionIndex = k;
-      }
+      const sysCaptionIndex = chapterIndexAt(sp);
       if (sp !== descent.sysSmoothed || sysCaptionIndex !== descent.sysCaptionIndex) {
         useDescentStore.setState({ sysSmoothed: sp, sysCaptionIndex });
       }
