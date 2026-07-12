@@ -122,9 +122,9 @@ export function CameraDirector() {
         pointerSmooth.current.set(0, 0);
       }
     } else {
-      // System-chapter rig: same damping treatment for the flight, and the
-      // career-chapter index that drives the DOM panel
-      sp = THREE.MathUtils.damp(descent.sysSmoothed, descent.sysTarget, 2.0, delta);
+      // System-chapter rig: HEAVY damping — a twenty-ton spacecraft, not a
+      // cursor. Scroll intent arrives; the ship leans into it, then settles.
+      sp = THREE.MathUtils.damp(descent.sysSmoothed, descent.sysTarget, 1.4, delta);
       const sysCaptionIndex = chapterIndexAt(sp);
       if (sp !== descent.sysSmoothed || sysCaptionIndex !== descent.sysCaptionIndex) {
         useDescentStore.setState({ sysSmoothed: sp, sysCaptionIndex });
@@ -294,7 +294,10 @@ export function CameraDirector() {
     // Applied after lookAt, which re-levels the camera every frame, so the
     // roll never accumulates.
     if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
-      const settle = 1 - THREE.MathUtils.smoothstep(dp, 0.88, 1); // level out for arrival
+      // Level out for the arrival flash, then keep a half-amplitude float
+      // through the system chapter — the ship never becomes a tripod
+      const settle =
+        descent.stage === 'ARRIVED' ? 0.5 : 1 - THREE.MathUtils.smoothstep(dp, 0.88, 1);
       cam.rotateZ((Math.sin(t * 0.07) * 0.013 + Math.sin(t * 0.023 + 2.0) * 0.009) * settle);
     }
 

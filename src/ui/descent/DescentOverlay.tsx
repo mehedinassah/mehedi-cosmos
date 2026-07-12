@@ -17,9 +17,9 @@ import { CHAPTERS } from '@/world/system/systemSpec';
  */
 
 const WHEEL_TRAVEL_PX = 6500; // full descent in ~6.5k px of wheel
-const WHEEL_TRAVEL_SYSTEM_PX = 26000; // eleven career chapters: a long ride
+const WHEEL_TRAVEL_SYSTEM_PX = 34000; // eleven destinations, never a race
 const TOUCH_TRAVEL_PX = 2400;
-const TOUCH_TRAVEL_SYSTEM_PX = 9500;
+const TOUCH_TRAVEL_SYSTEM_PX = 12500;
 
 function DescentController() {
   useEffect(() => {

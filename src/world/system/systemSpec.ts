@@ -118,30 +118,45 @@ function sideAt(p: THREE.Vector3): THREE.Vector3 {
 
 /** Flyby vantage: mostly BETWEEN the world and the sun, a little to the
  *  side — every world is met with its lit face toward the camera. A
- *  night-side or terminator pass reads as a black hole with a caption. */
-function passPoint(p: THREE.Vector3, offset: number, ySign = 1): THREE.Vector3 {
+ *  night-side or terminator pass reads as a black hole with a caption.
+ *  The Y lift is uniform: ONE consistent viewing angle slightly above the
+ *  ecliptic for the whole journey — the viewer always knows where up is. */
+function arcPoint(p: THREE.Vector3, offset: number, angle: number): THREE.Vector3 {
   const sunward = p.clone().negate().normalize();
-  return p
-    .clone()
-    .addScaledVector(sideAt(p), offset * 0.35)
-    .addScaledVector(sunward, offset * 0.95)
-    .setY(p.y + ySign * offset * 0.22);
+  const dir = sideAt(p)
+    .multiplyScalar(0.35)
+    .addScaledVector(sunward, 0.95)
+    .normalize()
+    .applyAxisAngle(UP, angle);
+  return p.clone().addScaledVector(dir, offset).setY(p.y + offset * 0.22);
 }
 
-// Named pass points: the flight's control points AND the chapter anchors —
-// the scroll remap must anchor each chapter at the authored sunlit vantage,
-// not at the curve's closest (often dark-side) approach to the planet.
-// Standoff scales with planet size (~6 radii): the giants need room, or the
-// flyby blows past in a sliver of scroll and the gaze catches the dark side
-const MERCURY_PASS = passPoint(MERCURY_POS, 30);
-const VENUS_PASS = passPoint(VENUS_POS, 52, -1);
-const EARTH_PASS = passPoint(EARTH_POS, 48);
-const MARS_PASS = passPoint(MARS_POS, 44);
-const JUPITER_PASS = passPoint(JUPITER_POS, 185, -1);
-const SATURN_PASS = passPoint(SATURN_POS, 160);
-const URANUS_PASS = passPoint(URANUS_POS, 80, -1);
-const NEPTUNE_PASS = passPoint(NEPTUNE_POS, 76);
-const PLUTO_PASS = passPoint(PLUTO_POS, 11);
+/** Arrival grammar, identical at every world: approach (pre) -> hero shot
+ *  (whole planet framed, lit) -> slow ~30 degree micro-orbit -> depart
+ *  (post). The spline wraps partially AROUND each planet instead of
+ *  streaking past it; the scroll remap below stretches time across the arc
+ *  so every destination gets a moment to breathe. */
+function passArc(p: THREE.Vector3, offset: number) {
+  return {
+    pre: arcPoint(p, offset, -0.26),
+    hero: arcPoint(p, offset, 0),
+    post: arcPoint(p, offset, 0.28),
+  };
+}
+
+// Standoff scales with planet size (~6 radii): the hero shot frames the
+// whole world at roughly 40% of the viewport, never cropped
+export const CHAPTER_ARCS: Record<string, { pre: THREE.Vector3; hero: THREE.Vector3; post: THREE.Vector3 }> = {
+  mercury: passArc(MERCURY_POS, 30),
+  venus: passArc(VENUS_POS, 52),
+  earth: passArc(EARTH_POS, 48),
+  mars: passArc(MARS_POS, 44),
+  jupiter: passArc(JUPITER_POS, 185),
+  saturn: passArc(SATURN_POS, 160),
+  uranus: passArc(URANUS_POS, 80),
+  neptune: passArc(NEPTUNE_POS, 76),
+  pluto: passArc(PLUTO_POS, 11),
+};
 
 /** Departure waypoint: a sunward pass must leave around the planet's FLANK.
  *  Without it, the spline's chord to the next world can cut straight
@@ -156,9 +171,9 @@ function departPoint(p: THREE.Vector3, offset: number, ySign = 1): THREE.Vector3
 }
 
 const JUPITER_OUT = departPoint(JUPITER_POS, 185);
-const SATURN_OUT = departPoint(SATURN_POS, 160, -1);
+const SATURN_OUT = departPoint(SATURN_POS, 160);
 const URANUS_OUT = departPoint(URANUS_POS, 80);
-const NEPTUNE_OUT = departPoint(NEPTUNE_POS, 76, -1);
+const NEPTUNE_OUT = departPoint(NEPTUNE_POS, 76);
 
 const venusToEarth = EARTH_POS.clone().sub(VENUS_POS).normalize();
 const earthToMars = MARS_POS.clone().sub(EARTH_POS).normalize();
@@ -178,31 +193,32 @@ const MOON_PASS = MOON_ANCHOR.clone()
   .addScaledVector(earthSide, 3);
 const EARTH_OUT = departPoint(EARTH_POS, 48);
 
+const A = CHAPTER_ARCS;
 const FLIGHT_POINTS: THREE.Vector3[] = [
   // Arrival: close on the photosphere (matches the descent handoff)
   at(0.6, 438, 46),
   // Swing past the sun — it slides out of frame
   at(0.95, 560, 70),
-  MERCURY_PASS,
-  VENUS_PASS,
-  // The long Earth approach, then the sunlit pass
+  A.mercury.pre, A.mercury.hero, A.mercury.post,
+  A.venus.pre, A.venus.hero, A.venus.post,
+  // The long Earth approach, then the sunlit arc
   EARTH_POS.clone().addScaledVector(venusToEarth, -470).addScaledVector(earthSide, 34).setY(-8),
-  EARTH_PASS,
+  A.earth.pre, A.earth.hero, A.earth.post,
   // Brush past the Moon, then swing around Earth's flank outward
   MOON_PASS,
   EARTH_OUT,
-  MARS_PASS,
+  A.mars.pre, A.mars.hero, A.mars.post,
   // Through the rubble between Mars and Jupiter
   at(1.48, 4800, 20),
-  JUPITER_PASS,
+  A.jupiter.pre, A.jupiter.hero, A.jupiter.post,
   JUPITER_OUT,
-  SATURN_PASS,
+  A.saturn.pre, A.saturn.hero, A.saturn.post,
   SATURN_OUT,
-  URANUS_PASS,
+  A.uranus.pre, A.uranus.hero, A.uranus.post,
   URANUS_OUT,
-  NEPTUNE_PASS,
+  A.neptune.pre, A.neptune.hero, A.neptune.post,
   NEPTUNE_OUT,
-  PLUTO_PASS,
+  A.pluto.pre, A.pluto.hero, A.pluto.post,
   // The quiet ending: the camera keeps drifting away, gaze locked on Pluto
   PLUTO_POS.clone()
     .add(PLUTO_POS.clone().sub(NEPTUNE_POS).normalize().multiplyScalar(300))
@@ -257,7 +273,7 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'mercury', planet: 'Mercury', title: 'About', sp: 0.1, target: MERCURY_POS, anchor: MERCURY_PASS,
+    id: 'mercury', planet: 'Mercury', title: 'About', sp: 0.1, target: MERCURY_POS, anchor: CHAPTER_ARCS.mercury.hero,
     body: [
       'Full stack developer from Dhaka, Bangladesh.',
       'BSc in Computer Science, BRAC University, 2022 to 2026.',
@@ -265,7 +281,7 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'venus', planet: 'Venus', title: 'Skills', sp: 0.2, target: VENUS_POS, anchor: VENUS_PASS,
+    id: 'venus', planet: 'Venus', title: 'Skills', sp: 0.2, target: VENUS_POS, anchor: CHAPTER_ARCS.venus.hero,
     body: [
       'Languages: Java, Kotlin, TypeScript, Python',
       'Frontend: React, Next.js, Flutter',
@@ -277,7 +293,7 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'earth', planet: 'Earth', title: 'Experience', sp: 0.3, target: EARTH_POS, anchor: EARTH_PASS,
+    id: 'earth', planet: 'Earth', title: 'Experience', sp: 0.3, target: EARTH_POS, anchor: CHAPTER_ARCS.earth.hero,
     body: [
       'Community Lead for a 90k+ member community',
       'Events with 500+ attendees',
@@ -286,11 +302,11 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'mars', planet: 'Mars', title: 'Projects', sp: 0.42, target: MARS_POS, anchor: MARS_PASS,
+    id: 'mars', planet: 'Mars', title: 'Projects', sp: 0.42, target: MARS_POS, anchor: CHAPTER_ARCS.mars.hero,
     body: ['Perico ERP', 'Top-Line', 'Whispers', 'banauAI', 'Smart Geo Landmarks'],
   },
   {
-    id: 'jupiter', planet: 'Jupiter', title: 'Featured: Perico ERP', sp: 0.55, target: JUPITER_POS, anchor: JUPITER_PASS,
+    id: 'jupiter', planet: 'Jupiter', title: 'Featured: Perico ERP', sp: 0.55, target: JUPITER_POS, anchor: CHAPTER_ARCS.jupiter.hero,
     body: [
       'The flagship build: a complete business ERP.',
       'Inventory, orders, and operations in one system.',
@@ -299,16 +315,16 @@ export const CHAPTERS: Chapter[] = [
     links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
   },
   {
-    id: 'saturn', planet: 'Saturn', title: 'Open Source', sp: 0.67, target: SATURN_POS, anchor: SATURN_PASS,
+    id: 'saturn', planet: 'Saturn', title: 'Open Source', sp: 0.67, target: SATURN_POS, anchor: CHAPTER_ARCS.saturn.hero,
     body: ['Repositories, commits, and stars', 'Perico ERP, Whispers, Top-Line, banauAI'],
     links: [{ label: 'github.com/mehedinassah', href: 'https://github.com/mehedinassah' }],
   },
   {
-    id: 'uranus', planet: 'Uranus', title: 'Off the Clock', sp: 0.78, target: URANUS_POS, anchor: URANUS_PASS,
+    id: 'uranus', planet: 'Uranus', title: 'Off the Clock', sp: 0.78, target: URANUS_POS, anchor: CHAPTER_ARCS.uranus.hero,
     body: ['Movies and games', 'Football', 'Music and tea', 'A late night builder'],
   },
   {
-    id: 'neptune', planet: 'Neptune', title: 'Contact', sp: 0.88, target: NEPTUNE_POS, anchor: NEPTUNE_PASS,
+    id: 'neptune', planet: 'Neptune', title: 'Contact', sp: 0.88, target: NEPTUNE_POS, anchor: CHAPTER_ARCS.neptune.hero,
     body: ['Dhaka, Bangladesh', '+880 1919 234860'],
     links: [
       { label: 'Email', href: 'mailto:idehemnassah@gmail.com' },
@@ -317,7 +333,9 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'pluto', planet: 'Pluto', title: 'The edge of the map.', sp: 0.965, target: PLUTO_POS, anchor: PLUTO_PASS,
+    // sp stops at 0.95 so the last stretch of scroll belongs to the
+    // departure: the camera pulls away from Pluto, gaze locked back
+    id: 'pluto', planet: 'Pluto', title: 'The edge of the map.', sp: 0.95, target: PLUTO_POS, anchor: CHAPTER_ARCS.pluto.hero,
     body: ['Thanks for flying this far.'],
   },
 ];
@@ -335,11 +353,21 @@ export function chapterIndexAt(sp: number): number {
 
 /* ------------- scroll remap: fair pacing over unfair distances ------------- */
 
+// Three time anchors per chapter (arc entry, hero, arc exit): the camera
+// spends a wide slice of scroll on a short stretch of curve — the slow
+// lingering micro-orbit — then covers the empty gaps quickly. Cinematic
+// time is spent where the wonder is.
 const REMAP: [number, number][] = [
   [0, 0],
-  ...CHAPTERS.filter((c) => c.id !== 'sun').map(
-    (c) => [c.sp, nearestU(c.anchor ?? c.target)] as [number, number],
-  ),
+  ...CHAPTERS.filter((c) => c.id !== 'sun').flatMap((c) => {
+    const arc = CHAPTER_ARCS[c.id];
+    if (!arc) return [[c.sp, nearestU(c.anchor ?? c.target)] as [number, number]];
+    return [
+      [c.sp - 0.03, nearestU(arc.pre)],
+      [c.sp, nearestU(arc.hero)],
+      [c.sp + 0.035, nearestU(arc.post)],
+    ] as [number, number][];
+  }),
   // The Moon has no chapter panel but still deserves its share of the ride:
   // without this anchor the Earth->Mars leg swallows the sweep in an instant
   [0.36, nearestU(MOON_PASS)],
@@ -406,7 +434,8 @@ export function systemPose(
       pull(vDir, outPos, c.target, THREE.MathUtils.smoothstep(sp, c.sp - 0.04, c.sp - 0.01));
       continue;
     }
-    pull(vDir, outPos, c.target, windowW(sp, c.sp - 0.045, c.sp - 0.018, c.sp + 0.025, c.sp + 0.052) * 0.85);
+    // Wide hold: the gaze stays with the world through the whole micro-orbit
+    pull(vDir, outPos, c.target, windowW(sp, c.sp - 0.052, c.sp - 0.026, c.sp + 0.032, c.sp + 0.062) * 0.85);
   }
   // The Moon's silent beat: no panel, just the sweep past a lit face
   pull(vDir, outPos, MOON_ANCHOR, windowW(sp, 0.328, 0.345, 0.372, 0.392) * 0.85);
