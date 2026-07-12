@@ -30,7 +30,10 @@ void main() {
   float phase = theta - uTwist * log(max(r, 1.0)) + warp * smoothstep(0.06, 0.4, rn);
 
   float armWave = sin(uArms * phase) * 0.5 + 0.5;
-  float arms = pow(smoothstep(0.22, 0.9, armWave), 1.3);
+  // Arm width breathes along the spiral — swollen star-forming stretches
+  // pinch down to threads. Sampled in (radius, phase) so it tracks each arm.
+  float widthMod = fbm(vec3(rn * 4.0 + 3.0, phase * 0.9, uSeed + 67.0));
+  float arms = pow(smoothstep(0.06 + widthMod * 0.42, 0.9, armWave), 1.3);
   // Weak offset harmonic -> partial spur arms between the two majors
   float spurWave = sin(uArms * 2.0 * phase + 2.3) * 0.5 + 0.5;
   arms = max(arms, pow(smoothstep(0.7, 0.98, spurWave), 2.0) * 0.4);
@@ -47,7 +50,9 @@ void main() {
   float armLight = arms * (0.3 + 0.95 * knots) * breaks * lop;
 
   float radialFalloff = smoothstep(1.0, 0.32, rn) * (0.32 + 0.68 * smoothstep(0.015, 0.16, rn));
-  float coreBulge = smoothstep(0.16, 0.0, rn);
+  // Bulge: wider and softer than before — the peak was clipping to white.
+  // The out-of-plane layering comes from the CoreGlow sprites, not this term.
+  float coreBulge = pow(smoothstep(0.22, 0.0, rn), 1.5);
 
   // Stellar populations: golden bulge -> warm mid-disc -> blue-white rim
   vec3 coreCol = vec3(1.0, 0.8, 0.52);
@@ -61,7 +66,7 @@ void main() {
   float mol = fbm(vec3(vPosL.x * 0.0005 + 77.0, uSeed + 29.0, vPosL.z * 0.0005 + 77.0)) * interArm;
 
   vec3 col = base * armLight * radialFalloff * 1.45;
-  col += coreCol * coreBulge * (1.3 + 0.3 * fbm(vPosL * 0.0018));
+  col += coreCol * coreBulge * (0.85 + 0.25 * fbm(vPosL * 0.0018));
   col += vec3(1.0, 0.47, 0.6) * hii * 0.85;
   col += vec3(0.5, 0.68, 1.0) * ob * 0.7;
   col += vec3(0.4, 0.32, 0.62) * mol * 0.35;
@@ -73,7 +78,15 @@ void main() {
   float dustFil = fbm(vec3(rn * 7.0, phase * 1.35, uSeed + 5.0));
   float dust = smoothstep(0.42, 0.78, dustWave * (0.35 + 0.65 * dustFil))
              * smoothstep(0.1, 0.3, rn) * smoothstep(0.95, 0.5, rn);
-  col = mix(col, col * vec3(0.4, 0.28, 0.2), dust * 0.85);
+  col = mix(col, col * vec3(0.3, 0.2, 0.14), dust * 0.95);
+
+  // Giant molecular clouds: big black patches that carve the glow — the
+  // galaxy is shaped by darkness as much as by light. Mirrored in
+  // armDensity so stars thin out inside the same shadows.
+  vec2 m = vPosL.xz * 0.00052;
+  float darkCloud = smoothstep(0.5, 0.8, fbm(vec3(m.x + 13.0, uSeed + 71.0, m.y + 13.0)))
+                  * smoothstep(0.1, 0.28, rn);
+  col = mix(col, col * vec3(0.16, 0.12, 0.1), darkCloud * 0.9);
 
   // Destination cue: a soft brightening where the journey will dive — pulls
   // the eye toward one arm without ever reading as a UI element.
@@ -84,8 +97,8 @@ void main() {
   // Alpha: arms dissolve into mist — noise-eroded rim, never a clean cutoff
   float edgeNoise = fbm(vec3(vPosL.x * 0.00028 + 3.0, uSeed + 53.0, vPosL.z * 0.00028 + 3.0));
   float edge = smoothstep(1.02, 0.66, rn + (edgeNoise - 0.5) * 0.34);
-  float alpha = armLight * radialFalloff * 1.2 + coreBulge * 0.95 + mol * 0.35 + beacon * armLight * 0.25;
-  alpha *= edge * (1.0 - dust * 0.4);
+  float alpha = armLight * radialFalloff * 1.2 + coreBulge * 0.8 + mol * 0.35 + beacon * armLight * 0.25;
+  alpha *= edge * (1.0 - dust * 0.5) * (1.0 - darkCloud * 0.55);
   alpha *= uReveal * uLayerAlpha;
 
   gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));

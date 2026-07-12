@@ -13,7 +13,7 @@ import { bodyById } from '@/content/universe';
  * frame ALONE for a few seconds before the HUD fades in — nothing should
  * remind the viewer they're on a website until the image has landed.
  */
-const HUD_REVEAL_DELAY_MS = 4200;
+const HUD_REVEAL_DELAY_MS = 6500;
 
 export function JourneyHud() {
   const phase = useJourneyStore((s) => s.phase);

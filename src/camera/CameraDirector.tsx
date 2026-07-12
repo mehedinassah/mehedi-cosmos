@@ -71,6 +71,7 @@ export function CameraDirector() {
   const baseFov = useRef(50);
   const pointerSmooth = useRef(new THREE.Vector2());
   const parallaxApplied = useRef(new THREE.Vector3());
+  const idleDrift = useRef(0);
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
 
@@ -147,13 +148,18 @@ export function CameraDirector() {
         break;
       }
       case 'IDLE': {
-        // Galaxy hero rest — hold the vantage with a very slow orbital drift so
-        // the disc feels alive without the camera ever wandering off-frame.
+        // Galaxy hero rest — a free-floating telescope, never a locked tripod:
+        // very slow orbital drift plus a constant, asymptotic forward creep.
+        // The creep caps at 14% of the vantage distance so the framing holds.
         const center = GALAXY_LOOK;
-        if (!reducedMotion) orbitAngle.current += delta * 0.008;
+        if (!reducedMotion) {
+          orbitAngle.current += delta * 0.008;
+          idleDrift.current = Math.min(idleDrift.current + delta * 0.0018, 0.14);
+        }
         const offset = GALAXY_CAM_POS.clone()
           .sub(center)
-          .applyAxisAngle(new THREE.Vector3(0, 1, 0), orbitAngle.current);
+          .applyAxisAngle(new THREE.Vector3(0, 1, 0), orbitAngle.current)
+          .multiplyScalar(1 - idleDrift.current);
         const target = center.clone().add(offset);
         cam.position.lerp(target, 1 - Math.exp(-1.5 * delta));
         lookTarget.current.copy(center);
@@ -208,6 +214,14 @@ export function CameraDirector() {
     // Look-lag: the gaze trails the intent — drone weight, never a rigid rig
     currentLook.current.lerp(lookTarget.current, 1 - Math.exp(-3.2 * delta));
     cam.lookAt(currentLook.current);
+
+    // Micro roll while resting on the hero: a body floating in space has no
+    // "up" — a barely-perceptible bank (~1°) breaks the tripod feeling.
+    // Applied after lookAt, which re-levels the camera every frame, so the
+    // roll never accumulates.
+    if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
+      cam.rotateZ(Math.sin(t * 0.07) * 0.013 + Math.sin(t * 0.023 + 2.0) * 0.009);
+    }
 
     // Rule of thirds: shift the frustum so the subject composes off-center
     // (setViewOffset — the subject stays correctly tracked/lit, only the

@@ -43,9 +43,11 @@ export const GALAXY_TILT = new THREE.Euler(
 );
 
 const GALAXY_VIEW_DIR = new THREE.Vector3(0.06, 0.2, 1).normalize();
+// 1.9 radii puts the disc at ~60% of the frame — close enough to feel like
+// you're approaching it, not observing it from another galaxy.
 export const GALAXY_CAM_POS = GALAXY_CENTER.clone().addScaledVector(
   GALAXY_VIEW_DIR,
-  OUTER_RADIUS * 2.5,
+  OUTER_RADIUS * 1.9,
 );
 export const GALAXY_LOOK = GALAXY_CENTER.clone();
 
@@ -129,7 +131,8 @@ function armDensity(x: number, z: number): number {
   const phase = theta - TWIST * Math.log(Math.max(r, 1)) + warp * smoothstep(0.06, 0.4, rn);
 
   const armWave = Math.sin(ARMS * phase) * 0.5 + 0.5;
-  let arms = Math.pow(smoothstep(0.22, 0.9, armWave), 1.3);
+  const widthMod = fbm(rn * 4 + 3, phase * 0.9, 67);
+  let arms = Math.pow(smoothstep(0.06 + widthMod * 0.42, 0.9, armWave), 1.3);
   const spurWave = Math.sin(ARMS * 2 * phase + 2.3) * 0.5 + 0.5;
   arms = Math.max(arms, Math.pow(smoothstep(0.7, 0.98, spurWave), 2) * 0.4);
 
@@ -139,8 +142,11 @@ function armDensity(x: number, z: number): number {
   const armLight = arms * (0.3 + 0.95 * knots) * breaks * lop;
 
   const radialFalloff = smoothstep(1, 0.32, rn) * (0.32 + 0.68 * smoothstep(0.015, 0.16, rn));
-  const coreBulge = smoothstep(0.16, 0, rn);
-  return armLight * radialFalloff + coreBulge;
+  const coreBulge = Math.pow(smoothstep(0.22, 0, rn), 1.5);
+  // Dark molecular clouds swallow starlight the same way they carve the disc
+  const darkCloud =
+    smoothstep(0.5, 0.8, fbm(x * 0.00052 + 13, 71, z * 0.00052 + 13)) * smoothstep(0.1, 0.28, rn);
+  return armLight * radialFalloff * (1 - darkCloud * 0.55) + coreBulge;
 }
 
 /** Beacon weighting — matches the shader's destination-arm gaussian. */
@@ -232,7 +238,7 @@ function GalaxyDisc() {
 
 /* ---------------------------------------------------------------- *
  * 2) Stars — rejection-sampled on the warped field. Sizes chosen so points
- *    resolve as soft glows at the hero camera distance (~72k units), not
+ *    resolve as soft glows at the hero camera distance (~46k units), not
  *    1-px dots: that hard-particle look is what read as "procedural".
  * ---------------------------------------------------------------- */
 function GalaxyStars() {
@@ -257,6 +263,11 @@ function GalaxyStars() {
       const rn = r / OUTER_RADIUS;
 
       let density = armDensity(x, z);
+      // Large-scale patchiness: real star fields are uneven — some arm
+      // stretches teem, others are nearly vacant. Stars only, not the disc
+      // glow, so the patchiness reads as resolution, not holes in the light.
+      const clump = smoothstep(0.3, 0.78, fbm(x * 0.00042 + 53, 23, z * 0.00042 + 53));
+      density *= 0.2 + 1.6 * clump;
       density *= 1 + beaconBoost(x, z) * 1.1; // richer stellar neighborhood on the destination arm
       if (rng() > density * 0.9 + 0.03) continue;
 
@@ -432,54 +443,75 @@ function makeGlowTexture(stops: [number, string][]): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-function CoreGlow() {
-  const coreRef = useRef<THREE.SpriteMaterial>(null);
-  const haloRef = useRef<THREE.SpriteMaterial>(null);
-
-  const [coreTex, haloTex] = useMemo(
-    () => [
-      makeGlowTexture([
-        [0, 'rgba(255,244,214,1)'],
-        [0.25, 'rgba(255,214,150,0.55)'],
-        [0.6, 'rgba(255,180,110,0.14)'],
-        [1, 'rgba(255,170,100,0)'],
-      ]),
-      makeGlowTexture([
-        [0, 'rgba(255,220,170,0.5)'],
-        [0.5, 'rgba(200,170,255,0.08)'],
-        [1, 'rgba(0,0,0,0)'],
-      ]),
+// Four nested glow shells, each softer and wider than the last: a glowing
+// city seen through fog, not one clipped white bloom. Peak alphas stay well
+// under 1 so the additive stack never burns to flat white.
+const CORE_LAYERS: { scale: number; opacity: number; stops: [number, string][] }[] = [
+  {
+    scale: 3600,
+    opacity: 0.85,
+    stops: [
+      [0, 'rgba(255,248,230,0.85)'],
+      [0.35, 'rgba(255,226,176,0.3)'],
+      [1, 'rgba(255,200,140,0)'],
     ],
-    [],
-  );
+  },
+  {
+    scale: 8500,
+    opacity: 0.55,
+    stops: [
+      [0, 'rgba(255,220,160,0.5)'],
+      [0.45, 'rgba(255,190,120,0.14)'],
+      [1, 'rgba(255,170,100,0)'],
+    ],
+  },
+  {
+    scale: 16000,
+    opacity: 0.32,
+    stops: [
+      [0, 'rgba(255,204,142,0.3)'],
+      [0.5, 'rgba(230,164,120,0.08)'],
+      [1, 'rgba(200,140,110,0)'],
+    ],
+  },
+  {
+    scale: 28000,
+    opacity: 0.16,
+    stops: [
+      [0, 'rgba(255,214,170,0.2)'],
+      [0.5, 'rgba(190,160,220,0.05)'],
+      [1, 'rgba(0,0,0,0)'],
+    ],
+  },
+];
+
+function CoreGlow() {
+  const matRefs = useRef<(THREE.SpriteMaterial | null)[]>([]);
+  const textures = useMemo(() => CORE_LAYERS.map((l) => makeGlowTexture(l.stops)), []);
 
   useRevealDriver((v) => {
-    if (coreRef.current) coreRef.current.opacity = v * 0.95;
-    if (haloRef.current) haloRef.current.opacity = v * 0.4;
+    for (let i = 0; i < CORE_LAYERS.length; i++) {
+      const m = matRefs.current[i];
+      if (m) m.opacity = v * CORE_LAYERS[i].opacity;
+    }
   }, 0.5, 0.05);
 
   return (
     <group position={GALAXY_CENTER}>
-      <sprite scale={[6500, 6500, 1]}>
-        <spriteMaterial
-          ref={coreRef}
-          map={coreTex}
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          opacity={0}
-        />
-      </sprite>
-      <sprite scale={[18000, 18000, 1]}>
-        <spriteMaterial
-          ref={haloRef}
-          map={haloTex}
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          opacity={0}
-        />
-      </sprite>
+      {CORE_LAYERS.map((l, i) => (
+        <sprite key={l.scale} scale={[l.scale, l.scale, 1]}>
+          <spriteMaterial
+            ref={(m) => {
+              matRefs.current[i] = m;
+            }}
+            map={textures[i]}
+            transparent
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            opacity={0}
+          />
+        </sprite>
+      ))}
     </group>
   );
 }
@@ -562,6 +594,119 @@ function GalaxyForeground() {
   );
 }
 
+/* ---------------------------------------------------------------- *
+ * 6) Environment — the galaxy must not float on a black canvas. Huge
+ *    ultra-faint gas veils hang in the space around the view axis, and pale
+ *    galaxy smudges sit far behind the disc. Individually near-invisible;
+ *    together they make the void read as a medium, not a backdrop.
+ * ---------------------------------------------------------------- */
+function GalaxyEnvironment() {
+  const [veilGeo, smudgeGeo] = useMemo(() => {
+    const axis = GALAXY_CENTER.clone().sub(GALAXY_CAM_POS).normalize();
+    const right = new THREE.Vector3().crossVectors(axis, new THREE.Vector3(0, 1, 0)).normalize();
+    const up = new THREE.Vector3().crossVectors(right, axis).normalize();
+    const p = new THREE.Vector3();
+
+    const build = (
+      count: number,
+      rng: () => number,
+      fill: (i: number, pos: Float32Array, size: Float32Array, col: Float32Array) => void,
+    ) => {
+      const pos = new Float32Array(count * 3);
+      const size = new Float32Array(count);
+      const seed = new Float32Array(count);
+      const order = new Float32Array(count);
+      const col = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        fill(i, pos, size, col);
+        seed[i] = rng();
+        order[i] = rng();
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+      g.setAttribute('aTwinkleSeed', new THREE.BufferAttribute(seed, 1));
+      g.setAttribute('aIgniteOrder', new THREE.BufferAttribute(order, 1));
+      g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+      return g;
+    };
+
+    // Gas veils: mid-distance, pushed off-axis so the disc itself stays clear
+    const veilRng = mulberry32(4177);
+    const veils = build(16, veilRng, (i, pos, size, col) => {
+      const d = 9000 + veilRng() * 26000;
+      const a = veilRng() * Math.PI * 2;
+      const lateral = 10000 + veilRng() * 24000;
+      p.copy(GALAXY_CAM_POS)
+        .addScaledVector(axis, d)
+        .addScaledVector(right, Math.cos(a) * lateral)
+        .addScaledVector(up, Math.sin(a) * lateral * 0.8);
+      pos.set([p.x, p.y, p.z], i * 3);
+      size[i] = 14000 + veilRng() * 18000;
+      const t = veilRng();
+      if (t < 0.55) col.set([0.014, 0.022, 0.036], i * 3); // cold blue gas
+      else if (t < 0.8) col.set([0.022, 0.016, 0.03], i * 3); // violet
+      else col.set([0.024, 0.018, 0.013], i * 3); // warm dust
+    });
+
+    // Distant galaxy smudges: far behind the disc, spread wide
+    const smRng = mulberry32(5651);
+    const smudges = build(56, smRng, (i, pos, size, col) => {
+      const d = 72000 + smRng() * 46000;
+      const a = smRng() * Math.PI * 2;
+      const lateral = Math.sqrt(smRng()) * (14000 + d * 0.75);
+      p.copy(GALAXY_CAM_POS)
+        .addScaledVector(axis, d)
+        .addScaledVector(right, Math.cos(a) * lateral)
+        .addScaledVector(up, Math.sin(a) * lateral * 0.7);
+      pos.set([p.x, p.y, p.z], i * 3);
+      size[i] = 260 + smRng() * 900;
+      const t = smRng();
+      if (t < 0.5) col.set([0.1, 0.11, 0.16], i * 3);
+      else if (t < 0.8) col.set([0.13, 0.1, 0.09], i * 3);
+      else col.set([0.09, 0.11, 0.14], i * 3);
+    });
+
+    return [veils, smudges];
+  }, []);
+
+  const [veilMat, smudgeMat] = useMemo(
+    () =>
+      [0, 1].map(
+        () =>
+          new THREE.ShaderMaterial({
+            vertexShader: starVert,
+            fragmentShader: hazeFrag,
+            uniforms: { uTime: { value: 0 }, uFormation: { value: 0 }, uWobble: { value: 0 } },
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }),
+      ) as [THREE.ShaderMaterial, THREE.ShaderMaterial],
+    [],
+  );
+
+  useFrame((state) => {
+    veilMat.uniforms.uTime.value = state.clock.elapsedTime;
+    smudgeMat.uniforms.uTime.value = state.clock.elapsedTime;
+  });
+  useRevealDriver((v) => {
+    veilMat.uniforms.uFormation.value = v;
+    smudgeMat.uniforms.uFormation.value = v;
+  }, 0.45, 0.03);
+
+  return (
+    <group name="galaxy-environment">
+      <points geometry={veilGeo} frustumCulled={false}>
+        <primitive object={veilMat} attach="material" />
+      </points>
+      <points geometry={smudgeGeo} frustumCulled={false}>
+        <primitive object={smudgeMat} attach="material" />
+      </points>
+    </group>
+  );
+}
+
 /** Warm core light — the galactic core as the dominant light source. */
 function CoreLight() {
   const lightRef = useRef<THREE.PointLight>(null);
@@ -583,6 +728,7 @@ export function HeroGalaxy() {
       <GalaxyHaze />
       <CoreGlow />
       <GalaxyForeground />
+      <GalaxyEnvironment />
       <CoreLight />
     </group>
   );
