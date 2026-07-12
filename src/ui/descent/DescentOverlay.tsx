@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useJourneyStore } from '@/state/journeyStore';
 import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
+import { SYSTEM_CAPTIONS } from '@/world/system/systemSpec';
 
 /**
  * Descent chapter DOM layer — three quiet elements and an input bridge:
@@ -16,17 +17,20 @@ import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
  */
 
 const WHEEL_TRAVEL_PX = 6500; // full descent in ~6.5k px of wheel
+const WHEEL_TRAVEL_SYSTEM_PX = 11000; // the system is a longer, slower journey
 const TOUCH_TRAVEL_PX = 2400;
+const TOUCH_TRAVEL_SYSTEM_PX = 4200;
 
 function DescentController() {
   useEffect(() => {
-    const canDescend = () =>
-      useJourneyStore.getState().phase === 'IDLE' &&
-      useDescentStore.getState().stage !== 'ARRIVED';
+    const canScroll = () => useJourneyStore.getState().phase === 'IDLE';
+    const arrived = () => useDescentStore.getState().stage === 'ARRIVED';
 
     const onWheel = (e: WheelEvent) => {
-      if (!canDescend()) return;
-      useDescentStore.getState().addScroll(e.deltaY / WHEEL_TRAVEL_PX);
+      if (!canScroll()) return;
+      useDescentStore
+        .getState()
+        .addScroll(e.deltaY / (arrived() ? WHEEL_TRAVEL_SYSTEM_PX : WHEEL_TRAVEL_PX));
     };
 
     let touchY: number | null = null;
@@ -35,17 +39,20 @@ function DescentController() {
     };
     const onTouchMove = (e: TouchEvent) => {
       const y = e.touches[0]?.clientY;
-      if (touchY == null || y == null || !canDescend()) return;
-      useDescentStore.getState().addScroll((touchY - y) / TOUCH_TRAVEL_PX);
+      if (touchY == null || y == null || !canScroll()) return;
+      useDescentStore
+        .getState()
+        .addScroll((touchY - y) / (arrived() ? TOUCH_TRAVEL_SYSTEM_PX : TOUCH_TRAVEL_PX));
       touchY = y;
     };
 
     const onKey = (e: KeyboardEvent) => {
-      if (!canDescend()) return;
+      if (!canScroll()) return;
+      const step = arrived() ? 0.02 : 0.03;
       if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
-        useDescentStore.getState().addScroll(0.03);
+        useDescentStore.getState().addScroll(step);
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        useDescentStore.getState().addScroll(-0.03);
+        useDescentStore.getState().addScroll(-step);
       }
     };
 
@@ -92,10 +99,20 @@ function TitleCard() {
 
 function DescentCaption() {
   const idx = useDescentStore((s) => s.captionIndex);
-  if (idx < 0) return null;
-  const c = DESCENT_CAPTIONS[idx];
+  const sysIdx = useDescentStore((s) => s.sysCaptionIndex);
+  const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
+
+  const c = arrived
+    ? sysIdx >= 0
+      ? SYSTEM_CAPTIONS[sysIdx]
+      : null
+    : idx >= 0
+      ? DESCENT_CAPTIONS[idx]
+      : null;
+  if (!c) return null;
+
   return (
-    <div key={idx} className="descent-caption" aria-live="polite">
+    <div key={`${arrived ? 's' : 'd'}${arrived ? sysIdx : idx}`} className="descent-caption" aria-live="polite">
       <div className="descent-caption__primary">{c.primary}</div>
       <div className="descent-caption__secondary">{c.secondary}</div>
     </div>

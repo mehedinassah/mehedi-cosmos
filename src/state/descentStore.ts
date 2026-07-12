@@ -31,6 +31,11 @@ interface DescentState {
   stage: DescentStage;
   /** Index into DESCENT_CAPTIONS, -1 when no caption is showing. */
   captionIndex: number;
+  /** Solar-system chapter progress (post-arrival), same target/smoothed split. */
+  sysTarget: number;
+  sysSmoothed: number;
+  /** Index into SYSTEM_CAPTIONS (systemSpec.ts), -1 when none. */
+  sysCaptionIndex: number;
   addScroll: (delta: number) => void;
 }
 
@@ -39,10 +44,17 @@ export const useDescentStore = create<DescentState>((set, get) => ({
   smoothed: 0,
   stage: 'DORMANT',
   captionIndex: -1,
+  sysTarget: 0,
+  sysSmoothed: 0,
+  sysCaptionIndex: -1,
 
   addScroll: (delta) => {
-    const { stage, target } = get();
-    if (stage === 'ARRIVED') return;
+    const { stage, target, sysTarget } = get();
+    if (stage === 'ARRIVED') {
+      // Post-arrival, the same gesture travels outward through the system
+      set({ sysTarget: Math.min(1, Math.max(0, sysTarget + delta)) });
+      return;
+    }
     const next = Math.min(1, Math.max(0, target + delta));
     set({ target: next, stage: next > 0 ? 'DESCENDING' : 'DORMANT' });
   },

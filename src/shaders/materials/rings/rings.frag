@@ -13,7 +13,10 @@ varying vec3 vPosL;
 // Planar ring: radial bands + gaps, dusty muted tones, lit by the sun,
 // with the planet's cast shadow sweeping across the far side.
 void main() {
-  float r = length(vPosL.xz);
+  // RingGeometry lies in the LOCAL XY plane (the mesh is rotated into the
+  // ecliptic at the object level) — measuring xz here discards the annulus
+  // except two side lobes
+  float r = length(vPosL.xy);
   float t = (r - uInnerR) / (uOuterR - uInnerR);
   if (t < 0.0 || t > 1.0) discard;
 

@@ -14,6 +14,7 @@ import {
   GALAXY_REST_LOOK,
 } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
+import { systemPose, SYSTEM_CAPTIONS } from '@/world/system/systemSpec';
 
 
 /**
@@ -98,6 +99,7 @@ export function CameraDirector() {
     // reads, keep the caption ladder in step, and fire the arrival handoff.
     const descent = useDescentStore.getState();
     let dp = descent.smoothed;
+    let sp = descent.sysSmoothed;
     if (descent.stage !== 'ARRIVED') {
       dp = THREE.MathUtils.damp(descent.smoothed, descent.target, 2.0, delta);
       let captionIndex = -1;
@@ -110,11 +112,24 @@ export function CameraDirector() {
         useDescentStore.setState({ smoothed: dp, captionIndex });
       }
       if (dp > 0.996 && descent.target >= 1) {
-        // Arrival: the flare + DOM flash mask the swap to the solar system
+        // Arrival: the flare + DOM flash mask the swap to the solar system.
+        // The journey continues as the system chapter; the FSM stays IDLE
+        // (scroll owns the camera now, not phase travel).
         useDescentStore.setState({ stage: 'ARRIVED', smoothed: 1, captionIndex: -1 });
         cam.fov = baseFov.current;
         cam.updateProjectionMatrix();
-        j.transition('ORBIT');
+        currentLook.current.set(0, 0, 0); // gaze snaps to the sun under the flash
+        pointerSmooth.current.set(0, 0);
+      }
+    } else {
+      // System-chapter rig: same damping treatment for the outward dolly
+      sp = THREE.MathUtils.damp(descent.sysSmoothed, descent.sysTarget, 2.0, delta);
+      let sysCaptionIndex = -1;
+      for (let k = 0; k < SYSTEM_CAPTIONS.length; k++) {
+        if (sp >= SYSTEM_CAPTIONS[k].at) sysCaptionIndex = k;
+      }
+      if (sp !== descent.sysSmoothed || sysCaptionIndex !== descent.sysCaptionIndex) {
+        useDescentStore.setState({ sysSmoothed: sp, sysCaptionIndex });
       }
     }
 
@@ -140,7 +155,11 @@ export function CameraDirector() {
       lastPhase.current = j.phase;
     }
 
-    switch (j.phase) {
+    if (descent.stage === 'ARRIVED') {
+      // System chapter: the scroll dolly owns the camera. Exponential pull
+      // away from the photosphere; gaze hands from the sun to each world.
+      systemPose(sp, t, cam.position, lookTarget.current);
+    } else switch (j.phase) {
       case 'INTRO': {
         // Cinematic push into the galaxy hero pose while the disc forms.
         // Starts farther out and slightly off-axis, eases to the resting vantage.

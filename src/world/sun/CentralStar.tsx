@@ -91,9 +91,15 @@ export function CentralStar() {
 
     if (spriteRef.current) {
       const breathe = 1 + 0.03 * Math.sin(t * 0.5);
-      const sc = body.scaleU * 8 * breathe * igniteRef.current;
+      // The halo is a distance impression — up close it would wash the whole
+      // frame to white and drown the photosphere detail, so it fades out as
+      // the camera approaches (system-chapter close-ups start at ~440u).
+      const camDist = state.camera.position.length();
+      const nearFade = THREE.MathUtils.smoothstep(camDist, 420, 1600);
+      const sc = body.scaleU * 8 * breathe * igniteRef.current * (0.35 + 0.65 * nearFade);
       spriteRef.current.scale.set(sc, sc, 1);
-      (spriteRef.current.material as THREE.SpriteMaterial).opacity = 0.75 * igniteRef.current;
+      (spriteRef.current.material as THREE.SpriteMaterial).opacity =
+        0.75 * igniteRef.current * (0.1 + 0.9 * nearFade);
     }
   });
 

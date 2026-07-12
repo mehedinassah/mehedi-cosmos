@@ -5,14 +5,9 @@ import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Starfield } from '@/world/ambient/Starfield';
 import { DeepSpace } from '@/world/ambient/DeepSpace';
-import { ImpostorField } from '@/world/ambient/ImpostorField';
-import { PlanetaryRing } from '@/world/ambient/PlanetaryRing';
-import { OrbitalTraffic } from '@/world/ambient/OrbitalTraffic';
-import { ForegroundSilhouettes } from '@/world/ambient/ForegroundSilhouettes';
 import { HeroGalaxy } from '@/world/galaxy/HeroGalaxy';
 import { DescentField } from '@/world/galaxy/DescentField';
-import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
-import { bodyById } from '@/content/universe';
+import { SolarSystem } from '@/world/system/SolarSystem';
 import { CentralStar } from '@/world/sun/CentralStar';
 import { CameraDirector } from '@/camera/CameraDirector';
 import { CinematicEffects } from '@/engine/CinematicEffects';
@@ -24,11 +19,6 @@ import { useDescentStore } from '@/state/descentStore';
  * The single persistent Canvas — blueprint §3.1. The page never changes;
  * this canvas IS the site.
  */
-function RingSystem() {
-  const host = bodyById.get('planet.perico')!;
-  const center = bodyWorldPosition(host);
-  return <PlanetaryRing center={center} radius={host.scaleU} tiltDeg={24} tint="#c9b48f" />;
-}
 
 export function UniverseCanvas() {
   const dprClamp = useQualityStore((s) => s.dprClamp);
@@ -73,10 +63,7 @@ export function UniverseCanvas() {
         <>
           <pointLight position={[0, 0, 0]} intensity={2.2} distance={0} decay={0.35} color="#ffd9a0" />
           <CentralStar />
-          <ImpostorField />
-          <RingSystem />
-          <OrbitalTraffic />
-          <ForegroundSilhouettes />
+          <SolarSystem />
         </>
       )}
       <CinematicEffects />

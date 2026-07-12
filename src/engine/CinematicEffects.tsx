@@ -20,12 +20,14 @@ export function CinematicEffects() {
 
   return (
     <EffectComposer multisampling={0}>
+      {/* Threshold sits high enough that the sun close-up (system chapter)
+          reads as plasma with a corona, not a full-frame white wash */}
       <Bloom
-        intensity={0.62}
-        luminanceThreshold={0.78}
-        luminanceSmoothing={0.28}
+        intensity={0.5}
+        luminanceThreshold={0.9}
+        luminanceSmoothing={0.24}
         mipmapBlur
-        radius={0.74}
+        radius={0.7}
       />
       <ChromaticAberration offset={[0.0005, 0.0005]} radialModulation modulationOffset={0.6} />
       <HueSaturation hue={0} saturation={-0.06} />
