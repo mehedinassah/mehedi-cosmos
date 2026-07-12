@@ -14,7 +14,7 @@ import {
   GALAXY_REST_LOOK,
 } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
-import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
+import { systemPose, chapterIndexAt, SYSTEM_QUAT } from '@/world/system/systemSpec';
 
 
 /**
@@ -154,10 +154,18 @@ export function CameraDirector() {
     }
 
     if (descent.stage === 'ARRIVED') {
-      // System chapter: the scroll dolly owns the camera. Exponential pull
-      // away from the photosphere; gaze hands from the sun to each world.
-      systemPose(sp, t, cam.position, lookTarget.current);
-    } else switch (j.phase) {
+      // System chapter: the camera is a VEHICLE, not a director. Position
+      // rides one straight lane; orientation is a single fixed quaternion
+      // for the whole chapter. No lookAt, no roll, no breathing, no
+      // parallax — the worlds come to the window, and the horizon of
+      // space never moves.
+      systemPose(sp, cam.position);
+      cam.quaternion.copy(SYSTEM_QUAT);
+      cam.clearViewOffset();
+      return;
+    }
+
+    switch (j.phase) {
       case 'INTRO': {
         // Cinematic push into the galaxy hero pose while the disc forms.
         // Starts farther out and slightly off-axis, eases to the resting vantage.
@@ -294,11 +302,9 @@ export function CameraDirector() {
     // Applied after lookAt, which re-levels the camera every frame, so the
     // roll never accumulates.
     if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
-      // Level out for the arrival flash, then keep only a WHISPER of float
-      // through the system chapter — parked thirty units from a planet,
-      // anything more reads as the camera shaking
-      const settle =
-        descent.stage === 'ARRIVED' ? 0.18 : 1 - THREE.MathUtils.smoothstep(dp, 0.88, 1);
+      // Galaxy chapter only (the system chapter returns early with a fixed
+      // orientation): level out as the descent approaches arrival
+      const settle = 1 - THREE.MathUtils.smoothstep(dp, 0.88, 1);
       cam.rotateZ((Math.sin(t * 0.07) * 0.013 + Math.sin(t * 0.023 + 2.0) * 0.009) * settle);
     }
 
