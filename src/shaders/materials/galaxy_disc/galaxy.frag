@@ -2,57 +2,91 @@ uniform float uTime;
 uniform float uOuterRadius;
 uniform float uArms;
 uniform float uTwist;
-uniform float uReveal; // 0 -> 1 formation fade-in
+uniform float uReveal;      // 0 -> 1 formation fade-in
+uniform float uLayerAlpha;  // volumetric slice opacity (1.0 = mid plane)
+uniform float uSeed;        // per-slice noise seed (kept 0 so slices stay structurally coherent)
+uniform float uBeaconTheta; // disc-local angle of the destination-arm cue
 varying vec3 vPosL;
 varying vec3 vNormalW;
 
 #include "chunks/noise3d.glsl"
 
+// The spiral / warp / clump math below is mirrored CPU-side in HeroGalaxy.tsx
+// (armDensity) so the point stars and gas sprites land on the same broken
+// arms this shader draws. Any constant changed here must change there too.
+
 void main() {
   float r = length(vPosL.xz);
-  float theta = atan(vPosL.z, vPosL.x) + uTime * 0.0015; // extremely slow rotation
-
-  float rn = r / uOuterRadius; // 0..1
+  float rn = r / uOuterRadius;
   if (rn > 1.0) discard;
 
-  // Logarithmic spiral bands. Sharpened into narrow arms (rather than fat
-  // lobes) so the disc reads as a spiral galaxy, not a pinwheel.
-  float logSpiral = theta - uTwist * log(max(r, 1.0));
-  float armWave = sin(uArms * logSpiral) * 0.5 + 0.5;
-  float arms = pow(smoothstep(0.28, 0.92, armWave), 1.3);
+  float theta = atan(vPosL.z, vPosL.x) + uTime * 0.0012;
 
-  // Dust lanes: independent fbm, darkens unevenly along/between arms
-  vec3 dustP = vec3(vPosL.x * 0.00045, vPosL.y * 0.02, vPosL.z * 0.00045);
-  float dust = fbm(dustP + vec3(0.0, uTime * 0.0003, 0.0));
-  float dustMask = smoothstep(0.35, 0.75, dust);
+  // Broken arms: domain-warp the log-spiral phase so no stretch of arm sits
+  // on the ideal curve. The warp fades toward the core so the bulge holds.
+  vec2 w = vPosL.xz * 0.00016;
+  float warp = (fbm(vec3(w.x, uSeed, w.y)) - 0.5) * 2.4
+             + (fbm(vec3(w.x * 3.7 + 19.0, uSeed + 19.0, w.y * 3.7 + 19.0)) - 0.5) * 0.9;
+  float phase = theta - uTwist * log(max(r, 1.0)) + warp * smoothstep(0.06, 0.4, rn);
 
-  // Radial falloff: dense core, thin disc edge, soft inner bulge
-  float radialFalloff = smoothstep(1.0, 0.35, rn) * (0.35 + 0.65 * smoothstep(0.02, 0.18, rn));
-  float coreBulge = smoothstep(0.14, 0.0, rn);
+  float armWave = sin(uArms * phase) * 0.5 + 0.5;
+  float arms = pow(smoothstep(0.22, 0.9, armWave), 1.3);
+  // Weak offset harmonic -> partial spur arms between the two majors
+  float spurWave = sin(uArms * 2.0 * phase + 2.3) * 0.5 + 0.5;
+  arms = max(arms, pow(smoothstep(0.7, 0.98, spurWave), 2.0) * 0.4);
 
-  // Base stellar population color: warm gold core -> blue-white outer disc
-  vec3 coreCol = vec3(1.0, 0.86, 0.62);
-  vec3 armCol = vec3(0.75, 0.82, 1.0);
-  vec3 base = mix(armCol, coreCol, coreBulge);
+  // Lopsidedness: one half of the disc denser than the other
+  float lop = 0.72 + 0.28 * sin(theta + rn * 1.2 + 0.9);
 
-  // Pink emission nebula pockets, concentrated in arms
-  float emissionField = fbm(vPosL * 0.0009 + vec3(50.0));
-  float emission = smoothstep(0.62, 0.9, emissionField) * arms;
-  vec3 pink = vec3(1.0, 0.45, 0.62);
+  // Star-cloud knots and true gaps: contrast noise carves the arms into
+  // bright stellar associations separated by real breaks.
+  vec2 c = vPosL.xz * 0.00105;
+  float knots = smoothstep(0.34, 0.8, fbm(vec3(c.x + 7.0, uSeed + 41.0, c.y + 7.0)));
+  vec2 b = vPosL.xz * 0.00034;
+  float breaks = smoothstep(0.18, 0.44, fbm(vec3(b.x + 31.0, uSeed + 97.0, b.y + 31.0)));
+  float armLight = arms * (0.3 + 0.95 * knots) * breaks * lop;
 
-  // Blue young-star clusters, also arm-concentrated but different frequency
-  float clusterField = fbm(vPosL * 0.0021 - vec3(30.0, 0.0, 10.0));
-  float clusters = smoothstep(0.68, 0.92, clusterField) * arms;
-  vec3 blue = vec3(0.55, 0.72, 1.0);
+  float radialFalloff = smoothstep(1.0, 0.32, rn) * (0.32 + 0.68 * smoothstep(0.015, 0.16, rn));
+  float coreBulge = smoothstep(0.16, 0.0, rn);
 
-  vec3 col = base * arms * radialFalloff;
-  col += coreCol * coreBulge * 1.6;
-  col += pink * emission * 0.9;
-  col += blue * clusters * 0.7;
-  col *= mix(0.35, 1.0, 1.0 - dustMask * arms); // dust darkens mid-arm, not everywhere
+  // Stellar populations: golden bulge -> warm mid-disc -> blue-white rim
+  vec3 coreCol = vec3(1.0, 0.8, 0.52);
+  vec3 base = mix(vec3(1.0, 0.9, 0.74), vec3(0.6, 0.71, 1.0), smoothstep(0.14, 0.72, rn));
 
-  float alpha = (arms * radialFalloff * 0.8 + coreBulge * 0.9) * uReveal;
-  alpha *= smoothstep(1.0, 0.82, rn); // soft outer edge, no hard disc cutoff
+  // Pink HII pockets riding the knots; blue OB clusters biased outward
+  float hii = smoothstep(0.66, 0.92, fbm(vPosL * 0.0016 + vec3(50.0, uSeed * 13.0, 0.0))) * armLight;
+  float ob = smoothstep(0.68, 0.93, fbm(vPosL * 0.0024 - vec3(30.0, uSeed * 7.0, 10.0))) * armLight * smoothstep(0.15, 0.45, rn);
+  // Faint purple molecular haze between the arms — inter-arm space is not black
+  float interArm = (1.0 - arms) * smoothstep(0.9, 0.3, rn) * smoothstep(0.12, 0.3, rn);
+  float mol = fbm(vec3(vPosL.x * 0.0005 + 77.0, uSeed + 29.0, vPosL.z * 0.0005 + 77.0)) * interArm;
+
+  vec3 col = base * armLight * radialFalloff * 1.45;
+  col += coreCol * coreBulge * (1.3 + 0.3 * fbm(vPosL * 0.0018));
+  col += vec3(1.0, 0.47, 0.6) * hii * 0.85;
+  col += vec3(0.5, 0.68, 1.0) * ob * 0.7;
+  col += vec3(0.4, 0.32, 0.62) * mol * 0.35;
+  col += vec3(0.5, 0.75, 0.85) * armLight * radialFalloff * 0.1; // faint cyan scatter
+
+  // Dust lanes: filamentary absorption hugging the arms' concave edge.
+  // Sampled in (radius, phase) space so the wisps stretch along the spiral.
+  float dustWave = sin(uArms * phase - 0.62) * 0.5 + 0.5;
+  float dustFil = fbm(vec3(rn * 7.0, phase * 1.35, uSeed + 5.0));
+  float dust = smoothstep(0.42, 0.78, dustWave * (0.35 + 0.65 * dustFil))
+             * smoothstep(0.1, 0.3, rn) * smoothstep(0.95, 0.5, rn);
+  col = mix(col, col * vec3(0.4, 0.28, 0.2), dust * 0.85);
+
+  // Destination cue: a soft brightening where the journey will dive — pulls
+  // the eye toward one arm without ever reading as a UI element.
+  float dAng = atan(sin(theta - uBeaconTheta), cos(theta - uBeaconTheta));
+  float beacon = exp(-dAng * dAng * 5.0) * exp(-pow((rn - 0.52) / 0.16, 2.0));
+  col += vec3(0.85, 0.9, 1.0) * beacon * armLight * 0.9;
+
+  // Alpha: arms dissolve into mist — noise-eroded rim, never a clean cutoff
+  float edgeNoise = fbm(vec3(vPosL.x * 0.00028 + 3.0, uSeed + 53.0, vPosL.z * 0.00028 + 3.0));
+  float edge = smoothstep(1.02, 0.66, rn + (edgeNoise - 0.5) * 0.34);
+  float alpha = armLight * radialFalloff * 1.2 + coreBulge * 0.95 + mol * 0.35 + beacon * armLight * 0.25;
+  alpha *= edge * (1.0 - dust * 0.4);
+  alpha *= uReveal * uLayerAlpha;
 
   gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
 }

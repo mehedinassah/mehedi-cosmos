@@ -140,7 +140,8 @@ export function DeepSpace() {
           size: (rng) => 3800 + rng() * 9500, // hero nebulae, up from 3200-8400
           color: (rng) => {
             const t = rng();
-            return t < 0.4 ? [0.22, 0.08, 0.16] : t < 0.7 ? [0.07, 0.13, 0.2] : [0.22, 0.12, 0.06];
+            // kept faint — at full strength these read as bokeh blobs, not nebulae
+            return t < 0.4 ? [0.13, 0.05, 0.1] : t < 0.7 ? [0.045, 0.08, 0.13] : [0.13, 0.075, 0.04];
           },
         },
         23,

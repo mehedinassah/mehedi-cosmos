@@ -69,6 +69,8 @@ export function CameraDirector() {
   const currentLook = useRef(new THREE.Vector3());
   const lastPhase = useRef('');
   const baseFov = useRef(50);
+  const pointerSmooth = useRef(new THREE.Vector2());
+  const parallaxApplied = useRef(new THREE.Vector3());
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
 
@@ -77,6 +79,11 @@ export function CameraDirector() {
     const reducedMotion = useQualityStore.getState().reducedMotion;
     const t = state.clock.elapsedTime;
     const cam = camera as THREE.PerspectiveCamera;
+
+    // Parallax is a per-frame overlay, never part of the base camera path:
+    // remove last frame's offset before any phase logic reads the position.
+    cam.position.sub(parallaxApplied.current);
+    parallaxApplied.current.set(0, 0, 0);
 
     // Phase entry setup
     if (j.phase !== lastPhase.current) {
@@ -172,6 +179,22 @@ export function CameraDirector() {
         lookTarget.current.copy(center).addScaledVector(right, dist * 0.14).addScaledVector(cam.up, dist * 0.05);
         break;
       }
+    }
+
+    // Mouse parallax — small real camera translation toward the pointer while
+    // resting on the galaxy hero. Because it's true translation, every depth
+    // layer (foreground motes / disc slices / deep space) shifts at its own
+    // rate — that differential motion is what sells the scale.
+    if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
+      pointerSmooth.current.lerp(state.pointer, 1 - Math.exp(-2.2 * delta));
+      const fwd = lookTarget.current.clone().sub(cam.position).normalize();
+      const right = new THREE.Vector3().crossVectors(fwd, cam.up).normalize();
+      const upv = new THREE.Vector3().crossVectors(right, fwd);
+      parallaxApplied.current
+        .set(0, 0, 0)
+        .addScaledVector(right, pointerSmooth.current.x * 1400)
+        .addScaledVector(upv, pointerSmooth.current.y * 700);
+      cam.position.add(parallaxApplied.current);
     }
 
     // BreathingIdle — additive, always-on layer (§5.1); zero under reduced motion

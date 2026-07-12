@@ -74,6 +74,14 @@ main { position: fixed; inset: 0; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-dim);
+  /* Hidden until the opening image has had a few seconds alone */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.8s ease;
+}
+.hud--visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 .hud__location { color: var(--ink); }
 .hud__log {
