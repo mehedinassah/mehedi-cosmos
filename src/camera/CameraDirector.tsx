@@ -14,7 +14,7 @@ import {
   GALAXY_REST_LOOK,
 } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
-import { systemPose, chapterIndexAt, SYSTEM_QUAT } from '@/world/system/systemSpec';
+import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
 
 
 /**
@@ -154,13 +154,12 @@ export function CameraDirector() {
     }
 
     if (descent.stage === 'ARRIVED') {
-      // System chapter: the camera is a VEHICLE, not a director. Position
-      // rides one straight lane; orientation is a single fixed quaternion
-      // for the whole chapter. No lookAt, no roll, no breathing, no
-      // parallax — the worlds come to the window, and the horizon of
-      // space never moves.
-      systemPose(sp, cam.position);
-      cam.quaternion.copy(SYSTEM_QUAT);
+      // System chapter: the camera is a probe on one graceful rail. Position
+      // rides the spline; orientation IS the spline's tangent — as the path
+      // curves through the worlds, the view eases with it. No lookAt on a
+      // subject, no roll, no breathing, no parallax. The worlds come to the
+      // window; the horizon of space never tilts.
+      systemPose(sp, cam.position, cam.quaternion);
       cam.clearViewOffset();
       return;
     }

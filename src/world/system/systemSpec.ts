@@ -1,20 +1,25 @@
 import * as THREE from 'three';
 
 /**
- * The system chapter — a VEHICLE, not a director.
+ * The system chapter — a guided fly-through of a real solar system.
  *
- * One straight lane runs radially outward from the sun. Every world is
- * berthed along it with the identical geometry: two radii to the RIGHT of
- * the lane, half a radius low. The camera is a spacecraft cruising the
- * lane with ONE fixed orientation for the entire chapter — no lookAt, no
- * roll, no banking, no per-frame gaze. Worlds appear ahead, grow to ~40%
- * of the viewport at their stop (content on the left, always), then slide
- * past the window and fall behind. The motion is identical at every stop;
- * after two planets the viewer knows the layout by instinct.
+ * NOT a straight highway (that killed the wonder) and NOT a director doing
+ * pans and spins (that was a rail shooter). Instead: ONE graceful spline
+ * arcs outward from the sun and threads past every world. The planets are
+ * NOT beads on a string — they lie roughly on the ecliptic but each sits at
+ * its own bearing around the sun and a slightly different height, so the eye
+ * reads "yes, this is a solar system," not a queue.
  *
- * Scroll moves a target along the lane; a monotone cubic (PCHIP) remap
- * spends most of the ride dwelling near the worlds and glides across the
- * gaps, and heavy damping downstream gives the ship its mass.
+ * The camera is a probe on that rail. It never thinks. Its ORIENTATION is
+ * simply the tangent of the path — as the spline curves, the view curves
+ * with it, so gently the viewer barely notices the heading change. There is
+ * no lookAt on a subject, no roll, no banking, no independent rotation. Each
+ * world is placed a fixed standoff ahead-and-to-the-right of its berth, so
+ * the framing is identical every time: world on the right, content on the
+ * left, met briefly, then gone.
+ *
+ * Scroll moves a target along the rail; a monotone-cubic (PCHIP) remap
+ * dwells near each world and glides across the gaps.
  */
 
 export interface MoonSpec {
@@ -39,34 +44,19 @@ export interface HeroSpec {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-/* --------------------- the lane --------------------- */
-
-const D = new THREE.Vector3(Math.cos(1.2), 0, Math.sin(1.2)); // direction of travel
-const R = new THREE.Vector3(D.z, 0, -D.x); // right of travel
-// The sun keeps the same two-radii berth as every other world, which fixes
-// the lane's origin: it passes just left of and slightly above the sun at
-// (0,0,0). Light therefore always comes from behind the ship — every face
-// we meet is lit.
+const ORIGIN = new THREE.Vector3(0, 0, 0);
 const SUN_RADIUS = 120;
-const L0 = R.clone().multiplyScalar(-SUN_RADIUS * 2).addScaledVector(new THREE.Vector3(0, 1, 0), SUN_RADIUS * 0.5);
 
-const lanePoint = (s: number) => L0.clone().addScaledVector(D, s);
-
-/** Identical berth for every body: two radii right, half a radius low. */
-function berth(s: number, radius: number): THREE.Vector3 {
-  return lanePoint(s).addScaledVector(R, radius * 2).addScaledVector(UP, -radius * 0.5);
-}
-
-/* --------------------- the worlds --------------------- */
+/* --------------------- the worlds (data) --------------------- */
 
 interface BodyDef {
   id: string;
   name: string;
   radius: number;
-  /** Lane coordinate — roughly the real orbital radius, so the asteroid
-   *  belt, Kuiper belt, dust and comet (all sun-centered) stay physical. */
-  s: number;
+  /** Orbital radius from the sun (sun-centered belts/dust stay physical). */
+  orbit: number;
+  /** Slight lift/dip off the ecliptic so worlds sit above/below one another. */
+  yOff: number;
   tex: HeroSpec['tex'];
   palette: HeroSpec['palette'];
   rings?: boolean;
@@ -75,27 +65,27 @@ interface BodyDef {
 
 const DEFS: BodyDef[] = [
   {
-    id: 'mercury', name: 'Mercury', radius: 2.4, s: 900,
+    id: 'mercury', name: 'Mercury', radius: 2.4, orbit: 900, yOff: 34,
     tex: { map: '/textures/2k_mercury.jpg' },
     palette: { deep: '#2e2a26', mid: '#5c554c', high: '#9a9188', atmo: '#6b655c', night: 0, clouds: 0 },
   },
   {
-    id: 'venus', name: 'Venus', radius: 7.5, s: 1500,
+    id: 'venus', name: 'Venus', radius: 7.5, orbit: 1500, yOff: -46,
     tex: { map: '/textures/2k_venus_atmosphere.jpg' },
     palette: { deep: '#6b5433', mid: '#a8874e', high: '#e0c890', atmo: '#d9b877', night: 0, clouds: 1.0 },
   },
   {
-    id: 'earth', name: 'Earth', radius: 8, s: 2300,
+    id: 'earth', name: 'Earth', radius: 8, orbit: 2300, yOff: 40,
     tex: { map: '/textures/2k_earth_daymap.jpg', night: '/textures/2k_earth_nightmap.jpg', clouds: '/textures/2k_earth_clouds.jpg' },
     palette: { deep: '#0e3a66', mid: '#2f6152', high: '#d8d2c4', atmo: '#7db4e8', night: 0.35, clouds: 0.7 },
   },
   {
-    id: 'mars', name: 'Mars', radius: 4.2, s: 3300,
+    id: 'mars', name: 'Mars', radius: 4.2, orbit: 3300, yOff: -52,
     tex: { map: '/textures/2k_mars.jpg' },
     palette: { deep: '#4a2a1c', mid: '#8a4f33', high: '#c88a62', atmo: '#b07a58', night: 0, clouds: 0.06 },
   },
   {
-    id: 'jupiter', name: 'Jupiter', radius: 30, s: 6600,
+    id: 'jupiter', name: 'Jupiter', radius: 30, orbit: 6600, yOff: 120,
     tex: { map: '/textures/2k_jupiter.jpg' },
     palette: { deep: '#6e5238', mid: '#a8845e', high: '#d9c3a4', atmo: '#c0a480', night: 0, clouds: 0.32 },
     moons: [
@@ -106,44 +96,160 @@ const DEFS: BodyDef[] = [
     ],
   },
   {
-    id: 'saturn', name: 'Saturn', radius: 25, s: 9200,
+    id: 'saturn', name: 'Saturn', radius: 25, orbit: 9200, yOff: 190,
     tex: { map: '/textures/2k_saturn.jpg' },
     palette: { deep: '#7a6543', mid: '#b09468', high: '#e2cfa4', atmo: '#cdb384', night: 0, clouds: 0.28 },
     rings: true,
     moons: [{ radius: 1.6, dist: 92, speed: 0.01, incl: 0.08, phase: 2.0 }],
   },
   {
-    id: 'uranus', name: 'Uranus', radius: 13, s: 12500,
+    id: 'uranus', name: 'Uranus', radius: 13, orbit: 12500, yOff: -160,
     tex: { map: '/textures/2k_uranus.jpg' },
     palette: { deep: '#2b4b52', mid: '#4f7d86', high: '#a4ccd2', atmo: '#8fc4cc', night: 0, clouds: 0.3 },
   },
   {
-    id: 'neptune', name: 'Neptune', radius: 12.5, s: 15800,
+    id: 'neptune', name: 'Neptune', radius: 12.5, orbit: 15800, yOff: 150,
     tex: { map: '/textures/2k_neptune.jpg' },
     palette: { deep: '#16305c', mid: '#2f5590', high: '#7c9cd0', atmo: '#6a8fc8', night: 0, clouds: 0.4 },
   },
   {
-    id: 'pluto', name: 'Pluto', radius: 1.9, s: 19000,
+    id: 'pluto', name: 'Pluto', radius: 1.9, orbit: 19000, yOff: -90,
     tex: { map: '/textures/2k_moon.jpg', tint: '#c9b49a' },
     palette: { deep: '#5c5248', mid: '#8d8177', high: '#cfc6b8', atmo: '#9a9089', night: 0, clouds: 0 },
     moons: [{ radius: 0.95, dist: 6.5, speed: 0.03, incl: 0.12, phase: 2.2 }],
   },
 ];
 
-export const HEROES: HeroSpec[] = DEFS.map((d) => ({
-  ...d,
-  position: berth(d.s, d.radius),
+/* --------------------- the rail (one graceful spline) --------------------- */
+
+// The arc sweeps through this much bearing across the whole system — a broad,
+// monotone curve, never a corner. Mercury starts near A0; Pluto ends near
+// A0 + ARC_SWEEP. Because the worlds fan out in bearing, they never stack up
+// behind one another like beads on a string.
+const A0 = 0.5;
+const ARC_SWEEP = 0.92;
+const M = new THREE.Vector3(Math.cos(A0), 0, Math.sin(A0)); // toward Mercury's bearing
+const PERP = new THREE.Vector3(-Math.sin(A0), 0, Math.cos(A0)); // left of that
+
+/** Bearing for a world at fractional position f in [0,1] along the sequence. */
+function bearing(f: number): number {
+  return A0 + ARC_SWEEP * f;
+}
+
+/** A berth on the rail: on the world's own bearing, at its orbital radius.
+ *  Height is only the small ± undulation (worlds sitting above/below one
+ *  another) — the standoff, not a big lift, is what frames the world, so the
+ *  two must stay comparable or the world falls out of the bottom of frame. */
+function berthAt(orbit: number, f: number, yOff: number): THREE.Vector3 {
+  const a = bearing(f);
+  return new THREE.Vector3(Math.cos(a) * orbit, yOff, Math.sin(a) * orbit);
+}
+
+// Control knots, in travel order:
+//   [0] start  — far out on the FAR side of the sun, so the ship flies IN
+//                toward the star (the opening: a G-type sun grows dead ahead)
+//   [1] sun    — a berth beside the star; the rail swings past it, not through
+//   [2..10]    — the nine worlds, each on its own bearing
+//   [11] end   — the ship keeps cruising past Pluto into the dark
+const START_KNOT = M.clone().multiplyScalar(-1600).addScaledVector(UP, 150);
+const SUN_KNOT = PERP.clone().multiplyScalar(300).addScaledVector(UP, 70);
+const BERTHS: THREE.Vector3[] = [
+  START_KNOT,
+  SUN_KNOT,
+  ...DEFS.map((d, i) => berthAt(d.orbit, i / (DEFS.length - 1), d.yOff)),
+];
+{
+  const last = DEFS[DEFS.length - 1];
+  BERTHS.push(
+    new THREE.Vector3(
+      Math.cos(bearing(1.14)) * (last.orbit + 3400),
+      360,
+      Math.sin(bearing(1.14)) * (last.orbit + 3400),
+    ),
+  );
+}
+
+// One graceful curve through them all. Centripetal Catmull-Rom does not
+// overshoot or kink when knot spacing is very uneven (900 → 19000).
+export const RAIL = new THREE.CatmullRomCurve3(BERTHS, false, 'centripetal', 0.5);
+
+const N_KNOTS = BERTHS.length;
+/** getPoint(t) places control knot j at exactly t = j/(N-1). */
+const knotU = (j: number) => j / (N_KNOTS - 1);
+
+const _ta = new THREE.Vector3();
+const _tb = new THREE.Vector3();
+/** Unit tangent of the rail at u (finite difference — stable near the ends). */
+function railTangent(u: number, out: THREE.Vector3): THREE.Vector3 {
+  const du = 0.0009;
+  RAIL.getPoint(Math.min(1, u + du), _ta);
+  RAIL.getPoint(Math.max(0, u - du), _tb);
+  out.copy(_ta).sub(_tb);
+  if (out.lengthSq() < 1e-9) out.copy(M);
+  return out.normalize();
+}
+
+/* --------------------- worlds placed against the rail --------------------- */
+
+// Framing: each world sits a fixed standoff AHEAD of its berth, yawed toward
+// the right so it composes on the right third with the panel on the left.
+// Standoff in planet radii sets how large it looks; the yaw keeps the rail
+// clearing the surface as it slides past.
+const STANDOFF = 6.5; // planet radii
+const FRAME_YAW = 0.34; // rad, toward the right of travel
+
+const _tan = new THREE.Vector3();
+const _fdir = new THREE.Vector3();
+
+function placeWorld(def: BodyDef, knotIndex: number): THREE.Vector3 {
+  const u = knotU(knotIndex);
+  const berth = BERTHS[knotIndex];
+  railTangent(u, _tan);
+  // Yaw the tangent about world-up to get the framing direction, then flatten
+  // to the ecliptic so the world sits near the plane (its yOff does the rest).
+  _fdir.copy(_tan).applyAxisAngle(UP, -FRAME_YAW);
+  _fdir.y = 0;
+  _fdir.normalize();
+  const d = def.radius * STANDOFF;
+  // A gentle downward gaze: drop the world a little below the berth so the
+  // level (tangent-following) view looks slightly down onto it, ~above the
+  // ecliptic. The drop scales with the standoff, so the framing is identical
+  // for a pebble and a gas giant.
+  return new THREE.Vector3(
+    berth.x + _fdir.x * d,
+    berth.y - d * 0.12,
+    berth.z + _fdir.z * d,
+  );
+}
+
+export const HEROES: HeroSpec[] = DEFS.map((d, i) => ({
+  id: d.id,
+  name: d.name,
+  radius: d.radius,
+  tex: d.tex,
+  palette: d.palette,
+  rings: d.rings,
+  moons: d.moons,
+  position: placeWorld(d, i + 2),
 }));
 
 export const EARTH_POS = HEROES.find((h) => h.id === 'earth')!.position;
-const EARTH_S = 2300;
 
-/** The Moon is the one variation: it passes close on the LEFT just after
- *  Earth — a silent beat, no panel. */
+/** The Moon is the one variation: a silent pass close on the sunward side of
+ *  Earth, no panel — it drifts through frame as the ship coasts toward Mars. */
 export const MOON_RADIUS = 2.2;
-export const MOON_ANCHOR = lanePoint(EARTH_S + 90)
-  .addScaledVector(R, -26)
-  .addScaledVector(UP, 6);
+export const MOON_ANCHOR = (() => {
+  const earthU = knotU(2 + DEFS.findIndex((d) => d.id === 'earth'));
+  railTangent(earthU, _tan);
+  const toward = _tan.clone();
+  toward.y = 0;
+  toward.normalize();
+  // A little short of Earth, lifted, nudged to the near side of the rail.
+  return EARTH_POS.clone()
+    .addScaledVector(toward, -70)
+    .addScaledVector(UP, 22)
+    .addScaledVector(PERP, 30);
+})();
 
 /* --------------------- chapters: the career --------------------- */
 
@@ -249,39 +355,44 @@ export const CHAPTER_SP: Record<string, number> = Object.fromEntries(
   CHAPTERS.map((c) => [c.id, c.sp]),
 );
 
-/* --------------- scroll -> lane coordinate (PCHIP remap) --------------- */
+/* --------------- scroll -> rail parameter (PCHIP remap) --------------- */
 
-// The stop for each world: far enough back that the whole planet sits
-// comfortably in frame ahead-right (~20 degrees of arc = ~40% of viewport)
-const viewS = (s: number, r: number) => s - r * 5.5;
+// Where each chapter parks on the rail. The sun berth is knot 1; every world
+// is its own knot (index 2..10), so its dwell u is exactly the knot's u.
+const CHAP_U: Record<string, number> = { sun: 0.06 };
+DEFS.forEach((d, i) => {
+  CHAP_U[d.id] = knotU(i + 2);
+});
 
-const S_START = -900; // the sun grows ahead-right out of the arrival flash
-const S_END = 19000 + 700; // cruise on past Pluto; it falls behind
+const DWELL = 0.011; // how much rail a world holds while it's the hero
 
-const RADII: Record<string, number> = Object.fromEntries(DEFS.map((d) => [d.id, d.radius]));
-const LANE_S: Record<string, number> = Object.fromEntries(DEFS.map((d) => [d.id, d.s]));
-
-const REMAP: [number, number][] = [
-  [0, S_START],
-  // The sun is berthed at s=0 like everything else
-  [0.02, viewS(0, SUN_RADIUS)],
-  [0.055, viewS(0, SUN_RADIUS) + SUN_RADIUS * 2.5],
-  ...CHAPTERS.filter((c) => c.id !== 'sun').flatMap((c) => {
-    const r = RADII[c.id];
-    const v = viewS(LANE_S[c.id], r);
-    return [
-      [c.sp - 0.03, v - r * 3],
-      [c.sp, v],
-      [c.sp + 0.035, v + r * 2.5],
-    ] as [number, number][];
-  }),
-  // The Moon's silent left-side pass gets its own share of the ride
-  [0.36, EARTH_S + 90 - 110],
-  [1, S_END],
-].sort((a, b) => a[0] - b[0]) as [number, number][];
+const REMAP: [number, number][] = (() => {
+  const pts: [number, number][] = [
+    [0, 0.014],
+    [0.02, CHAP_U.sun],
+    [0.06, CHAP_U.sun + 0.03],
+  ];
+  for (const c of CHAPTERS) {
+    if (c.id === 'sun') continue;
+    const u = CHAP_U[c.id];
+    pts.push([c.sp - 0.03, u - DWELL]);
+    pts.push([c.sp, u]);
+    pts.push([c.sp + 0.035, u + DWELL]);
+  }
+  pts.push([1, 1]);
+  // Sort and enforce strict monotonicity in both axes.
+  pts.sort((a, b) => a[0] - b[0]);
+  const out: [number, number][] = [];
+  for (const p of pts) {
+    const prev = out[out.length - 1];
+    if (prev && (p[0] <= prev[0] || p[1] <= prev[1])) continue;
+    out.push(p);
+  }
+  return out;
+})();
 
 // Monotone cubic (PCHIP / Fritsch-Carlson): C1-continuous velocity. A
-// piecewise-linear remap kicks at every anchor.
+// piecewise-linear remap kicks the ship's speed at every anchor.
 const RX = REMAP.map((p) => p[0]);
 const RY = REMAP.map((p) => p[1]);
 const RM: number[] = (() => {
@@ -296,8 +407,8 @@ const RM: number[] = (() => {
   return m;
 })();
 
-function remapS(sp: number): number {
-  if (sp <= 0) return RY[0];
+function remapU(sp: number): number {
+  if (sp <= RX[0]) return RY[0];
   for (let i = 1; i < RX.length; i++) {
     if (sp <= RX[i]) {
       const h = RX[i] - RX[i - 1];
@@ -315,18 +426,24 @@ function remapS(sp: number): number {
   return RY[RY.length - 1];
 }
 
-/* --------------------- the camera --------------------- */
+/* --------------------- the probe --------------------- */
 
-/** ONE orientation for the entire chapter, computed once: forward along
- *  the lane, yawed 12 degrees toward the worlds' side. Roll is zero by
- *  construction and stays zero — the horizon of space never moves. */
-export const SYSTEM_QUAT = (() => {
-  const forward = D.clone().multiplyScalar(Math.cos(0.21)).addScaledVector(R, Math.sin(0.21));
-  const m = new THREE.Matrix4().lookAt(new THREE.Vector3(0, 0, 0), forward, UP);
-  return new THREE.Quaternion().setFromRotationMatrix(m);
-})();
+const _mat = new THREE.Matrix4();
+const _fwd = new THREE.Vector3();
 
-/** The vehicle: position on the lane. Nothing else. */
-export function systemPose(sp: number, outPos: THREE.Vector3): void {
-  outPos.copy(lanePoint(remapS(THREE.MathUtils.clamp(sp, 0, 1))));
+/**
+ * The probe on the rail. Position = the spline at the remapped scroll.
+ * Orientation = the rail's tangent, nothing else — as the path curves, the
+ * view eases with it. No lookAt on a subject, no roll, no banking. World-up
+ * is the reference every frame, so the horizon of space stays level.
+ */
+export function systemPose(sp: number, outPos: THREE.Vector3, outQuat: THREE.Quaternion): void {
+  const u = THREE.MathUtils.clamp(remapU(THREE.MathUtils.clamp(sp, 0, 1)), 0, 1);
+  RAIL.getPoint(u, outPos);
+  railTangent(u, _fwd);
+  // lookAt(eye, target, up) with eye at origin builds a camera orientation
+  // whose forward (-Z) points at `target`; feeding the tangent aims the view
+  // straight down the rail.
+  _mat.lookAt(ORIGIN, _fwd, UP);
+  outQuat.setFromRotationMatrix(_mat);
 }
