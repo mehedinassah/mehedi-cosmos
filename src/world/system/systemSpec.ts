@@ -27,6 +27,9 @@ export interface HeroSpec {
   name: string;
   radius: number;
   position: THREE.Vector3;
+  /** Every world must be INSTANTLY recognizable as the real object — real
+   *  imagery carries identity (maps: solarsystemscope.com, CC BY 4.0). */
+  tex: { map: string; night?: string; clouds?: string; tint?: string };
   palette: { deep: string; mid: string; high: string; atmo: string; night: number; clouds: number };
   rings?: boolean;
   moons?: MoonSpec[];
@@ -53,22 +56,27 @@ const PLUTO_POS = at(2.26, 19000, 210); // off-plane, the lonely outlier
 export const HEROES: HeroSpec[] = [
   {
     id: 'mercury', name: 'Mercury', radius: 2.4, position: MERCURY_POS,
+    tex: { map: '/textures/2k_mercury.jpg' },
     palette: { deep: '#2e2a26', mid: '#5c554c', high: '#9a9188', atmo: '#6b655c', night: 0, clouds: 0 },
   },
   {
     id: 'venus', name: 'Venus', radius: 7.5, position: VENUS_POS,
+    tex: { map: '/textures/2k_venus_atmosphere.jpg' },
     palette: { deep: '#6b5433', mid: '#a8874e', high: '#e0c890', atmo: '#d9b877', night: 0, clouds: 1.0 },
   },
   {
     id: 'earth', name: 'Earth', radius: 8, position: EARTH_POS,
+    tex: { map: '/textures/2k_earth_daymap.jpg', night: '/textures/2k_earth_nightmap.jpg', clouds: '/textures/2k_earth_clouds.jpg' },
     palette: { deep: '#0e3a66', mid: '#2f6152', high: '#d8d2c4', atmo: '#7db4e8', night: 0.35, clouds: 0.7 },
   },
   {
     id: 'mars', name: 'Mars', radius: 4.2, position: MARS_POS,
+    tex: { map: '/textures/2k_mars.jpg' },
     palette: { deep: '#4a2a1c', mid: '#8a4f33', high: '#c88a62', atmo: '#b07a58', night: 0, clouds: 0.06 },
   },
   {
     id: 'jupiter', name: 'Jupiter', radius: 30, position: JUPITER_POS,
+    tex: { map: '/textures/2k_jupiter.jpg' },
     palette: { deep: '#6e5238', mid: '#a8845e', high: '#d9c3a4', atmo: '#c0a480', night: 0, clouds: 0.32 },
     moons: [
       { radius: 1.1, dist: 48, speed: 0.02, incl: 0.03, phase: 0.4 },
@@ -79,20 +87,24 @@ export const HEROES: HeroSpec[] = [
   },
   {
     id: 'saturn', name: 'Saturn', radius: 25, position: SATURN_POS,
+    tex: { map: '/textures/2k_saturn.jpg' },
     palette: { deep: '#7a6543', mid: '#b09468', high: '#e2cfa4', atmo: '#cdb384', night: 0, clouds: 0.28 },
     rings: true,
     moons: [{ radius: 1.6, dist: 92, speed: 0.01, incl: 0.08, phase: 2.0 }],
   },
   {
     id: 'uranus', name: 'Uranus', radius: 13, position: URANUS_POS,
+    tex: { map: '/textures/2k_uranus.jpg' },
     palette: { deep: '#2b4b52', mid: '#4f7d86', high: '#a4ccd2', atmo: '#8fc4cc', night: 0, clouds: 0.3 },
   },
   {
     id: 'neptune', name: 'Neptune', radius: 12.5, position: NEPTUNE_POS,
+    tex: { map: '/textures/2k_neptune.jpg' },
     palette: { deep: '#16305c', mid: '#2f5590', high: '#7c9cd0', atmo: '#6a8fc8', night: 0, clouds: 0.4 },
   },
   {
     id: 'pluto', name: 'Pluto', radius: 1.9, position: PLUTO_POS,
+    tex: { map: '/textures/2k_moon.jpg', tint: '#c9b49a' },
     palette: { deep: '#5c5248', mid: '#8d8177', high: '#cfc6b8', atmo: '#9a9089', night: 0, clouds: 0 },
     moons: [{ radius: 0.95, dist: 6.5, speed: 0.03, incl: 0.12, phase: 2.2 }],
   },
@@ -239,69 +251,74 @@ export const CHAPTERS: Chapter[] = [
   {
     id: 'sun', planet: 'the Sun', title: 'Mehedi Hassan', sp: 0.015, target: ORIGIN,
     body: ['Full Stack Developer', 'Building software, games, AI tools, and interactive experiences.'],
-  },
-  {
-    id: 'mercury', planet: 'Mercury', title: 'About', sp: 0.09, target: MERCURY_POS, anchor: MERCURY_PASS,
-    body: [
-      'Dhaka, Bangladesh',
-      'Computer Science graduate, BRAC University',
-      'Curious builder. I enjoy creating software, games, and digital experiences that feel alive.',
+    links: [
+      { label: 'Email', href: 'mailto:idehemnassah@gmail.com' },
+      { label: 'GitHub', href: 'https://github.com/mehedinassah' },
     ],
   },
   {
-    id: 'venus', planet: 'Venus', title: 'Skills', sp: 0.18, target: VENUS_POS, anchor: VENUS_PASS,
+    id: 'mercury', planet: 'Mercury', title: 'About', sp: 0.1, target: MERCURY_POS, anchor: MERCURY_PASS,
     body: [
-      'React and Next.js', 'TypeScript', 'Java and Spring Boot', 'Node and PostgreSQL',
-      'Kotlin and Android', 'Flutter', 'OpenCV and PyTorch', 'Docker and Git',
+      'Full stack developer from Dhaka, Bangladesh.',
+      'BSc in Computer Science, BRAC University, 2022 to 2026.',
+      'Available now, onsite Dhaka or remote.',
     ],
   },
   {
-    id: 'earth', planet: 'Earth', title: 'Projects', sp: 0.28, target: EARTH_POS, anchor: EARTH_PASS,
-    body: ['Perico ERP', 'TopLine', 'Whispers', 'banauAI', 'eSIM', 'Geo Landmarks'],
-  },
-  {
-    id: 'moon', planet: 'the Moon', title: 'Featured: Perico ERP', sp: 0.37, target: MOON_ANCHOR, anchor: MOON_PASS,
-    body: ['The flagship build: a complete business ERP.', 'Java, Spring Boot, React, PostgreSQL.'],
-  },
-  {
-    id: 'mars', planet: 'Mars', title: 'Experience', sp: 0.46, target: MARS_POS, anchor: MARS_PASS,
+    id: 'venus', planet: 'Venus', title: 'Skills', sp: 0.2, target: VENUS_POS, anchor: VENUS_PASS,
     body: [
-      'BRAC University',
+      'Languages: Java, Kotlin, TypeScript, Python',
+      'Frontend: React, Next.js, Flutter',
+      'Backend: Spring Boot, Node',
+      'Data: PostgreSQL, Prisma, Supabase',
+      'Mobile: Android, Kotlin MVVM',
+      'AI: OpenCV, PyTorch',
+      'Tools: Docker, Git',
+    ],
+  },
+  {
+    id: 'earth', planet: 'Earth', title: 'Experience', sp: 0.3, target: EARTH_POS, anchor: EARTH_PASS,
+    body: [
       'Community Lead for a 90k+ member community',
       'Events with 500+ attendees',
       'Verified Upwork freelancer',
+      'BRAC University',
     ],
   },
   {
-    id: 'jupiter', planet: 'Jupiter', title: 'Technical Stack', sp: 0.57, target: JUPITER_POS, anchor: JUPITER_PASS,
+    id: 'mars', planet: 'Mars', title: 'Projects', sp: 0.42, target: MARS_POS, anchor: MARS_PASS,
+    body: ['Perico ERP', 'Top-Line', 'Whispers', 'banauAI', 'Smart Geo Landmarks'],
+  },
+  {
+    id: 'jupiter', planet: 'Jupiter', title: 'Featured: Perico ERP', sp: 0.55, target: JUPITER_POS, anchor: JUPITER_PASS,
     body: [
-      'Io: languages. Java, Kotlin, TypeScript, Python.',
-      'Europa: frontend. React, Next.js, Flutter.',
-      'Ganymede: backend. Spring Boot, Node.',
-      'Callisto: data. PostgreSQL, Prisma, Supabase.',
+      'The flagship build: a complete business ERP.',
+      'Inventory, orders, and operations in one system.',
+      'Java, Spring Boot, React, PostgreSQL.',
     ],
+    links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
   },
   {
     id: 'saturn', planet: 'Saturn', title: 'Open Source', sp: 0.67, target: SATURN_POS, anchor: SATURN_PASS,
-    body: ['Perico ERP, Whispers, TopLine, banauAI'],
+    body: ['Repositories, commits, and stars', 'Perico ERP, Whispers, Top-Line, banauAI'],
     links: [{ label: 'github.com/mehedinassah', href: 'https://github.com/mehedinassah' }],
   },
   {
-    id: 'uranus', planet: 'Uranus', title: 'Education', sp: 0.76, target: URANUS_POS, anchor: URANUS_PASS,
-    body: ['BRAC University', 'BSc in Computer Science', '2022 to 2026'],
+    id: 'uranus', planet: 'Uranus', title: 'Off the Clock', sp: 0.78, target: URANUS_POS, anchor: URANUS_PASS,
+    body: ['Movies and games', 'Football', 'Music and tea', 'A late night builder'],
   },
   {
-    id: 'neptune', planet: 'Neptune', title: 'Achievements', sp: 0.85, target: NEPTUNE_POS, anchor: NEPTUNE_PASS,
-    body: ['Verified Upwork freelancer', 'A 90k+ member community, led', 'Events with 500+ attendees'],
-  },
-  {
-    id: 'pluto', planet: 'Pluto', title: "Let's build something.", sp: 0.95, target: PLUTO_POS, anchor: PLUTO_PASS,
-    body: ['Dhaka, Bangladesh'],
+    id: 'neptune', planet: 'Neptune', title: 'Contact', sp: 0.88, target: NEPTUNE_POS, anchor: NEPTUNE_PASS,
+    body: ['Dhaka, Bangladesh', '+880 1919 234860'],
     links: [
       { label: 'Email', href: 'mailto:idehemnassah@gmail.com' },
       { label: 'GitHub', href: 'https://github.com/mehedinassah' },
       { label: 'LinkedIn', href: 'https://www.linkedin.com/in/mehedinas' },
     ],
+  },
+  {
+    id: 'pluto', planet: 'Pluto', title: 'The edge of the map.', sp: 0.965, target: PLUTO_POS, anchor: PLUTO_PASS,
+    body: ['Thanks for flying this far.'],
   },
 ];
 
@@ -323,8 +340,11 @@ const REMAP: [number, number][] = [
   ...CHAPTERS.filter((c) => c.id !== 'sun').map(
     (c) => [c.sp, nearestU(c.anchor ?? c.target)] as [number, number],
   ),
+  // The Moon has no chapter panel but still deserves its share of the ride:
+  // without this anchor the Earth->Mars leg swallows the sweep in an instant
+  [0.36, nearestU(MOON_PASS)],
   [1, 1],
-];
+].sort((a, b) => a[0] - b[0]) as [number, number][];
 
 function remapU(sp: number): number {
   for (let i = 1; i < REMAP.length; i++) {
@@ -388,6 +408,8 @@ export function systemPose(
     }
     pull(vDir, outPos, c.target, windowW(sp, c.sp - 0.045, c.sp - 0.018, c.sp + 0.025, c.sp + 0.052) * 0.85);
   }
+  // The Moon's silent beat: no panel, just the sweep past a lit face
+  pull(vDir, outPos, MOON_ANCHOR, windowW(sp, 0.328, 0.345, 0.372, 0.392) * 0.85);
 
   outLook.copy(outPos).addScaledVector(vDir, 2000);
   void t;

@@ -61,7 +61,9 @@ export function UniverseCanvas() {
       )}
       {arrived && (
         <>
-          <pointLight position={[0, 0, 0]} intensity={2.2} distance={0} decay={0.35} color="#ffd9a0" />
+          {/* The one real light: textured worlds (MeshStandard) actually use
+              it now, so decay stays 0 for readable lighting across 20k units */}
+          <pointLight position={[0, 0, 0]} intensity={2.6} distance={0} decay={0} color="#fff2dc" />
           <CentralStar />
           <SolarSystem />
         </>

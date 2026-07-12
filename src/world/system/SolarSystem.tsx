@@ -4,18 +4,13 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { assembleShader } from '@/shaders/assemble';
-import planetVert from '@/shaders/materials/planet_standard/planet.vert';
-import planetFrag from '@/shaders/materials/planet_standard/planet.frag';
 import atmoVert from '@/shaders/materials/atmosphere/atmo.vert';
 import atmoFrag from '@/shaders/materials/atmosphere/atmo.frag';
-import cloudsVert from '@/shaders/materials/clouds/clouds.vert';
-import cloudsFrag from '@/shaders/materials/clouds/clouds.frag';
 import ringsVert from '@/shaders/materials/rings/rings.vert';
 import ringsFrag from '@/shaders/materials/rings/rings.frag';
 import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
-import { useQualityStore } from '@/state/qualityStore';
 import { useDescentStore } from '@/state/descentStore';
 import {
   HEROES,
@@ -46,56 +41,55 @@ function mulberry32(a: number) {
 
 /* ---------------------------- worlds ---------------------------- */
 
+// Planet maps: solarsystemscope.com (CC BY 4.0). Real imagery carries each
+// world's identity — no procedural blob may pretend to be Jupiter.
+function loadMap(path: string): THREE.Texture {
+  const t = new THREE.TextureLoader().load(path);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
 function useHeroMaterials(spec: HeroSpec) {
-  const tier = useQualityStore((s) => s.tier);
   return useMemo(() => {
-    const p = spec.palette;
-    const octaves = tier >= 3 ? 5 : tier === 2 ? 4 : 3;
-    const seed = spec.position.length() * 0.013;
-    const surface = new THREE.ShaderMaterial({
-      vertexShader: assembleShader(planetVert, { OCTAVES: Math.min(octaves, 4) }),
-      fragmentShader: assembleShader(planetFrag, { OCTAVES: octaves }),
-      uniforms: {
-        uSunPos: { value: new THREE.Vector3(0, 0, 0) },
-        uCameraPos: { value: new THREE.Vector3() },
-        uTime: { value: 0 },
-        uSeed: { value: seed },
-        uDeep: { value: new THREE.Color(p.deep) },
-        uMid: { value: new THREE.Color(p.mid) },
-        uHigh: { value: new THREE.Color(p.high) },
-        uAtmo: { value: new THREE.Color(p.atmo) },
-        uNight: { value: p.night },
-        uCloudCover: { value: p.clouds },
-      },
+    const surface = new THREE.MeshStandardMaterial({
+      map: loadMap(spec.tex.map),
+      roughness: 1,
+      metalness: 0,
     });
+    if (spec.tex.tint) surface.color.set(spec.tex.tint);
+    if (spec.tex.night) {
+      // City lights: emissive map glows independent of sunlight — invisible
+      // against the lit day side, alive on the dark one
+      surface.emissive = new THREE.Color('#ffd9a0');
+      surface.emissiveMap = loadMap(spec.tex.night);
+      surface.emissiveIntensity = 0.75;
+    }
+    const clouds = spec.tex.clouds
+      ? new THREE.MeshStandardMaterial({
+          color: '#ffffff',
+          alphaMap: loadMap(spec.tex.clouds),
+          transparent: true,
+          depthWrite: false,
+          roughness: 1,
+          metalness: 0,
+        })
+      : null;
     const atmosphere = new THREE.ShaderMaterial({
       vertexShader: atmoVert,
       fragmentShader: atmoFrag,
       uniforms: {
         uSunPos: { value: new THREE.Vector3(0, 0, 0) },
         uCameraPos: { value: new THREE.Vector3() },
-        uAtmo: { value: new THREE.Color(p.atmo) },
+        uAtmo: { value: new THREE.Color(spec.palette.atmo) },
       },
       side: THREE.BackSide,
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-    const clouds = new THREE.ShaderMaterial({
-      vertexShader: cloudsVert,
-      fragmentShader: assembleShader(cloudsFrag, { OCTAVES: Math.min(octaves, 4) }),
-      uniforms: {
-        uTime: { value: 0 },
-        uSeed: { value: seed },
-        uCloudCover: { value: p.clouds },
-        uSunPos: { value: new THREE.Vector3(0, 0, 0) },
-        uCameraPos: { value: new THREE.Vector3() },
-      },
-      transparent: true,
-      depthWrite: false,
-    });
     return { surface, atmosphere, clouds };
-  }, [spec, tier]);
+  }, [spec]);
 }
 
 const band = (p: number, a: number, b: number) => THREE.MathUtils.smoothstep(p, a, b);
@@ -142,6 +136,7 @@ function SaturnRings({ spec }: { spec: HeroSpec }) {
           uInnerR: { value: spec.radius * 1.35 },
           uOuterR: { value: spec.radius * 2.4 },
           uSeed: { value: 7.31 },
+          uMap: { value: loadMap('/textures/2k_saturn_ring_alpha.png') },
         },
         transparent: true,
         depthWrite: false,
@@ -172,10 +167,11 @@ function EarthMoon() {
       .applyAxisAngle(MOON_UP, state.clock.elapsedTime * 0.001)
       .add(EARTH_POS);
   });
+  const moonMap = useMemo(() => loadMap('/textures/2k_moon.jpg'), []);
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[MOON_RADIUS, 32, 32]} />
-      <meshStandardMaterial color="#b8b3aa" roughness={0.95} metalness={0.02} />
+      <sphereGeometry args={[MOON_RADIUS, 48, 48]} />
+      <meshStandardMaterial map={moonMap} roughness={1} metalness={0} />
     </mesh>
   );
 }
@@ -186,14 +182,10 @@ function Hero({ spec }: { spec: HeroSpec }) {
   const cloudRef = useRef<THREE.Mesh>(null);
 
   useFrame((state, delta) => {
-    const t = state.clock.elapsedTime;
-    if (meshRef.current) meshRef.current.rotation.y += delta * 0.03;
+    // Visible, slow rotation — nothing in space is a still image
+    if (meshRef.current) meshRef.current.rotation.y += delta * (spec.radius >= 20 ? 0.02 : 0.008);
     if (cloudRef.current) cloudRef.current.rotation.y += delta * 0.012;
-    surface.uniforms.uTime.value = t;
-    clouds.uniforms.uTime.value = t;
-    surface.uniforms.uCameraPos.value.copy(state.camera.position);
     atmosphere.uniforms.uCameraPos.value.copy(state.camera.position);
-    clouds.uniforms.uCameraPos.value.copy(state.camera.position);
   });
 
   // The giants fill real screen space on their pass — they need the density
@@ -204,8 +196,8 @@ function Hero({ spec }: { spec: HeroSpec }) {
         <sphereGeometry args={[spec.radius, segs, segs]} />
         <primitive object={surface} attach="material" />
       </mesh>
-      {spec.palette.clouds > 0.05 && (
-        <mesh ref={cloudRef} scale={1.02}>
+      {clouds && (
+        <mesh ref={cloudRef} scale={1.012}>
           <sphereGeometry args={[spec.radius, Math.min(segs, 64), Math.min(segs, 64)]} />
           <primitive object={clouds} attach="material" />
         </mesh>

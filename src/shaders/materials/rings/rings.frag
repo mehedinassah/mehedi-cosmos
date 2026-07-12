@@ -4,14 +4,15 @@ uniform float uPlanetR;
 uniform float uInnerR;
 uniform float uOuterR;
 uniform float uSeed;
+uniform sampler2D uMap; // real ring scan (radius across U): color + alpha
 
 varying vec3 vPosW;
 varying vec3 vPosL;
 
 #include "chunks/noise3d.glsl"
 
-// Planar ring: radial bands + gaps, dusty muted tones, lit by the sun,
-// with the planet's cast shadow sweeping across the far side.
+// Planar ring: REAL ring imagery for the band/gap structure, lit by the
+// sun, with the planet's cast shadow sweeping across the far side.
 void main() {
   // RingGeometry lies in the LOCAL XY plane (the mesh is rotated into the
   // ecliptic at the object level) — measuring xz here discards the annulus
@@ -20,15 +21,9 @@ void main() {
   float t = (r - uInnerR) / (uOuterR - uInnerR);
   if (t < 0.0 || t > 1.0) discard;
 
-  // Radial band structure: layered 1D noise = ringlets and gaps
-  float bands = vnoise(vec3(r * 0.35 + uSeed, 0.0, 0.0)) * 0.6
-              + vnoise(vec3(r * 1.7 + uSeed * 3.0, 0.0, 0.0)) * 0.4;
-  float gaps = smoothstep(0.28, 0.42, bands);
+  vec4 ring = texture2D(uMap, vec2(t, 0.5));
   // Soft inner/outer edges
-  float edge = smoothstep(0.0, 0.06, t) * (1.0 - smoothstep(0.82, 1.0, t));
-
-  // Dusty, muted palette — icy rock, never neon
-  vec3 col = mix(vec3(0.42, 0.38, 0.33), vec3(0.62, 0.60, 0.57), bands);
+  float edge = smoothstep(0.0, 0.04, t) * (1.0 - smoothstep(0.9, 1.0, t));
 
   // Sun illumination + planet shadow: occluded where the planet blocks the sun
   vec3 toSun = normalize(uSunPos - vPosW);
@@ -37,10 +32,7 @@ void main() {
   float perp = length(toPlanet - toSun * along);
   float shadow = (along > 0.0) ? smoothstep(uPlanetR * 0.98, uPlanetR * 1.25, perp) : 1.0;
 
-  col *= 0.06 + 0.94 * shadow;
-  // Kept below full brightness: sunlit ice at this exposure reads as
-  // blown white vinyl otherwise
-  col *= 0.78;
+  vec3 col = ring.rgb * (0.1 + 0.9 * shadow) * 0.85;
 
-  gl_FragColor = vec4(col, gaps * edge * 0.72);
+  gl_FragColor = vec4(col, ring.a * edge * 0.95);
 }

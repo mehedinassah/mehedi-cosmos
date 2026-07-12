@@ -1,8 +1,10 @@
 uniform float uTime;
 uniform float uIgnite;
+uniform sampler2D uMap;
 varying vec3 vNormal;
 varying vec3 vPos;
 varying vec3 vView;
+varying vec2 vUv;
 
 #include "chunks/noise3d.glsl"
 
@@ -13,19 +15,17 @@ void main() {
   // layered under coarser active-region structure (low-freq, drifting).
   float granulation = fbm(p * 22.0 + vec3(uTime * 0.06, uTime * 0.03, 0.0));
   float macro = fbm(p * 3.2 + vec3(uTime * 0.02, -uTime * 0.015, 0.0));
-  // Granulation-forward: the close-up (system chapter, ~440u) must show
-  // convection cells, not a smooth matte ball
   float plasma = mix(macro, granulation, 0.55);
 
   // Active regions: brighter knotted patches that hint at magnetic structure
   float activity = smoothstep(0.66, 0.92, fbm(p * 5.5 - vec3(uTime * 0.01)));
 
-  vec3 core  = vec3(1.00, 0.90, 0.68);
-  vec3 mid   = vec3(0.99, 0.66, 0.30);
-  vec3 deep  = vec3(0.62, 0.24, 0.07);
-  vec3 col = mix(deep, mid, smoothstep(0.3, 0.62, plasma));
-  col = mix(col, core, smoothstep(0.62, 0.88, plasma));
-  col += vec3(1.0, 0.85, 0.5) * activity * 0.5;
+  // Real photosphere imagery carries the identity (sunspots, cell texture,
+  // color); the procedural layers keep it ALIVE — the map drifts slowly and
+  // the noise modulates brightness so nothing ever reads as a still photo.
+  vec3 tex = texture2D(uMap, vUv + vec2(uTime * 0.0016, 0.0)).rgb;
+  vec3 col = tex * (0.62 + 0.55 * plasma);
+  col += vec3(1.0, 0.85, 0.5) * activity * 0.32;
 
   // Limb darkening — photosphere is optically thinner at the edge, so it's
   // actually DARKER at grazing angles (the physically correct opposite of

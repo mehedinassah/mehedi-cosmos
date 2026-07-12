@@ -45,10 +45,15 @@ export function CentralStar() {
 
   const material = useMemo(() => {
     const octaves = tier >= 3 ? 5 : tier === 2 ? 4 : 3;
+    // Real photosphere map (solarsystemscope.com, CC BY 4.0) under the
+    // procedural plasma — identity from the photo, life from the noise
+    const map = new THREE.TextureLoader().load('/textures/2k_sun.jpg');
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.wrapS = THREE.RepeatWrapping;
     return new THREE.ShaderMaterial({
       vertexShader: sunVert,
       fragmentShader: assembleShader(sunFrag, { OCTAVES: octaves }),
-      uniforms: { uTime: { value: 0 }, uIgnite: { value: 0 } },
+      uniforms: { uTime: { value: 0 }, uIgnite: { value: 0 }, uMap: { value: map } },
     });
   }, [tier]);
 
