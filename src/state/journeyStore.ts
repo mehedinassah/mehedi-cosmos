@@ -19,7 +19,9 @@ export type JourneyPhase =
 
 const LEGAL: Record<JourneyPhase, JourneyPhase[]> = {
   INTRO: ['IDLE'],
-  IDLE: ['ACCEL'],
+  // IDLE -> ORBIT is the descent-chapter handoff: the scroll dive ends at the
+  // destination star and the camera settles into orbit at the sun.
+  IDLE: ['ACCEL', 'ORBIT'],
   ACCEL: ['CRUISE'],
   CRUISE: ['DECEL', 'ACCEL'], // ACCEL = mid-cruise re-target (blueprint §5.3)
   DECEL: ['ORBIT'],

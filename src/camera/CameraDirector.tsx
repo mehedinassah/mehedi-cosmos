@@ -8,6 +8,12 @@ import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
 import { GALAXY_CAM_POS, GALAXY_LOOK } from '@/world/galaxy/HeroGalaxy';
+import {
+  buildDescentCurve,
+  DESTINATION_STAR,
+  GALAXY_REST_LOOK,
+} from '@/camera/descentPath';
+import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
 
 
 /**
@@ -72,6 +78,8 @@ export function CameraDirector() {
   const pointerSmooth = useRef(new THREE.Vector2());
   const parallaxApplied = useRef(new THREE.Vector3());
   const idleDrift = useRef(0);
+  const descentCurve = useRef<THREE.CatmullRomCurve3 | null>(null);
+  const descentAhead = useRef(new THREE.Vector3());
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
 
@@ -85,6 +93,30 @@ export function CameraDirector() {
     // remove last frame's offset before any phase logic reads the position.
     cam.position.sub(parallaxApplied.current);
     parallaxApplied.current.set(0, 0, 0);
+
+    // Descent rig: damp the scroll target into the value every consumer
+    // reads, keep the caption ladder in step, and fire the arrival handoff.
+    const descent = useDescentStore.getState();
+    let dp = descent.smoothed;
+    if (descent.stage !== 'ARRIVED') {
+      dp = THREE.MathUtils.damp(descent.smoothed, descent.target, 2.0, delta);
+      let captionIndex = -1;
+      if (descent.stage === 'DESCENDING') {
+        for (let k = 0; k < DESCENT_CAPTIONS.length; k++) {
+          if (dp >= DESCENT_CAPTIONS[k].at) captionIndex = k;
+        }
+      }
+      if (dp !== descent.smoothed || captionIndex !== descent.captionIndex) {
+        useDescentStore.setState({ smoothed: dp, captionIndex });
+      }
+      if (dp > 0.996 && descent.target >= 1) {
+        // Arrival: the flare + DOM flash mask the swap to the solar system
+        useDescentStore.setState({ stage: 'ARRIVED', smoothed: 1, captionIndex: -1 });
+        cam.fov = baseFov.current;
+        cam.updateProjectionMatrix();
+        j.transition('ORBIT');
+      }
+    }
 
     // Phase entry setup
     if (j.phase !== lastPhase.current) {
@@ -116,7 +148,7 @@ export function CameraDirector() {
         const ease = 1 - Math.pow(1 - p, 3);
         const startPos = GALAXY_CAM_POS.clone().add(new THREE.Vector3(-7000, -2400, 16000));
         cam.position.lerpVectors(startPos, GALAXY_CAM_POS, ease);
-        lookTarget.current.copy(GALAXY_LOOK);
+        lookTarget.current.copy(GALAXY_REST_LOOK);
         break;
       }
       case 'ACCEL':
@@ -148,6 +180,31 @@ export function CameraDirector() {
         break;
       }
       case 'IDLE': {
+        // Scroll descent: the camera rides the dive spline into the beacon
+        // arm. Built lazily from the CURRENT position so idle drift never
+        // causes a pop, cleared when the viewer scrolls all the way back.
+        if (dp > 0.0015) {
+          if (!descentCurve.current) descentCurve.current = buildDescentCurve(cam.position.clone());
+          const curve = descentCurve.current;
+          curve.getPoint(dp, cam.position);
+          // Gaze: hold the galaxy while committing, swing forward along the
+          // path through the arm, land on the destination star.
+          curve.getPoint(Math.min(dp + 0.06, 1), descentAhead.current);
+          lookTarget.current
+            .copy(GALAXY_REST_LOOK)
+            .lerp(descentAhead.current, THREE.MathUtils.smoothstep(dp, 0.12, 0.42))
+            .lerp(DESTINATION_STAR, THREE.MathUtils.smoothstep(dp, 0.85, 0.96));
+          // Speed sensation mid-dive, easing off for the arrival
+          if (!reducedMotion) {
+            cam.fov =
+              baseFov.current +
+              6 * THREE.MathUtils.smoothstep(dp, 0.15, 0.55) * (1 - THREE.MathUtils.smoothstep(dp, 0.8, 0.98));
+            cam.updateProjectionMatrix();
+          }
+          break;
+        }
+        descentCurve.current = null;
+
         // Galaxy hero rest — a free-floating telescope, never a locked tripod:
         // very slow orbital drift plus a constant, asymptotic forward creep.
         // The creep caps at 14% of the vantage distance so the framing holds.
@@ -162,7 +219,7 @@ export function CameraDirector() {
           .multiplyScalar(1 - idleDrift.current);
         const target = center.clone().add(offset);
         cam.position.lerp(target, 1 - Math.exp(-1.5 * delta));
-        lookTarget.current.copy(center);
+        lookTarget.current.copy(GALAXY_REST_LOOK);
         break;
       }
       case 'ORBIT':
@@ -191,7 +248,7 @@ export function CameraDirector() {
     // resting on the galaxy hero. Because it's true translation, every depth
     // layer (foreground motes / disc slices / deep space) shifts at its own
     // rate — that differential motion is what sells the scale.
-    if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
+    if (!reducedMotion && (j.phase === 'INTRO' || (j.phase === 'IDLE' && dp < 0.02))) {
       pointerSmooth.current.lerp(state.pointer, 1 - Math.exp(-2.2 * delta));
       const fwd = lookTarget.current.clone().sub(cam.position).normalize();
       const right = new THREE.Vector3().crossVectors(fwd, cam.up).normalize();
@@ -220,7 +277,8 @@ export function CameraDirector() {
     // Applied after lookAt, which re-levels the camera every frame, so the
     // roll never accumulates.
     if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
-      cam.rotateZ(Math.sin(t * 0.07) * 0.013 + Math.sin(t * 0.023 + 2.0) * 0.009);
+      const settle = 1 - THREE.MathUtils.smoothstep(dp, 0.88, 1); // level out for arrival
+      cam.rotateZ((Math.sin(t * 0.07) * 0.013 + Math.sin(t * 0.023 + 2.0) * 0.009) * settle);
     }
 
     // Rule of thirds: shift the frustum so the subject composes off-center

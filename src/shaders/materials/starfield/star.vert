@@ -22,6 +22,8 @@ void main() {
   float ignited = smoothstep(aIgniteOrder, aIgniteOrder + 0.12, uFormation);
   vAlpha = twinkle * ignited;
   vColor = aColor;
-  gl_PointSize = aSize * (300.0 / -mv.z) * mix(0.2, 1.0, ignited);
+  // Capped so near passes during the descent read as bright orbs, never
+  // screen-swallowing blobs (uncapped, a star skimmed at 300u fills 500px+)
+  gl_PointSize = min(aSize * (300.0 / -mv.z), 420.0) * mix(0.2, 1.0, ignited);
   gl_Position = projectionMatrix * mv;
 }

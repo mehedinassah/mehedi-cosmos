@@ -3,38 +3,39 @@
 import { useEffect, useState } from 'react';
 import { useJourneyStore } from '@/state/journeyStore';
 import { useUiStore } from '@/state/uiStore';
+import { useDescentStore } from '@/state/descentStore';
 import { bodyById } from '@/content/universe';
 
 /**
  * Minimal diegetic HUD — location readout + aria-live narration channel (§15).
  * No menus, no nav bar. Fades with journey state.
  *
- * First impression rule: after the intro hands off, the galaxy holds the
- * frame ALONE for a few seconds before the HUD fades in — nothing should
- * remind the viewer they're on a website until the image has landed.
+ * First impression rule: the entire galaxy chapter plays without ANY chrome.
+ * The HUD exists only after the descent lands in the solar system — until
+ * then nothing reminds the viewer they're on a website.
  */
-const HUD_REVEAL_DELAY_MS = 6500;
+const HUD_REVEAL_DELAY_MS = 1600;
 
 export function JourneyHud() {
-  const phase = useJourneyStore((s) => s.phase);
   const location = useJourneyStore((s) => s.location);
   const destination = useJourneyStore((s) => s.destination);
+  const phase = useJourneyStore((s) => s.phase);
   const toggleLog = useUiStore((s) => s.toggleMissionLog);
+  const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
   const [revealed, setRevealed] = useState(false);
 
-  const inIntro = phase === 'INTRO';
   useEffect(() => {
-    if (inIntro) return;
+    if (!arrived) return;
     const t = window.setTimeout(() => setRevealed(true), HUD_REVEAL_DELAY_MS);
     return () => window.clearTimeout(t);
-  }, [inIntro]);
+  }, [arrived]);
 
   const traveling = phase === 'ACCEL' || phase === 'CRUISE' || phase === 'DECEL';
   const label = traveling
     ? `Traveling — ${bodyById.get(destination ?? '')?.name ?? ''}`
     : bodyById.get(location)?.name ?? '';
 
-  if (inIntro) return null;
+  if (!arrived) return null;
 
   return (
     <>

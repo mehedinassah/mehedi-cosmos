@@ -90,6 +90,97 @@ main { position: fixed; inset: 0; }
 }
 .hud__log:hover, .hud__log:focus-visible { color: var(--ink); }
 
+/* Descent chapter — title card, distance ladder, arrival flash */
+.title-card {
+  position: fixed;
+  left: 50%;
+  bottom: 7%;
+  transform: translateX(-50%);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 2.6s ease;
+  pointer-events: none;
+  z-index: 6;
+  /* Legibility against the star field without a boxed backdrop */
+  text-shadow: 0 0 18px rgba(1, 1, 4, 0.9), 0 0 6px rgba(1, 1, 4, 0.8);
+}
+.title-card--visible {
+  opacity: 1;
+}
+.title-card h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 200;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: rgba(240, 244, 255, 0.92);
+}
+.title-card p {
+  margin: 12px 0 0;
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(200, 210, 235, 0.6);
+}
+.title-card__hint {
+  margin-top: 30px;
+  font-size: 10px;
+  color: rgba(180, 195, 225, 0.5);
+  animation: hint-pulse 3.4s ease-in-out infinite;
+}
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.95; }
+}
+
+.descent-caption {
+  position: fixed;
+  left: 50%;
+  bottom: 13%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  z-index: 5;
+  animation: caption-in 1.6s ease both;
+}
+.descent-caption__primary {
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(235, 240, 255, 0.85);
+}
+.descent-caption__secondary {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(200, 210, 235, 0.5);
+}
+@keyframes caption-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+
+.arrival-flash {
+  position: fixed;
+  inset: 0;
+  background: #fff6e6;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+.arrival-flash--on {
+  opacity: 1;
+  transition: none;
+}
+.arrival-flash--fade {
+  opacity: 0;
+  transition: opacity 2.4s ease;
+}
+
 /* Mission Log — semantic mirror */
 .log {
   position: fixed;

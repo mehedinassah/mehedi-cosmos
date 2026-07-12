@@ -10,6 +10,7 @@ import { PlanetaryRing } from '@/world/ambient/PlanetaryRing';
 import { OrbitalTraffic } from '@/world/ambient/OrbitalTraffic';
 import { ForegroundSilhouettes } from '@/world/ambient/ForegroundSilhouettes';
 import { HeroGalaxy } from '@/world/galaxy/HeroGalaxy';
+import { DescentField } from '@/world/galaxy/DescentField';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
 import { bodyById } from '@/content/universe';
 import { CentralStar } from '@/world/sun/CentralStar';
@@ -17,6 +18,7 @@ import { CameraDirector } from '@/camera/CameraDirector';
 import { CinematicEffects } from '@/engine/CinematicEffects';
 import { probeCapabilities, prefersReducedMotion } from '@/engine/capabilities';
 import { useQualityStore } from '@/state/qualityStore';
+import { useDescentStore } from '@/state/descentStore';
 
 /**
  * The single persistent Canvas — blueprint §3.1. The page never changes;
@@ -31,6 +33,9 @@ function RingSystem() {
 export function UniverseCanvas() {
   const dprClamp = useQualityStore((s) => s.dprClamp);
   const resolutionScale = useQualityStore((s) => s.resolutionScale);
+  // Chapter gate: galaxy + descent until the dive lands, then the system.
+  // The swap happens under the destination star's flare + arrival flash.
+  const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
 
   useEffect(() => {
     const { tier } = probeCapabilities();
@@ -58,20 +63,22 @@ export function UniverseCanvas() {
       <ambientLight intensity={0.03} />
       <Starfield />
       <DeepSpace />
-      <HeroGalaxy />
-      {/*
-        Galaxy-hero reframe: the sun + solar-system foreground are unmounted so
-        the spiral galaxy owns the frame (see the reference plate). The code and
-        content are all still in place — re-enable this block to restore the
-        interactive solar-system journey.
-
-        <pointLight position={[0, 0, 0]} intensity={2.2} distance={0} decay={0.35} color="#ffd9a0" />
-        <CentralStar />
-        <ImpostorField />
-        <RingSystem />
-        <OrbitalTraffic />
-        <ForegroundSilhouettes />
-      */}
+      {!arrived && (
+        <>
+          <HeroGalaxy />
+          <DescentField />
+        </>
+      )}
+      {arrived && (
+        <>
+          <pointLight position={[0, 0, 0]} intensity={2.2} distance={0} decay={0.35} color="#ffd9a0" />
+          <CentralStar />
+          <ImpostorField />
+          <RingSystem />
+          <OrbitalTraffic />
+          <ForegroundSilhouettes />
+        </>
+      )}
       <CinematicEffects />
     </Canvas>
   );

@@ -27,13 +27,14 @@ import { useUiStore } from '@/state/uiStore';
  * star density) — the destination cue for the journey's next chapter.
  */
 
-const OUTER_RADIUS = 24000;
+export const OUTER_RADIUS = 24000;
 // ARMS must be an integer: the spiral pattern wraps across the atan() angle
 // seam at the -x axis, and only an integer arm count stays continuous there.
 const ARMS = 2.0;
 const TWIST = 2.6;
 // Disc-local angle of the destination-arm cue (shader beacon + star boost).
-const BEACON_THETA = 2.2;
+// The descent chapter (descentPath.ts) dives into this same arm.
+export const BEACON_THETA = 2.2;
 
 export const GALAXY_CENTER = new THREE.Vector3(9000, 3800, -46000);
 export const GALAXY_TILT = new THREE.Euler(
@@ -335,7 +336,8 @@ function GalaxyStars() {
  * ---------------------------------------------------------------- */
 // Star glow profile is too hard-edged for gas: overlapping sprites read as
 // bokeh circles. Cubic shoulder dissolves each sprite into formless fog.
-const hazeFrag = /* glsl */ `
+// Shared with the descent chapter's nebula layer (DescentField.tsx).
+export const hazeFrag = /* glsl */ `
 varying float vAlpha;
 varying vec3 vColor;
 void main() {
@@ -432,7 +434,7 @@ function GalaxyHaze() {
  * 4) Core glow — billboard sprites: the bulge glows out of the disc plane
  *    (a flat disc can never do this), warm gold fading through amber.
  * ---------------------------------------------------------------- */
-function makeGlowTexture(stops: [number, string][]): THREE.CanvasTexture {
+export function makeGlowTexture(stops: [number, string][]): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const ctx = c.getContext('2d')!;
