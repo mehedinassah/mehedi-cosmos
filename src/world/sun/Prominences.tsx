@@ -25,11 +25,11 @@ function mulberry32(a: number) {
   };
 }
 
-function buildLoopGeometry(radius: number, rng: () => number): THREE.TubeGeometry {
+function buildLoopGeometry(radius: number, rng: () => number, scale = 1): THREE.TubeGeometry {
   const baseAngle = rng() * Math.PI * 2;
   const baseLat = (rng() - 0.5) * 1.1; // stay near the activity belts
-  const height = radius * (0.3 + rng() * 0.6);
-  const width = radius * (0.24 + rng() * 0.45);
+  const height = radius * (0.3 + rng() * 0.6) * scale;
+  const width = radius * (0.24 + rng() * 0.45) * scale;
   const tilt = (rng() - 0.5) * 0.8;
 
   const points: THREE.Vector3[] = [];
@@ -49,19 +49,33 @@ function buildLoopGeometry(radius: number, rng: () => number): THREE.TubeGeometr
     points.push(local.add(surfacePoint.multiplyScalar(1 - arc * 0.12)));
   }
   const curve = new THREE.CatmullRomCurve3(points);
-  return new THREE.TubeGeometry(curve, 40, radius * 0.011, 6, false);
+  return new THREE.TubeGeometry(curve, 40, radius * 0.011 * Math.max(scale, 0.5), 6, false);
 }
 
 const LOOP_COUNT = 5;
+const SPICULE_COUNT = 9;
 
-function Loop({ radius, seed }: { radius: number; seed: number }) {
+function Loop({
+  radius,
+  seed,
+  small = false,
+}: {
+  radius: number;
+  seed: number;
+  small?: boolean;
+}) {
   const meshRef = useRef<THREE.Mesh>(null);
   const state = useRef({
     rng: mulberry32(seed),
-    born: -seed * 3.1, // stagger first generation
+    born: -seed * (small ? 0.7 : 3.1), // stagger first generation
     duration: 0,
     seedU: seed * 0.73,
   });
+  // Spicules: tiny, constant, quick — the limb never sits still. Large
+  // prominences: rare, slow, monumental.
+  const scale = small ? 0.16 : 1;
+  const lifeMin = small ? 4 : 22;
+  const lifeVar = small ? 6 : 26;
 
   const material = useMemo(
     () =>
@@ -82,21 +96,21 @@ function Loop({ radius, seed }: { radius: number; seed: number }) {
   );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const geometry = useMemo(() => buildLoopGeometry(radius, state.current.rng), [radius]);
+  const geometry = useMemo(() => buildLoopGeometry(radius, state.current.rng, scale), [radius]);
 
   useFrame((st) => {
     const t = st.clock.elapsedTime;
     const s = state.current;
-    if (s.duration === 0) s.duration = 22 + s.rng() * 26; // 22-48s per life
+    if (s.duration === 0) s.duration = lifeMin + s.rng() * lifeVar;
     let life = (t - s.born) / s.duration;
     if (life >= 1) {
       // Reborn: new place on the star, new shape, new pace
       s.born = t;
-      s.duration = 22 + s.rng() * 26;
+      s.duration = lifeMin + s.rng() * lifeVar;
       s.seedU = s.rng() * 100;
       if (meshRef.current) {
         meshRef.current.geometry.dispose();
-        meshRef.current.geometry = buildLoopGeometry(radius, s.rng);
+        meshRef.current.geometry = buildLoopGeometry(radius, s.rng, scale);
       }
       life = 0;
     }
@@ -110,10 +124,14 @@ function Loop({ radius, seed }: { radius: number; seed: number }) {
 
 export function Prominences({ radius, ignite }: { radius: number; ignite: number }) {
   const seeds = useMemo(() => Array.from({ length: LOOP_COUNT }, (_, i) => 3 + i * 8), []);
+  const spicules = useMemo(() => Array.from({ length: SPICULE_COUNT }, (_, i) => 101 + i * 13), []);
   return (
     <group visible={ignite > 0.05}>
       {seeds.map((s) => (
         <Loop key={s} radius={radius} seed={s} />
+      ))}
+      {spicules.map((s) => (
+        <Loop key={s} radius={radius} seed={s} small />
       ))}
     </group>
   );

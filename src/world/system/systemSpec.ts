@@ -155,7 +155,10 @@ const START_KNOT = M.clone().multiplyScalar(-1600).addScaledVector(UP, 140);
 // The ship flies straight in toward the star; SUN_APPROACH is the hero beat
 // (star large, dead ahead), then SUN_KNOT swings the rail past it, clearing
 // the sun, and out to Mercury.
-const SUN_APPROACH = M.clone().multiplyScalar(-470).addScaledVector(UP, 60);
+// The hero stop: the star should be OVERWHELMING — ~75% of viewport height
+// (apparent fraction ~ 2.29 / (dist/radius)), with the corona reaching past
+// the frame edges.
+const SUN_APPROACH = M.clone().multiplyScalar(-395).addScaledVector(UP, 55);
 // Swing to the -PERP side so the star frames to the RIGHT (panel on the left),
 // matching every world's composition.
 const SUN_KNOT = PERP.clone().multiplyScalar(-340).addScaledVector(UP, 45);

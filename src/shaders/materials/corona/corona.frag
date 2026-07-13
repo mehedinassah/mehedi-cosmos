@@ -51,8 +51,12 @@ void main() {
     // photosphere's edge as seen through this shell) and decays continuously
     // outward toward the shell silhouette (mu -> 0) — light leaving the
     // star, never a detached ring and never a dome over the disc.
+    // The REACH varies with the wisps themselves: bright streamers push far
+    // out, gaps collapse toward the limb — the silhouette is turbulent,
+    // never a Gaussian halo.
+    float reach = uRimPow * mix(1.9, 0.62, streamers);
     rim = (1.0 - smoothstep(uMuHi * 0.985, uMuHi, mu)) *
-          pow(smoothstep(0.0, uMuHi * 0.92, mu), uRimPow);
+          pow(smoothstep(0.0, uMuHi * 0.92, mu), reach);
   }
 
   vec3 col = mix(uCol1, uCol2, streamers);

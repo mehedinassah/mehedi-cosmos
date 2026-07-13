@@ -99,7 +99,8 @@ function PlasmaEjecta({ radius }: { radius: number }) {
     const colors = new Float32Array(EJECTA_COUNT * 3);
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const m = new THREE.PointsMaterial({
-      size: 2.6,
+      size: 5.5,
+      map: coronaHaloTexture(), // soft round sprite — unmapped points draw SQUARES
       vertexColors: true,
       transparent: true,
       depthWrite: false,
@@ -111,7 +112,7 @@ function PlasmaEjecta({ radius }: { radius: number }) {
 
   const haloTex = useMemo(() => coronaHaloTexture(), []);
 
-  const spawn = (i: number, dir?: THREE.Vector3, speedMul = 1) => {
+  const spawn = (i: number, dir?: THREE.Vector3, speedMul = 1, wind = false) => {
     const d = data.current;
     let x: number, y: number, z: number;
     if (dir) {
@@ -135,7 +136,14 @@ function PlasmaEjecta({ radius }: { radius: number }) {
     d.vel[i * 3] = jx * inv * sp;
     d.vel[i * 3 + 1] = jy * inv * sp;
     d.vel[i * 3 + 2] = jz * inv * sp;
-    d.max[i] = d.life[i] = 1.2 + Math.random() * 2.2;
+    // Solar-wind stream: rare, fast, long-lived — it escapes instead of
+    // arcing home (the update loop skips pullback for lives > 4s).
+    d.max[i] = d.life[i] = wind ? 6 + Math.random() * 4 : 1.2 + Math.random() * 2.2;
+    if (wind) {
+      d.vel[i * 3] *= 3.2;
+      d.vel[i * 3 + 1] *= 3.2;
+      d.vel[i * 3 + 2] *= 3.2;
+    }
   };
 
   useFrame((state, delta) => {
@@ -184,21 +192,24 @@ function PlasmaEjecta({ radius }: { radius: number }) {
     // ---- the continuous drizzle ----
     for (let i = 0; i < EJECTA_COUNT; i++) {
       if (d.life[i] <= 0) {
-        // sparse steady respawn keeps ~40% of the pool active
-        if (Math.random() < delta * 0.12) spawn(i);
+        // steady respawn keeps most of the pool alive: the limb constantly
+        // spits tiny sparks; ~1 in 30 becomes a fast solar-wind stream
+        if (Math.random() < delta * 0.5) spawn(i, undefined, 1, Math.random() < 0.033);
         else { colAttr.setXYZ(i, 0, 0, 0); continue; }
       }
       d.life[i] -= delta;
       d.pos[i * 3] += d.vel[i * 3] * delta;
       d.pos[i * 3 + 1] += d.vel[i * 3 + 1] * delta;
       d.pos[i * 3 + 2] += d.vel[i * 3 + 2] * delta;
-      // gravity-ish pullback: most sparks arc and fall home
-      const px = d.pos[i * 3], py = d.pos[i * 3 + 1], pz = d.pos[i * 3 + 2];
-      const inv = 1 / Math.hypot(px, py, pz);
-      const g = radius * 0.02 * delta;
-      d.vel[i * 3] -= px * inv * g;
-      d.vel[i * 3 + 1] -= py * inv * g;
-      d.vel[i * 3 + 2] -= pz * inv * g;
+      // gravity-ish pullback: most sparks arc and fall home (wind escapes)
+      if (d.max[i] < 4) {
+        const px = d.pos[i * 3], py = d.pos[i * 3 + 1], pz = d.pos[i * 3 + 2];
+        const inv = 1 / Math.hypot(px, py, pz);
+        const g = radius * 0.02 * delta;
+        d.vel[i * 3] -= px * inv * g;
+        d.vel[i * 3 + 1] -= py * inv * g;
+        d.vel[i * 3 + 2] -= pz * inv * g;
+      }
       const a = Math.max(0, d.life[i] / d.max[i]);
       colAttr.setXYZ(i, 1.0 * a, 0.62 * a, 0.3 * a);
     }
@@ -256,15 +267,19 @@ export function CentralStar() {
     col1: '#ff9947', col2: '#ffe6b3', alpha: 1.6, freq: 1.8, speed: 0.025, rimPow: 1.3, base: 0.16,
   });
   // The photosphere edge seen through a shell of scale S sits at
-  // mu = sqrt(1 - 1/S^2); for S = 2.1 that's ~0.88. The corona peaks there
-  // and decays outward — light leaving the star.
+  // mu = sqrt(1 - 1/S^2): ~0.72 at S 1.45, ~0.88 at S 2.1. Each shell peaks
+  // there and decays outward — light leaving the star.
+  const dustMat = useShellMaterial({
+    col1: '#ff7a38', col2: '#ffc98a', alpha: 0.8, freq: 2.4, speed: 0.03, rimPow: 1.8, base: 0.08,
+    muHi: 0.72, // plasma dust: the layer between corona and vacuum
+  });
   const outerMat = useShellMaterial({
-    col1: '#ff8a3d', col2: '#ffd9a0', alpha: 0.55, freq: 1.1, speed: 0.014, rimPow: 2.6, base: 0.05,
-    muHi: 0.88,
+    col1: '#ff8a3d', col2: '#ffd9a0', alpha: 0.6, freq: 1.1, speed: 0.014, rimPow: 2.6, base: 0.0,
+    muHi: 0.88, // pure streamers: the gaps collapse, the silhouette breaks
   });
   const shellMats = useMemo(
-    () => [chromoMat, innerMat, outerMat],
-    [chromoMat, innerMat, outerMat],
+    () => [chromoMat, innerMat, dustMat, outerMat],
+    [chromoMat, innerMat, dustMat, outerMat],
   );
 
   const halo = useMemo(() => coronaHaloTexture(), []);
@@ -318,6 +333,11 @@ export function CentralStar() {
       <mesh scale={1.16}>
         <sphereGeometry args={[body.scaleU, 64, 64]} />
         <primitive object={innerMat} attach="material" />
+      </mesh>
+      {/* plasma dust — the volumetric layer between corona and vacuum */}
+      <mesh scale={1.45}>
+        <sphereGeometry args={[body.scaleU, 48, 48]} />
+        <primitive object={dustMat} attach="material" />
       </mesh>
       {/* outer corona — huge irregular wisps, never a circle */}
       <mesh scale={2.1}>
