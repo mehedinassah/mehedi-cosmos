@@ -7,7 +7,8 @@ import { useJourneyStore } from '@/state/journeyStore';
 import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
-import { GALAXY_CAM_POS, GALAXY_LOOK } from '@/world/galaxy/HeroGalaxy';
+import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, OUTER_RADIUS } from '@/world/galaxy/HeroGalaxy';
+import { RAIL } from '@/world/system/systemSpec';
 import {
   buildDescentCurve,
   DESTINATION_STAR,
@@ -20,6 +21,24 @@ import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
 function easeInOutCubic(x: number): number {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
+const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
+
+/* ------------------------- the loop home ------------------------- */
+// After Pluto, drift forward off the rail's end into deep space, then (in the
+// dark) approach the galaxy from very far so the Milky Way EMERGES ahead and
+// settles exactly on the opening vantage. The camera never turns around — the
+// universe changes around it.
+const LOOP_SWAP = 0.44; // fraction: solar-system drift -> galaxy approach
+const LOOP_DRIFT = 34000;
+const _le = RAIL.getPoint(1);
+const _lep = RAIL.getPoint(0.992);
+const LOOP_DRIFT_DIR = _le.clone().sub(_lep).normalize();
+const LOOP_A_START = _le.clone();
+const GAL_VIEW_DIR = GALAXY_CAM_POS.clone().sub(GALAXY_CENTER).normalize();
+// Galaxy as a distant smudge, dead ahead, at the start of the approach.
+// Kept inside the 120k far plane (disc far rim ~ 4R + tilt < far).
+const LOOP_B_START = GALAXY_CENTER.clone().addScaledVector(GAL_VIEW_DIR, OUTER_RADIUS * 4.0);
+const _loopLook = new THREE.Vector3();
 
 
 /**
@@ -114,6 +133,43 @@ export function CameraDirector() {
       descentCurve.current = buildDescentCurve(GALAXY_CAM_POS.clone());
     }
     lastStage.current = descent.stage;
+
+    // ---- the loop home: Pluto -> deep space -> galaxy -> opening ----
+    if (descent.stage === 'LOOPING' && descent.tField === 'loop') {
+      const lp = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);
+      if (lp < LOOP_SWAP) {
+        // Phase A: coast forward off the rail's end; the solar system falls
+        // behind and shrinks. Constant velocity — never a reset animation.
+        if (descent.loopHalf !== 0) useDescentStore.setState({ loopHalf: 0 });
+        const a = lp / LOOP_SWAP;
+        cam.position.copy(LOOP_A_START).addScaledVector(LOOP_DRIFT_DIR, LOOP_DRIFT * a);
+        _loopLook.copy(cam.position).add(LOOP_DRIFT_DIR);
+      } else {
+        // Phase B: approach the galaxy from far away. It emerges from the
+        // dark and grows into the exact opening framing. The region swap
+        // happens here, in near-empty space, so it is never seen.
+        if (descent.loopHalf !== 1) useDescentStore.setState({ loopHalf: 1 });
+        const b = easeOutCubic((lp - LOOP_SWAP) / (1 - LOOP_SWAP));
+        cam.position.lerpVectors(LOOP_B_START, GALAXY_CAM_POS, b);
+        // Land on the EXACT opening rest gaze so the handoff to idle drift has
+        // no pop.
+        _loopLook.copy(GALAXY_REST_LOOK);
+      }
+      currentLook.current.lerp(_loopLook, 1 - Math.exp(-4 * delta));
+      cam.lookAt(currentLook.current);
+      cam.fov = baseFov.current;
+      cam.updateProjectionMatrix();
+      cam.clearViewOffset();
+      if (lp >= 1) {
+        // Home. Seamless: the camera already sits at the opening vantage.
+        useDescentStore.setState({
+          stage: 'DORMANT', navIndex: 0, navBusy: false,
+          tField: null, loopHalf: 0, smoothed: 0, sysSmoothed: 0, sysCaptionIndex: -1,
+        });
+        currentLook.current.copy(GALAXY_REST_LOOK);
+      }
+      return;
+    }
 
     if (descent.tField) {
       const raw = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);

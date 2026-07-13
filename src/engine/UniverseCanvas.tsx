@@ -45,7 +45,13 @@ export function UniverseCanvas() {
   const resolutionScale = useQualityStore((s) => s.resolutionScale);
   // Chapter gate: galaxy + descent until the dive lands, then the system.
   // The swap happens under the destination star's flare + arrival flash.
-  const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
+  // During the LOOP home, the first half still shows the receding system;
+  // the second half shows the galaxy re-emerging (the swap is masked by the
+  // near-empty deep space between them).
+  const stage = useDescentStore((s) => s.stage);
+  const loopHalf = useDescentStore((s) => s.loopHalf);
+  const showSystem = stage === 'ARRIVED' || (stage === 'LOOPING' && loopHalf === 0);
+  const showGalaxy = !showSystem;
 
   useEffect(() => {
     const { tier } = probeCapabilities();
@@ -80,13 +86,13 @@ export function UniverseCanvas() {
       <ambientLight intensity={0.03} />
       <Starfield />
       <DeepSpace />
-      {!arrived && (
+      {showGalaxy && (
         <>
           <HeroGalaxy />
           <DescentField />
         </>
       )}
-      {arrived && (
+      {showSystem && (
         <>
           {/* The one real light: textured worlds (MeshStandard) actually use
               it now, so decay stays 0 for readable lighting across 20k units */}

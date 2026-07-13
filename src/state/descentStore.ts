@@ -16,7 +16,7 @@ import { CHAPTERS } from '@/world/system/systemSpec';
  *             LAST = Pluto
  */
 
-export type DescentStage = 'DORMANT' | 'DESCENDING' | 'ARRIVED';
+export type DescentStage = 'DORMANT' | 'DESCENDING' | 'ARRIVED' | 'LOOPING';
 
 /** Distance ladder shown as the dive deepens. Poetic, not astrometric. */
 export const DESCENT_CAPTIONS: { at: number; primary: string; secondary: string }[] = [
@@ -37,11 +37,15 @@ export const LAST_NAV = CHAPTERS.length; // Pluto
 // cosmic distance; the planet hops are a heavy spacecraft coasting to berth.
 const DESCENT_DUR = 9.0;
 const TRAVEL_DUR = 4.6;
+// The loop home: past Pluto, drift into deep space, then the Milky Way
+// emerges from the dark and we settle back at the opening — one long,
+// unbroken orbit of a much larger journey.
+const LOOP_DUR = 16.0;
 
 export const nowS = () =>
   (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
 
-export type TweenField = 'dp' | 'sp' | null;
+export type TweenField = 'dp' | 'sp' | 'loop' | null;
 
 interface DescentState {
   /** Descent progress 0..1 (galaxy -> sun), the value world layers read. */
@@ -54,6 +58,8 @@ interface DescentState {
 
   navIndex: number;
   navBusy: boolean;
+  /** During LOOPING: 0 = still in the solar system, 1 = the galaxy half. */
+  loopHalf: number;
 
   // Active transition (evaluated by CameraDirector each frame)
   tField: TweenField;
@@ -90,6 +96,7 @@ export const useDescentStore = create<DescentState>((set, get) => {
     sysCaptionIndex: -1,
     navIndex: 0,
     navBusy: false,
+    loopHalf: 0,
     tField: null,
     tFrom: 0,
     tTo: 0,
@@ -98,7 +105,22 @@ export const useDescentStore = create<DescentState>((set, get) => {
 
     goNext: () => {
       const s = get();
-      if (s.navBusy || s.navIndex >= LAST_NAV) return;
+      if (s.navBusy) return;
+      if (s.navIndex === LAST_NAV) {
+        // Past Pluto: one more scroll begins another orbit — drift out, let
+        // the galaxy re-emerge, settle back at the opening. Seamless loop.
+        set({
+          navBusy: true,
+          loopHalf: 0,
+          stage: 'LOOPING',
+          tField: 'loop',
+          tFrom: 0,
+          tTo: 1,
+          tStart: nowS(),
+          tDur: LOOP_DUR,
+        });
+        return;
+      }
       if (s.navIndex === 0) {
         // Galaxy -> Sun: one scroll launches the whole descent cinematic
         set({
