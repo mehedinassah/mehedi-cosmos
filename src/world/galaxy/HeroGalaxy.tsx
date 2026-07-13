@@ -10,6 +10,7 @@ import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { useUiStore } from '@/state/uiStore';
 import { useQualityStore } from '@/state/qualityStore';
+import { useDescentStore } from '@/state/descentStore';
 
 /**
  * The opening scene's centerpiece — a full galaxy, built like an
@@ -995,7 +996,11 @@ function CoreLight() {
     const l = lightRef.current;
     if (!l) return;
     const phase = useUiStore.getState().introPhase;
-    const alive = !(phase === 'DARKNESS' || phase === 'PARTICLE');
+    // The galaxy is always mounted, but during the system chapter it sits far
+    // behind the camera — its core light must not add a second light source
+    // onto the planets (the sun at the origin is the only light there).
+    const inSystem = useDescentStore.getState().stage === 'ARRIVED';
+    const alive = !(phase === 'DARKNESS' || phase === 'PARTICLE') && !inSystem;
     const breath = 1 + 0.07 * Math.sin(state.clock.elapsedTime * 0.12);
     const target = alive ? 1.4 * breath : 0;
     l.intensity = THREE.MathUtils.damp(l.intensity, target, 0.8, delta);

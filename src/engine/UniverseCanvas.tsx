@@ -49,12 +49,15 @@ export function UniverseCanvas() {
   // the second half shows the galaxy re-emerging (the swap is masked by the
   // near-empty deep space between them).
   const stage = useDescentStore((s) => s.stage);
-  // During the LOOP home BOTH worlds are mounted at once: the solar system
-  // recedes into the distance while the galaxy grows ahead — one persistent
-  // universe, nothing popping in or out. The dive scenery (DescentField) only
-  // exists for the galaxy->sun descent, never the loop.
+  // ONE persistent universe. The galaxy is ALWAYS mounted — built once at
+  // load and never rebuilt — so nothing ever loads mid-journey (mounting its
+  // 24k+ procedural stars during the loop froze a frame and read as
+  // "still image, then the galaxy pops in"). During the system chapter the
+  // galaxy simply sits far behind the camera, out of frame. The system is
+  // mounted from arrival through the whole loop home; the dive scenery only
+  // exists for the galaxy->sun descent.
+  const showGalaxy = true;
   const showSystem = stage === 'ARRIVED' || stage === 'LOOPING';
-  const showGalaxy = stage !== 'ARRIVED';
   const showDescentField = stage === 'DORMANT' || stage === 'DESCENDING';
 
   useEffect(() => {

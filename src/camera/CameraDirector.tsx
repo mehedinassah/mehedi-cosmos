@@ -22,7 +22,6 @@ function easeInOutCubic(x: number): number {
 // the solar system recedes by DISTANCE and the galaxy grows by APPROACH.
 // Nothing pops in or out; the camera simply travels farther.
 const _loopLook = new THREE.Vector3();
-const _loopDir = new THREE.Vector3();
 const _dvFwd = new THREE.Vector3();
 const _dvPoint = new THREE.Vector3();
 // Distance -> arc fraction. A trapezoidal velocity (quick ramp up, long FLAT
@@ -104,7 +103,6 @@ export function CameraDirector() {
   const idleDrift = useRef(0);
   const descentCurve = useRef<THREE.CatmullRomCurve3 | null>(null);
   const loopCurve = useRef<THREE.CatmullRomCurve3 | null>(null);
-  const loopEntryDir = useRef(new THREE.Vector3());
   const descentAhead = useRef(new THREE.Vector3());
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
@@ -153,24 +151,17 @@ export function CameraDirector() {
         const p1 = p0.clone().lerp(p3, 0.34).addScaledVector(p0.clone().normalize(), 12000);
         const p2 = p0.clone().lerp(p3, 0.7);
         loopCurve.current = new THREE.CatmullRomCurve3([p0, p1, p2, p3], false, 'centripetal');
-        // Remember which way we were looking, to turn smoothly toward home.
-        loopEntryDir.current.copy(currentLook.current).sub(cam.position).normalize();
       }
       const lp = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);
       const curve = loopCurve.current;
       // ARC-LENGTH sampling => constant cruise speed, no crawl, no rush.
       const s = loopArc(lp) / LOOP_ARC_MAX;
       curve.getPointAt(s, cam.position);
-      // Face the direction of travel (the galaxy grows dead ahead), turning
-      // gracefully out of the entry heading over the first few seconds — one
-      // smooth arc, never a snap or a 360.
-      curve.getPointAt(Math.min(s + 0.02, 1), _loopDir);
-      _loopDir.sub(cam.position).normalize();
-      _loopDir.lerp(loopEntryDir.current, 1 - THREE.MathUtils.smoothstep(lp, 0.0, 0.32)).normalize();
-      _loopLook.copy(cam.position).addScaledVector(_loopDir, 12000);
-      // Settle onto the exact opening gaze at the very end (pop-free handoff).
-      _loopLook.lerp(GALAXY_REST_LOOK, THREE.MathUtils.smoothstep(lp, 0.72, 1.0));
-      currentLook.current.lerp(_loopLook, 1 - Math.exp(-3.5 * delta));
+      // Look at the galaxy the whole way — it is centred and simply GROWS as
+      // we close in (no swing-in, no pop). currentLook eases out of the Pluto
+      // heading gently, so the camera turns toward home in one smooth arc.
+      _loopLook.copy(GALAXY_REST_LOOK);
+      currentLook.current.lerp(_loopLook, 1 - Math.exp(-2.2 * delta));
       cam.up.set(0, 1, 0);
       cam.lookAt(currentLook.current);
       cam.fov = baseFov.current;
