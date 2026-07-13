@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { Starfield } from '@/world/ambient/Starfield';
 import { DeepSpace } from '@/world/ambient/DeepSpace';
 import { HeroGalaxy } from '@/world/galaxy/HeroGalaxy';
+import { LoopWarpField } from '@/world/galaxy/LoopWarpField';
 import { DescentField } from '@/world/galaxy/DescentField';
 import { SolarSystem } from '@/world/system/SolarSystem';
 import { CentralStar } from '@/world/sun/CentralStar';
@@ -94,6 +95,9 @@ export function UniverseCanvas() {
       <Starfield />
       <DeepSpace />
       {showGalaxy && <HeroGalaxy />}
+      {/* Star-dust streamed past only while the loop is actually flying; makes
+          the empty crossing read as real speed. Cheap + self-gating. */}
+      <LoopWarpField />
       {showDescentField && <DescentField />}
       {showSystem && (
         <>

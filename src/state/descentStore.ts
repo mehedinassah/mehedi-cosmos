@@ -40,7 +40,7 @@ const TRAVEL_DUR = 4.6;
 // The loop home: past Pluto, keep travelling outward — the solar system
 // falls away and, a few seconds later, we are outside the galaxy again, back
 // at the exact opening vantage. No message, no cut; just continuous travel.
-const LOOP_DUR = 8.0;
+const LOOP_DUR = 9.0;
 
 export const nowS = () =>
   (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;

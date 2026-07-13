@@ -7,7 +7,7 @@ import { useJourneyStore } from '@/state/journeyStore';
 import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
-import { GALAXY_CAM_POS, GALAXY_LOOK } from '@/world/galaxy/HeroGalaxy';
+import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, GALAXY_RIGHT, GALAXY_UP, OUTER_RADIUS } from '@/world/galaxy/HeroGalaxy';
 import { buildDescentCurve, GALAXY_REST_LOOK } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS, SUN_SP, nowS } from '@/state/descentStore';
 import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
@@ -141,16 +141,31 @@ export function CameraDirector() {
       // (UniverseCanvas), so the system recedes and the galaxy grows with no
       // swap and no build hitch mid-flight.
       if (!loopCurve.current) {
-        // A gentle, near-straight flight from Pluto to the opening vantage.
-        // Distance to the sun grows the whole way (solar system recedes) and
-        // distance to the galaxy shrinks the whole way (it grows, monotonic),
-        // so nothing shrinks-then-pops. Both worlds are mounted (UniverseCanvas)
-        // so it is one continuous universe, never a swap.
+        // Recede, THEN approach — the crossing that sells the journey. Pluto
+        // sits almost exactly the opening's distance from the galaxy, so a
+        // straight line there never grows the galaxy and reads as "it just
+        // appeared." Instead the ship first fires OUTWARD into the intergalactic
+        // dark: the solar system falls away and the whole Milky Way shrinks to a
+        // distant smudge. Then it curves back in and the galaxy SWELLS to the
+        // hero framing — grows from a smudge into the giant spiral, the thing
+        // the eye reads as arriving. Arc-length sampling (below) holds a constant
+        // cruise the whole path; LoopWarpField streams star-dust past so the
+        // speed is felt across the empty gulf. Both worlds stay mounted
+        // (UniverseCanvas): one continuous universe, never a swap.
         const p0 = cam.position.clone();
-        const p3 = GALAXY_CAM_POS.clone();
-        const p1 = p0.clone().lerp(p3, 0.34).addScaledVector(p0.clone().normalize(), 12000);
-        const p2 = p0.clone().lerp(p3, 0.7);
-        loopCurve.current = new THREE.CatmullRomCurve3([p0, p1, p2, p3], false, 'centripetal');
+        const p4 = GALAXY_CAM_POS.clone();
+        // The far vantage: out along the galaxy's own view axis, well beyond the
+        // hero distance, lifted and pushed sideways so the flight arcs THROUGH
+        // space instead of dollying straight in and out.
+        const viewDir = GALAXY_CAM_POS.clone().sub(GALAXY_CENTER).normalize();
+        const far = GALAXY_CENTER.clone()
+          .addScaledVector(viewDir, OUTER_RADIUS * 4.0)
+          .addScaledVector(GALAXY_RIGHT, OUTER_RADIUS * 1.1)
+          .addScaledVector(GALAXY_UP, OUTER_RADIUS * 0.6);
+        const p1 = p0.clone().lerp(far, 0.5);
+        const p2 = far;
+        const p3 = far.clone().lerp(p4, 0.55);
+        loopCurve.current = new THREE.CatmullRomCurve3([p0, p1, p2, p3, p4], false, 'centripetal');
       }
       const lp = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);
       const curve = loopCurve.current;
@@ -164,7 +179,10 @@ export function CameraDirector() {
       currentLook.current.lerp(_loopLook, 1 - Math.exp(-2.2 * delta));
       cam.up.set(0, 1, 0);
       cam.lookAt(currentLook.current);
-      cam.fov = baseFov.current;
+      // A subtle warp push: widen through the fast middle so peripheral streaks
+      // rake faster, easing back to base exactly at both ends (seamless with
+      // the DORMANT galaxy framing on either side).
+      cam.fov = baseFov.current + 7 * Math.sin(Math.PI * lp);
       cam.updateProjectionMatrix();
       cam.clearViewOffset();
       if (lp >= 1) {
