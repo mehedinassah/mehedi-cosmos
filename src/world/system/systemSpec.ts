@@ -206,9 +206,12 @@ function railTangent(u: number, out: THREE.Vector3): THREE.Vector3 {
 // frame at its hero stop. Tuned so each world hits its target apparent size
 // (giants dominate). Saturn's factor is large because its rings extend the
 // silhouette ~2.3x, and the rail has to clear them as it slides past.
+// Apparent height fraction at the stop ≈ 2.29 / K. Clearance rule: the rail
+// slides past at ~0.35*K radii lateral, so K must keep that above the
+// silhouette (rings extend Saturn's to ~2.3 radii).
 const VIEW_K: Record<string, number> = {
-  mercury: 6.0, venus: 6.0, earth: 5.2, mars: 6.0,
-  jupiter: 4.4, saturn: 7.5, uranus: 5.0, neptune: 5.0, pluto: 6.5,
+  mercury: 5.0, venus: 5.2, earth: 4.8, mars: 5.2,
+  jupiter: 4.2, saturn: 7.0, uranus: 4.7, neptune: 4.7, pluto: 5.8,
 };
 const STANDOFF = 6.0; // fallback planet radii
 const FRAME_YAW = 0.36; // rad, toward the right of travel
@@ -291,7 +294,8 @@ export const CHAPTERS: Chapter[] = [
     id: 'mercury', planet: 'Mercury', title: 'About', sp: 0.1,
     body: [
       'Full stack developer from Dhaka, Bangladesh.',
-      'BSc in Computer Science, BRAC University, 2022 to 2026.',
+      'I build end to end: backend, frontend, mobile, and the pixels in between.',
+      'Curious by default, calm under deadline.',
       'Available now, onsite Dhaka or remote.',
     ],
   },
@@ -318,7 +322,8 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: 'mars', planet: 'Mars', title: 'Projects', sp: 0.42,
-    body: ['Perico ERP', 'Top-Line', 'Whispers', 'banauAI', 'Smart Geo Landmarks'],
+    body: ['Perico ERP', 'Top-Line', 'Whispers', 'banauAI', 'Smart Geo Landmarks', 'Android apps'],
+    links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
   },
   {
     id: 'jupiter', planet: 'Jupiter', title: 'Featured: Perico ERP', sp: 0.55,
@@ -330,13 +335,24 @@ export const CHAPTERS: Chapter[] = [
     links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
   },
   {
-    id: 'saturn', planet: 'Saturn', title: 'Open Source', sp: 0.67,
-    body: ['Repositories, commits, and stars', 'Perico ERP, Whispers, Top-Line, banauAI'],
-    links: [{ label: 'github.com/mehedinassah', href: 'https://github.com/mehedinassah' }],
+    id: 'saturn', planet: 'Saturn', title: 'Education', sp: 0.67,
+    body: [
+      'BSc in Computer Science',
+      'BRAC University, 2022 to 2026',
+      'Community Lead for a 90k+ member community',
+      'Events with 500+ attendees',
+      'Verified Upwork freelancer',
+    ],
   },
   {
-    id: 'uranus', planet: 'Uranus', title: 'Off the Clock', sp: 0.78,
-    body: ['Movies and games', 'Football', 'Music and tea', 'A late night builder'],
+    id: 'uranus', planet: 'Uranus', title: 'The Personal Side', sp: 0.78,
+    body: [
+      'Music on, world off',
+      'Football on weekends',
+      'Gaming and movies after midnight',
+      'Tea, always',
+      'Photography when the light is right',
+    ],
   },
   {
     id: 'neptune', planet: 'Neptune', title: 'Contact', sp: 0.88,
@@ -348,10 +364,16 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    // The last stretch of scroll belongs to the departure: the ship simply
-    // keeps cruising and Pluto falls behind like everything else did
-    id: 'pluto', planet: 'Pluto', title: 'The edge of the map.', sp: 0.95,
-    body: ['Thanks for flying this far.'],
+    // The hidden easter egg at the edge of the map — a reward for whoever
+    // scrolls all the way out. The last stretch of scroll belongs to the
+    // departure: the ship keeps cruising and Pluto falls behind.
+    id: 'pluto', planet: 'Pluto', title: 'You found the easter egg.', sp: 0.95,
+    body: [
+      'Behind the scenes: Next.js, react three fiber, and hand written GLSL.',
+      'Every star out here is procedural. No two visits render the same sky.',
+      'Fun fact: this whole site is one canvas. You never left it.',
+      'Thanks for flying this far.',
+    ],
   },
 ];
 
