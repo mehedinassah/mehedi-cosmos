@@ -49,7 +49,7 @@ function buildLoopGeometry(radius: number, rng: () => number, scale = 1): THREE.
     points.push(local.add(surfacePoint.multiplyScalar(1 - arc * 0.12)));
   }
   const curve = new THREE.CatmullRomCurve3(points);
-  return new THREE.TubeGeometry(curve, 40, radius * 0.011 * Math.max(scale, 0.5), 6, false);
+  return new THREE.TubeGeometry(curve, 44, radius * 0.017 * Math.max(scale, 0.55), 7, false);
 }
 
 const LOOP_COUNT = 5;

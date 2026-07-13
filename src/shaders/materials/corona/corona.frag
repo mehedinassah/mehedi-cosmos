@@ -35,6 +35,12 @@ void main() {
   streamers += 0.5 * fbm(sp * uFreq * 2.7 + vec3(11.0 + t, 3.0, t * 1.4));
   streamers = pow(smoothstep(0.45, 1.25, streamers), 1.6);
 
+  // Large-scale LOBES: whole sectors of the corona are brighter and reach
+  // farther while others are dim and short — real coronas are lopsided, not
+  // a Gaussian ring. Very low frequency so it reads as structure, not noise.
+  float lobe = 0.55 + 0.9 * fbm(sp * 0.8 + vec3(4.0, 0.0, t * 0.5));
+  streamers *= lobe;
+
   vec3 V = normalize(uCameraPos - vPosL);
   // BackSide shell seen from outside: mu ~ 0 at the shell's own silhouette,
   // rising toward 1 at its center (in front of the star). Feather in from

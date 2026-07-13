@@ -19,10 +19,13 @@ function coronaHaloTexture(): THREE.CanvasTexture {
   c.width = c.height = 256;
   const ctx = c.getContext('2d')!;
   const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  g.addColorStop(0.0, 'rgba(255, 226, 180, 0.55)');
-  g.addColorStop(0.3, 'rgba(255, 190, 120, 0.22)');
-  g.addColorStop(0.6, 'rgba(255, 150, 80, 0.06)');
-  g.addColorStop(1.0, 'rgba(255, 130, 60, 0.0)');
+  // Layered falloff so the glow never stops abruptly: bright warm-white core,
+  // orange body, a reddish haze, then a long near-invisible outer tail.
+  g.addColorStop(0.0, 'rgba(255, 232, 190, 0.55)');
+  g.addColorStop(0.22, 'rgba(255, 192, 122, 0.24)');
+  g.addColorStop(0.45, 'rgba(255, 150, 82, 0.09)');
+  g.addColorStop(0.7, 'rgba(210, 96, 52, 0.03)');
+  g.addColorStop(1.0, 'rgba(180, 70, 44, 0.0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 256, 256);
   return new THREE.CanvasTexture(c);
@@ -259,7 +262,13 @@ export function CentralStar() {
     });
   }, [tier]);
 
-  // Three shells, one shader: chromosphere / inner corona / outer corona
+  // Soft limb scattering: a wide, near-uniform fringe hugging the photosphere
+  // (base high, rimPow low) that dissolves the hard geometric sphere edge into
+  // hot gas — the limb should never read as a mathematically perfect outline.
+  const scatterMat = useShellMaterial({
+    col1: '#ffd0a0', col2: '#fff2df', alpha: 0.9, freq: 3.0, speed: 0.06, rimPow: 0.7, base: 0.55,
+  });
+  // Shells, one shader: chromosphere / inner corona / outer corona
   const chromoMat = useShellMaterial({
     col1: '#ff5a3c', col2: '#ffb090', alpha: 1.4, freq: 4.2, speed: 0.05, rimPow: 2.2, base: 0.35,
   });
@@ -278,8 +287,8 @@ export function CentralStar() {
     muHi: 0.88, // pure streamers: the gaps collapse, the silhouette breaks
   });
   const shellMats = useMemo(
-    () => [chromoMat, innerMat, dustMat, outerMat],
-    [chromoMat, innerMat, dustMat, outerMat],
+    () => [scatterMat, chromoMat, innerMat, dustMat, outerMat],
+    [scatterMat, chromoMat, innerMat, dustMat, outerMat],
   );
 
   const halo = useMemo(() => coronaHaloTexture(), []);
@@ -323,6 +332,11 @@ export function CentralStar() {
       <mesh ref={meshRef}>
         <sphereGeometry args={[body.scaleU, 128, 128]} />
         <primitive object={material} ref={matRef} attach="material" />
+      </mesh>
+      {/* soft limb scattering — dissolves the hard sphere edge into hot gas */}
+      <mesh scale={1.028}>
+        <sphereGeometry args={[body.scaleU, 96, 96]} />
+        <primitive object={scatterMat} attach="material" />
       </mesh>
       {/* chromosphere — thin colored rim hugging the photosphere */}
       <mesh scale={1.05}>

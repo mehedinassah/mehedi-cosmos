@@ -44,27 +44,34 @@ void main() {
   ) - 0.5;
   vec3 pw = p + warp * 0.35;
 
-  // Real granules are ENORMOUS: fewer, larger convection cells
-  float gran = fbm(pw * 10.0 + vec3(0.0, 0.0, tSlow * 2.2));       // granules
-  float meso = fbm(pw * 4.2 + vec3(3.7, 0.0, tSlow * 1.2));        // mesogranules
-  float supr = fbm(p * 1.9 + vec3(0.0, 1.9, tSlow * 0.45));        // supergranulation
-  // Sharpen the cells: bright centers, thin dark intergranular lanes
-  float cells = smoothstep(0.32, 0.78, gran);
-  float lanes = 1.0 - smoothstep(0.42, 0.30, gran) * 0.55;
+  // MULTI-SCALE convection. The real photosphere is a fine rice-grain
+  // granulation (the actual surface texture) riding on coarser mesogranule
+  // and supergranule brightness — not a single marble-smooth scale. Two
+  // crisp cellular octaves give the "millions of tiny cells" read; the
+  // coarser octaves only modulate their brightness.
+  float fine = fbm(pw * 30.0 + vec3(0.0, 0.0, tSlow * 2.8));       // rice grains
+  float gran = fbm(pw * 13.0 + vec3(3.1, 0.0, tSlow * 1.9));       // granules
+  float meso = fbm(p * 4.6 + vec3(3.7, 0.0, tSlow * 1.0));         // mesogranules
+  float supr = fbm(p * 1.9 + vec3(0.0, 1.9, tSlow * 0.42));        // supergranulation
+  // Crisp cells: bright cores, thin dark intergranular lanes. Contrast is
+  // what reads as granulation instead of cloud.
+  float cells = smoothstep(0.36, 0.72, fine) * 0.55 + smoothstep(0.34, 0.74, gran) * 0.45;
+  float lanes = 1.0 - smoothstep(0.46, 0.30, min(fine, gran)) * 0.62;
 
   // Emissive field: constantly varying brightness across the disc
-  float emiss = 0.42 + 0.62 * cells;
-  emiss *= mix(0.82, 1.18, meso);
-  emiss *= mix(0.88, 1.12, supr);
+  float emiss = 0.34 + 0.72 * cells;
+  emiss *= mix(0.86, 1.16, meso);
+  emiss *= mix(0.9, 1.1, supr);
   emiss *= lanes;
 
-  // LARGE-SCALE patchiness — the camera can't resolve the whole disc
-  // equally: broad hot regions and dark convection regions drift and
-  // breathe across the star. This is the single biggest "not a texture" cue.
+  // LARGE-SCALE brightness regions — the camera can't resolve the whole
+  // disc equally: broad hot regions and dark convection regions drift and
+  // breathe across the star. Kept SUBTLE so it modulates the granulation
+  // rather than smothering it into marble.
   float blotch = fbm(p * 1.3 + vec3(6.1, 0.0, uTime * 0.02)); // 'patch' is reserved in GLSL
-  emiss *= mix(0.68, 1.38, smoothstep(0.28, 0.75, blotch));
-  float hotspot = smoothstep(0.74, 0.9, fbm(p * 2.2 + vec3(0.0, 8.4, uTime * 0.03)));
-  emiss += hotspot * 0.45;
+  emiss *= mix(0.8, 1.24, smoothstep(0.28, 0.75, blotch));
+  float hotspot = smoothstep(0.76, 0.92, fbm(p * 2.4 + vec3(0.0, 8.4, uTime * 0.03)));
+  emiss += hotspot * 0.4;
 
   // Heartbeat: a near-imperceptible whole-star breath every ~10 s, riding a
   // slower envelope so the pulse itself drifts

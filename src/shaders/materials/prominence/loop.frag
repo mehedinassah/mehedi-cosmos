@@ -16,12 +16,14 @@ void main() {
   // Lifecycle brightness: ignite, burn, die
   float grow = smoothstep(0.0, 0.25, uLife) * (1.0 - smoothstep(0.72, 1.0, uLife));
 
-  // Footpoints glow hotter where the rope meets the photosphere
+  // Footpoints glow hotter where the rope meets the photosphere.
+  // H-alpha pink-red — cool plasma suspended above the gold photosphere, so
+  // it CONTRASTS and reads as a prominence instead of blending into corona.
   float apex = sin(vAlong * 3.14159);
-  vec3 col = mix(vec3(1.0, 0.5, 0.18), vec3(1.0, 0.85, 0.55), strands);
-  col *= mix(1.35, 0.85, apex); // brighter at the feet
+  vec3 col = mix(vec3(1.0, 0.32, 0.32), vec3(1.0, 0.62, 0.5), strands);
+  col *= mix(1.5, 0.9, apex); // brighter at the feet
 
-  float alpha = (0.12 + 0.8 * strands) * grow;
+  float alpha = (0.18 + 0.95 * strands) * grow;
   if (alpha < 0.01) discard;
-  gl_FragColor = vec4(col, alpha);
+  gl_FragColor = vec4(col, alpha * 1.4);
 }

@@ -3,6 +3,7 @@
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration, HueSaturation, BrightnessContrast } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 import { useQualityStore } from '@/state/qualityStore';
+import { HeatShimmer } from '@/engine/HeatShimmer';
 
 /**
  * Cinematic post pipeline. Every pass is restrained by design — nothing
@@ -20,6 +21,9 @@ export function CinematicEffects() {
 
   return (
     <EffectComposer multisampling={0}>
+      {/* Heat haze in a thin ring around the star — distorts the scene render
+          only (DOM UI untouched); first so bloom lands on the rippled edge */}
+      <HeatShimmer />
       {/* Threshold sits high enough that the sun close-up (system chapter)
           reads as plasma with a corona, not a full-frame white wash */}
       <Bloom
