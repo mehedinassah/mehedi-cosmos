@@ -82,5 +82,5 @@ const axis = GALAXY_CENTER.clone().sub(GALAXY_CAM_POS).normalize();
 const frameRight = new THREE.Vector3().crossVectors(axis, new THREE.Vector3(0, 1, 0)).normalize();
 const frameUp = new THREE.Vector3().crossVectors(frameRight, axis).normalize();
 export const GALAXY_REST_LOOK = GALAXY_LOOK.clone()
-  .addScaledVector(frameRight, 1500)
-  .addScaledVector(frameUp, -650);
+  .addScaledVector(frameRight, 300)
+  .addScaledVector(frameUp, -300);

@@ -9,6 +9,7 @@ import galaxyFrag from '@/shaders/materials/galaxy_disc/galaxy.frag';
 import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { useUiStore } from '@/state/uiStore';
+import { useQualityStore } from '@/state/qualityStore';
 
 /**
  * The opening scene's centerpiece — a full galaxy, built like an
@@ -44,13 +45,24 @@ export const GALAXY_TILT = new THREE.Euler(
 );
 
 const GALAXY_VIEW_DIR = new THREE.Vector3(0.06, 0.2, 1).normalize();
-// 1.9 radii puts the disc at ~60% of the frame — close enough to feel like
-// you're approaching it, not observing it from another galaxy.
+// 1.68 radii: the disc spans past the frame edges so the arms run off every
+// side — you are inside the galaxy, not observing it from outside.
 export const GALAXY_CAM_POS = GALAXY_CENTER.clone().addScaledVector(
   GALAXY_VIEW_DIR,
-  OUTER_RADIUS * 1.9,
+  OUTER_RADIUS * 1.68,
 );
 export const GALAXY_LOOK = GALAXY_CENTER.clone();
+
+// Hero view frame — the deep field and ambient life are anchored to THIS
+// (the camera's own basis), not the world origin, so they fill the entire
+// frame including the outer side the origin-centred shells never reach.
+export const GALAXY_AXIS = GALAXY_CENTER.clone().sub(GALAXY_CAM_POS).normalize();
+export const GALAXY_RIGHT = new THREE.Vector3()
+  .crossVectors(GALAXY_AXIS, new THREE.Vector3(0, 1, 0))
+  .normalize();
+export const GALAXY_UP = new THREE.Vector3()
+  .crossVectors(GALAXY_RIGHT, GALAXY_AXIS)
+  .normalize();
 
 function mulberry32(a: number) {
   return () => {
@@ -490,13 +502,23 @@ const CORE_LAYERS: { scale: number; opacity: number; stops: [number, string][] }
 function CoreGlow() {
   const matRefs = useRef<(THREE.SpriteMaterial | null)[]>([]);
   const textures = useMemo(() => CORE_LAYERS.map((l) => makeGlowTexture(l.stops)), []);
+  const vRef = useRef(0);
 
-  useRevealDriver((v) => {
+  // Reveal on intro, then a slow, staggered luminosity breath per shell so the
+  // volumetric glow around the core evolves gently — never a pulse or flash.
+  useFrame((state, delta) => {
+    const phase = useUiStore.getState().introPhase;
+    const target = phase === 'DARKNESS' ? 0 : phase === 'PARTICLE' ? 0.05 : 1;
+    vRef.current = THREE.MathUtils.damp(vRef.current, target, 0.5, delta);
+    const t = state.clock.elapsedTime;
     for (let i = 0; i < CORE_LAYERS.length; i++) {
       const m = matRefs.current[i];
-      if (m) m.opacity = v * CORE_LAYERS[i].opacity;
+      if (m) {
+        const breath = 1 + 0.08 * Math.sin(t * (0.05 + i * 0.019) + i * 1.4);
+        m.opacity = vRef.current * CORE_LAYERS[i].opacity * breath;
+      }
     }
-  }, 0.5, 0.05);
+  });
 
   return (
     <group position={GALAXY_CENTER}>
@@ -709,17 +731,275 @@ function GalaxyEnvironment() {
   );
 }
 
-/** Warm core light — the galactic core as the dominant light source. */
+/* ---------------------------------------------------------------- *
+ * 7) Deep field — the universe AROUND the galaxy. Anchored to the hero
+ *    view frame (not the origin) so it fills every edge, layered by depth so
+ *    the void reads as volume, and CLUSTERED so the eye always finds a dense
+ *    patch here and a lone bright giant there — never an empty corner.
+ * ---------------------------------------------------------------- */
+type RNG = () => number;
+type DeepLayer = {
+  count: number;
+  rMin: number;
+  rMax: number;
+  thetaMax: number; // angular radius of the view cone it fills
+  clusterFrac: number; // fraction of points pulled into clusters
+  wobble: number; // slow drift (star.vert) — larger for nearer layers
+  frag: string;
+  size: (rng: RNG) => number;
+  color: (rng: RNG) => [number, number, number];
+};
+
+const _cd = new THREE.Vector3();
+function coneDir(rng: RNG, thetaMax: number, out: THREE.Vector3): THREE.Vector3 {
+  const cosT = 1 - rng() * (1 - Math.cos(thetaMax));
+  const sinT = Math.sqrt(Math.max(0, 1 - cosT * cosT));
+  const phi = rng() * Math.PI * 2;
+  return out
+    .copy(GALAXY_AXIS)
+    .multiplyScalar(cosT)
+    .addScaledVector(GALAXY_RIGHT, sinT * Math.cos(phi))
+    .addScaledVector(GALAXY_UP, sinT * Math.sin(phi))
+    .normalize();
+}
+
+function buildDeepLayer(spec: DeepLayer, seed: number): THREE.BufferGeometry {
+  const rng = mulberry32(seed);
+  const { count } = spec;
+  const clusters: THREE.Vector3[] = [];
+  const nClusters = 9 + Math.floor(rng() * 9);
+  for (let k = 0; k < nClusters; k++) clusters.push(coneDir(rng, spec.thetaMax * 0.92, new THREE.Vector3()));
+
+  const pos = new Float32Array(count * 3);
+  const size = new Float32Array(count);
+  const tw = new Float32Array(count);
+  const order = new Float32Array(count);
+  const col = new Float32Array(count * 3);
+  const dir = new THREE.Vector3();
+  const tmp = new THREE.Vector3();
+
+  for (let i = 0; i < count; i++) {
+    if (rng() < spec.clusterFrac) {
+      const c = clusters[(rng() * clusters.length) | 0];
+      // tight gaussian-ish jitter around the cluster centre
+      const j = 0.11 * (rng() + rng() + rng() - 1.5) / 1.5;
+      dir
+        .set(rng() - 0.5, rng() - 0.5, rng() - 0.5)
+        .multiplyScalar(Math.abs(j))
+        .add(c)
+        .normalize();
+    } else {
+      coneDir(rng, spec.thetaMax, dir);
+    }
+    const r = spec.rMin + rng() * (spec.rMax - spec.rMin);
+    tmp.copy(GALAXY_CAM_POS).addScaledVector(dir, r);
+    pos.set([tmp.x, tmp.y, tmp.z], i * 3);
+    size[i] = spec.size(rng);
+    tw[i] = rng();
+    order[i] = rng() * 0.6;
+    col.set(spec.color(rng), i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+  g.setAttribute('aTwinkleSeed', new THREE.BufferAttribute(tw, 1));
+  g.setAttribute('aIgniteOrder', new THREE.BufferAttribute(order, 1));
+  g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+const DEEP_LAYERS: DeepLayer[] = [
+  // L1 — very distant, tiny, near-static pinpoints (the deepest layer)
+  {
+    count: 7200, rMin: 68000, rMax: 104000, thetaMax: 1.18, clusterFrac: 0.62, wobble: 0, frag: starFrag,
+    size: (r) => 200 + r() * r() * 430,
+    color: (r) => {
+      const t = r();
+      return t < 0.45 ? [0.72, 0.78, 0.88] : t < 0.7 ? [0.6, 0.7, 0.92] : t < 0.86 ? [0.92, 0.83, 0.7] : [0.5, 0.55, 0.66];
+    },
+  },
+  // L2 — medium stars, faint drift
+  {
+    count: 3400, rMin: 44000, rMax: 67000, thetaMax: 1.1, clusterFrac: 0.5, wobble: 7, frag: starFrag,
+    size: (r) => 250 + r() * 540,
+    color: (r) => {
+      const t = r();
+      return t < 0.4 ? [0.95, 0.95, 1.0] : t < 0.66 ? [0.7, 0.8, 1.0] : t < 0.85 ? [1.0, 0.82, 0.6] : [1.0, 0.6, 0.5];
+    },
+  },
+  // L3 — brighter stars + scattered blue/orange/red giants (bloom catches these)
+  {
+    count: 760, rMin: 30000, rMax: 50000, thetaMax: 1.04, clusterFrac: 0.42, wobble: 12, frag: starFrag,
+    size: (r) => (r() < 0.12 ? 900 + r() * 900 : 420 + r() * 700),
+    color: (r) => {
+      const t = r();
+      return t < 0.34 ? [1.0, 0.98, 0.95] : t < 0.6 ? [0.55, 0.68, 1.0] : t < 0.85 ? [1.0, 0.72, 0.42] : [1.0, 0.5, 0.4];
+    },
+  },
+  // L4 — occasional nearby glowing stars, slow drift, lens-bloom scale
+  {
+    count: 40, rMin: 12000, rMax: 26000, thetaMax: 0.95, clusterFrac: 0.28, wobble: 46, frag: starFrag,
+    size: (r) => 1300 + r() * 2400,
+    color: (r) => (r() < 0.5 ? [0.6, 0.72, 1.0] : [1.0, 0.85, 0.66]),
+  },
+  // Tiny unresolved galaxies — pale smudges far beyond the stars
+  {
+    count: 130, rMin: 80000, rMax: 106000, thetaMax: 1.2, clusterFrac: 0.5, wobble: 0, frag: hazeFrag,
+    size: (r) => 280 + r() * 780,
+    color: (r) => {
+      const t = r();
+      return t < 0.4 ? [0.12, 0.13, 0.19] : t < 0.7 ? [0.17, 0.13, 0.12] : [0.1, 0.13, 0.18];
+    },
+  },
+  // Diffuse interstellar dust / nebula wisps — subtle color filling the void
+  {
+    count: 66, rMin: 34000, rMax: 82000, thetaMax: 1.12, clusterFrac: 0.4, wobble: 24, frag: hazeFrag,
+    size: (r) => 6000 + r() * 11000,
+    color: (r) => {
+      const t = r();
+      return t < 0.4 ? [0.03, 0.036, 0.052] : t < 0.72 ? [0.048, 0.03, 0.05] : [0.052, 0.04, 0.03];
+    },
+  },
+];
+
+function GalaxyDeepField() {
+  const mats = useMemo(
+    () =>
+      DEEP_LAYERS.map(
+        (s) =>
+          new THREE.ShaderMaterial({
+            vertexShader: starVert,
+            fragmentShader: s.frag,
+            uniforms: { uTime: { value: 0 }, uFormation: { value: 0 }, uWobble: { value: s.wobble } },
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }),
+      ),
+    [],
+  );
+  const geos = useMemo(() => DEEP_LAYERS.map((s, i) => buildDeepLayer(s, 8100 + i * 137)), []);
+
+  useFrame((state) => {
+    for (const m of mats) m.uniforms.uTime.value = state.clock.elapsedTime;
+  });
+  useRevealDriver((v) => {
+    for (const m of mats) m.uniforms.uFormation.value = v;
+  }, 0.45, 0.04);
+
+  return (
+    <group name="galaxy-deep-field">
+      {geos.map((g, i) => (
+        <points key={i} geometry={g} frustumCulled={false}>
+          <primitive object={mats[i]} attach="material" />
+        </points>
+      ))}
+    </group>
+  );
+}
+
+/* ---------------------------------------------------------------- *
+ * 8) Ambient life — the void is never fully still. A few faint meteors
+ *    streak across at long random intervals (one every ~20-40s), so a
+ *    patient viewer keeps catching new motion. Pooled line segments,
+ *    additive, anchored to the view frame.
+ * ---------------------------------------------------------------- */
+function GalaxyMeteors() {
+  const N = 3;
+  const geo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 2 * 3), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 2 * 3), 3));
+    return g;
+  }, []);
+  const mat = useMemo(
+    () => new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+    [],
+  );
+  const state = useRef(
+    Array.from({ length: N }, (_, i) => ({
+      life: -1,
+      dur: 0,
+      cooldown: 6 + i * 9 + Math.random() * 14,
+      head: new THREE.Vector3(),
+      vel: new THREE.Vector3(),
+      tint: new THREE.Color(),
+      trail: 5200,
+    })),
+  );
+
+  const spawn = (m: (typeof state.current)[number]) => {
+    const dir = coneDir(Math.random, 0.85, new THREE.Vector3());
+    const depth = 28000 + Math.random() * 26000;
+    m.head.copy(GALAXY_CAM_POS).addScaledVector(dir, depth);
+    // a lateral heading across the view plane
+    const a = Math.random() * Math.PI * 2;
+    m.vel
+      .copy(GALAXY_RIGHT)
+      .multiplyScalar(Math.cos(a))
+      .addScaledVector(GALAXY_UP, Math.sin(a))
+      .normalize()
+      .multiplyScalar(16000 + Math.random() * 16000);
+    m.dur = 1.1 + Math.random() * 1.3;
+    m.life = m.dur;
+    m.trail = 4200 + Math.random() * 5200;
+    m.tint.setHSL(0.55 + Math.random() * 0.08, 0.4, 0.8);
+  };
+
+  useFrame((state_, delta) => {
+    const arr = state.current;
+    const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+    const colAttr = geo.getAttribute('color') as THREE.BufferAttribute;
+    const reduced = useQualityStore.getState().reducedMotion;
+    for (let i = 0; i < N; i++) {
+      const m = arr[i];
+      let a = 0;
+      if (m.life <= 0) {
+        m.cooldown -= delta;
+        if (m.cooldown <= 0 && !reduced) {
+          spawn(m);
+          m.cooldown = 20 + Math.random() * 22;
+        }
+      } else {
+        m.life -= delta;
+        m.head.addScaledVector(m.vel, delta);
+        // fade in over the first 25%, out over the last 45%
+        const p = 1 - m.life / m.dur;
+        a = Math.min(p / 0.25, 1) * Math.min((1 - p) / 0.45, 1);
+      }
+      const dir = m.vel.clone().normalize();
+      const hx = m.head.x, hy = m.head.y, hz = m.head.z;
+      const tx = hx - dir.x * m.trail, ty = hy - dir.y * m.trail, tz = hz - dir.z * m.trail;
+      posAttr.setXYZ(i * 2, hx, hy, hz);
+      posAttr.setXYZ(i * 2 + 1, tx, ty, tz);
+      colAttr.setXYZ(i * 2, m.tint.r * a, m.tint.g * a, m.tint.b * a); // bright head
+      colAttr.setXYZ(i * 2 + 1, 0, 0, 0); // fades to nothing at the tail
+    }
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+  });
+
+  return (
+    <lineSegments geometry={geo} frustumCulled={false}>
+      <primitive object={mat} attach="material" />
+    </lineSegments>
+  );
+}
+
+/** Warm core light — the galactic core as the dominant light source, with a
+ *  very slow luminosity breath so the core never sits perfectly static. */
 function CoreLight() {
   const lightRef = useRef<THREE.PointLight>(null);
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const l = lightRef.current;
     if (!l) return;
     const phase = useUiStore.getState().introPhase;
-    const target = phase === 'DARKNESS' || phase === 'PARTICLE' ? 0 : 1.4;
+    const alive = !(phase === 'DARKNESS' || phase === 'PARTICLE');
+    const breath = 1 + 0.07 * Math.sin(state.clock.elapsedTime * 0.12);
+    const target = alive ? 1.4 * breath : 0;
     l.intensity = THREE.MathUtils.damp(l.intensity, target, 0.8, delta);
   });
-  return <pointLight ref={lightRef} position={GALAXY_CENTER} color="#ffd9a8" intensity={0} decay={0.4} distance={0} />;
+  return <pointLight ref={lightRef} position={GALAXY_CENTER} color="#ffdcab" intensity={0} decay={0.4} distance={0} />;
 }
 
 export function HeroGalaxy() {
@@ -731,6 +1011,8 @@ export function HeroGalaxy() {
       <CoreGlow />
       <GalaxyForeground />
       <GalaxyEnvironment />
+      <GalaxyDeepField />
+      <GalaxyMeteors />
       <CoreLight />
     </group>
   );
