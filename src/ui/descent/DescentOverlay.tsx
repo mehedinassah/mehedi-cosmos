@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useJourneyStore } from '@/state/journeyStore';
-import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
+import { useDescentStore, DESCENT_CAPTIONS, nowS } from '@/state/descentStore';
 import { CHAPTERS } from '@/world/system/systemSpec';
 
 /**
@@ -16,54 +16,76 @@ import { CHAPTERS } from '@/world/system/systemSpec';
  * until the journey has landed.
  */
 
-const WHEEL_TRAVEL_PX = 6500; // full descent in ~6.5k px of wheel
-const WHEEL_TRAVEL_SYSTEM_PX = 62000; // pushing a heavy spacecraft: a flick
-const TOUCH_TRAVEL_PX = 2400; //         of the wheel barely nudges the ship
-const TOUCH_TRAVEL_SYSTEM_PX = 23000;
+// One deliberate gesture = one destination. Accumulate wheel/touch delta to a
+// threshold, fire a single step, then latch until the transition finishes AND
+// a short cooldown clears the inertial tail of the same flick.
+const WHEEL_THRESHOLD = 40;
+const TOUCH_THRESHOLD = 60;
+const COOLDOWN_S = 0.45;
 
 function DescentController() {
   useEffect(() => {
     const canScroll = () => useJourneyStore.getState().phase === 'IDLE';
-    const arrived = () => useDescentStore.getState().stage === 'ARRIVED';
+    let accum = 0;
+    let lastStep = 0;
+    let decayTimer = 0;
+
+    // A step is accepted only when the ship is idle at a chapter: not mid
+    // journey (navBusy) and past the cooldown that swallows a flick's tail.
+    const ready = () => {
+      const s = useDescentStore.getState();
+      return canScroll() && !s.navBusy && nowS() - lastStep > COOLDOWN_S;
+    };
+    const step = (dir: number) => {
+      accum = 0;
+      lastStep = nowS();
+      if (dir > 0) useDescentStore.getState().goNext();
+      else useDescentStore.getState().goPrev();
+    };
 
     const onWheel = (e: WheelEvent) => {
-      if (!canScroll()) return;
-      useDescentStore
-        .getState()
-        .addScroll(e.deltaY / (arrived() ? WHEEL_TRAVEL_SYSTEM_PX : WHEEL_TRAVEL_PX));
+      if (useDescentStore.getState().navBusy || !canScroll()) return;
+      accum += e.deltaY;
+      window.clearTimeout(decayTimer);
+      decayTimer = window.setTimeout(() => { accum = 0; }, 160);
+      if (!ready()) return;
+      if (accum > WHEEL_THRESHOLD) step(1);
+      else if (accum < -WHEEL_THRESHOLD) step(-1);
     };
 
     let touchY: number | null = null;
     const onTouchStart = (e: TouchEvent) => {
       touchY = e.touches[0]?.clientY ?? null;
+      accum = 0;
     };
     const onTouchMove = (e: TouchEvent) => {
       const y = e.touches[0]?.clientY;
       if (touchY == null || y == null || !canScroll()) return;
-      useDescentStore
-        .getState()
-        .addScroll((touchY - y) / (arrived() ? TOUCH_TRAVEL_SYSTEM_PX : TOUCH_TRAVEL_PX));
+      accum += touchY - y;
       touchY = y;
+      if (!ready()) return;
+      if (accum > TOUCH_THRESHOLD) step(1);
+      else if (accum < -TOUCH_THRESHOLD) step(-1);
     };
+    const onTouchEnd = () => { touchY = null; accum = 0; };
 
     const onKey = (e: KeyboardEvent) => {
-      if (!canScroll()) return;
-      const step = arrived() ? 0.01 : 0.03;
-      if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
-        useDescentStore.getState().addScroll(step);
-      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        useDescentStore.getState().addScroll(-step);
-      }
+      if (!ready()) return;
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') step(1);
+      else if (e.key === 'ArrowUp' || e.key === 'PageUp') step(-1);
     };
 
     window.addEventListener('wheel', onWheel, { passive: true });
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
     window.addEventListener('keydown', onKey);
     return () => {
+      window.clearTimeout(decayTimer);
       window.removeEventListener('wheel', onWheel);
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('keydown', onKey);
     };
   }, []);
@@ -174,7 +196,7 @@ function PlanetMenu() {
           type="button"
           className={`planet-menu__item${k === idx ? ' planet-menu__item--active' : ''}`}
           style={{ '--accent': c.accent, animationDelay: `${1.2 + k * 0.14}s` } as React.CSSProperties}
-          onClick={() => useDescentStore.setState({ sysTarget: c.sp })}
+          onClick={() => useDescentStore.getState().goTo(k)}
           aria-label={`${c.title} — ${c.planet}`}
         >
           <span className="planet-menu__ring" aria-hidden="true" />
@@ -189,7 +211,7 @@ function PlanetMenu() {
           </span>
         </button>
       ))}
-      {hint && <div className="planet-menu__hint">Scroll to explore · click a ring to fly there</div>}
+      {hint && <div className="planet-menu__hint">Scroll to travel to the next world · click a ring to fly there</div>}
     </nav>
   );
 }

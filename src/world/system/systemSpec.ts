@@ -157,9 +157,11 @@ function berthAt(orbit: number, f: number, yOff: number): THREE.Vector3 {
 // at the sun read as a drift-left-then-whip-right correction — the camera
 // must never look like it is fixing its own path.)
 const START_KNOT = M.clone().multiplyScalar(-1600).addScaledVector(PERP, -60).addScaledVector(UP, 130);
-// The hero stop: the star is OVERWHELMING (~75% viewport; apparent fraction
-// ~ 2.29/(dist/radius)) and frames ahead-right, panel left.
-const SUN_APPROACH = M.clone().multiplyScalar(-355).addScaledVector(PERP, -110).addScaledVector(UP, 55);
+// The hero stop: arriving out of the light, the star is the first thing seen
+// and it DOMINATES — ~90% of viewport height (apparent fraction ~ 2.29 /
+// (dist/radius)), corona spilling past the frame. Frames ahead-right, panel
+// left. Lateral clearance still exceeds the corona shells (2.1 x 120 = 252).
+const SUN_APPROACH = M.clone().multiplyScalar(-300).addScaledVector(PERP, -95).addScaledVector(UP, 48);
 // Passing abeam the star: lateral clearance stays outside the corona shells
 // (2.1 x 120 = 252) so the camera never dips inside the plasma.
 const SUN_KNOT = M.clone().multiplyScalar(180).addScaledVector(PERP, -300).addScaledVector(UP, 45);

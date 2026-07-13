@@ -13,8 +13,13 @@ import {
   DESTINATION_STAR,
   GALAXY_REST_LOOK,
 } from '@/camera/descentPath';
-import { useDescentStore, DESCENT_CAPTIONS } from '@/state/descentStore';
+import { useDescentStore, DESCENT_CAPTIONS, SUN_SP, nowS } from '@/state/descentStore';
 import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
+
+/** Premium travel easing: slow acceleration, momentum, soft deceleration. */
+function easeInOutCubic(x: number): number {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
 
 
 /**
@@ -75,6 +80,7 @@ export function CameraDirector() {
   const lookTarget = useRef(new THREE.Vector3());
   const currentLook = useRef(new THREE.Vector3());
   const lastPhase = useRef('');
+  const lastStage = useRef('DORMANT');
   const baseFov = useRef(50);
   const pointerSmooth = useRef(new THREE.Vector2());
   const parallaxApplied = useRef(new THREE.Vector3());
@@ -95,39 +101,63 @@ export function CameraDirector() {
     cam.position.sub(parallaxApplied.current);
     parallaxApplied.current.set(0, 0, 0);
 
-    // Descent rig: damp the scroll target into the value every consumer
-    // reads, keep the caption ladder in step, and fire the arrival handoff.
+    // FSM journey rig: each transition is a timed, eased move that lands
+    // EXACTLY on a chapter and then releases input. Slow acceleration, gentle
+    // momentum, soft deceleration — a spacecraft coasting, never a cursor.
     const descent = useDescentStore.getState();
     let dp = descent.smoothed;
     let sp = descent.sysSmoothed;
-    if (descent.stage !== 'ARRIVED') {
-      dp = THREE.MathUtils.damp(descent.smoothed, descent.target, 2.0, delta);
-      let captionIndex = -1;
-      if (descent.stage === 'DESCENDING') {
+
+    // Reversing Sun -> Galaxy: the system just unmounted; rebuild the dive
+    // spline from the canonical vantage so dp=1 sits at the destination star.
+    if (lastStage.current === 'ARRIVED' && descent.stage === 'DESCENDING') {
+      descentCurve.current = buildDescentCurve(GALAXY_CAM_POS.clone());
+    }
+    lastStage.current = descent.stage;
+
+    if (descent.tField) {
+      const raw = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);
+      const e = easeInOutCubic(raw);
+      const v = descent.tFrom + (descent.tTo - descent.tFrom) * e;
+
+      if (descent.tField === 'dp') {
+        dp = v;
+        let captionIndex = -1;
         for (let k = 0; k < DESCENT_CAPTIONS.length; k++) {
           if (dp >= DESCENT_CAPTIONS[k].at) captionIndex = k;
         }
-      }
-      if (dp !== descent.smoothed || captionIndex !== descent.captionIndex) {
-        useDescentStore.setState({ smoothed: dp, captionIndex });
-      }
-      if (dp > 0.996 && descent.target >= 1) {
-        // Arrival: the flare + DOM flash mask the swap to the solar system.
-        // The journey continues as the system chapter; the FSM stays IDLE
-        // (scroll owns the camera now, not phase travel).
-        useDescentStore.setState({ stage: 'ARRIVED', smoothed: 1, captionIndex: -1 });
-        cam.fov = baseFov.current;
-        cam.updateProjectionMatrix();
-        currentLook.current.set(0, 0, 0); // gaze snaps to the sun under the flash
-        pointerSmooth.current.set(0, 0);
-      }
-    } else {
-      // System-chapter rig: HEAVY damping — a twenty-ton spacecraft, not a
-      // cursor. Scroll intent arrives; the ship leans into it, then settles.
-      sp = THREE.MathUtils.damp(descent.sysSmoothed, descent.sysTarget, 1.7, delta);
-      const sysCaptionIndex = chapterIndexAt(sp);
-      if (sp !== descent.sysSmoothed || sysCaptionIndex !== descent.sysCaptionIndex) {
-        useDescentStore.setState({ sysSmoothed: sp, sysCaptionIndex });
+        if (descent.tTo === 1 && dp > 0.994) {
+          // Arrival at the Sun: land exactly at the hero framing (SUN_SP);
+          // the flare + DOM flash mask the swap into the system.
+          useDescentStore.setState({
+            smoothed: 1, captionIndex: -1, stage: 'ARRIVED',
+            sysSmoothed: SUN_SP, sysCaptionIndex: 0,
+            navBusy: false, tField: null,
+          });
+          sp = SUN_SP;
+          cam.fov = baseFov.current;
+          cam.updateProjectionMatrix();
+          currentLook.current.set(0, 0, 0);
+          pointerSmooth.current.set(0, 0);
+        } else if (descent.tTo === 0 && dp < 0.006) {
+          // Back at the galaxy hero
+          useDescentStore.setState({
+            smoothed: 0, captionIndex: -1, stage: 'DORMANT',
+            navBusy: false, tField: null,
+          });
+          dp = 0;
+        } else {
+          useDescentStore.setState({ smoothed: dp, captionIndex });
+        }
+      } else {
+        // 'sp' — travel along the rail between two chapters
+        sp = v;
+        const sysCaptionIndex = chapterIndexAt(sp);
+        const done = raw >= 1;
+        useDescentStore.setState({
+          sysSmoothed: sp, sysCaptionIndex,
+          ...(done ? { navBusy: false, tField: null } : {}),
+        });
       }
     }
 

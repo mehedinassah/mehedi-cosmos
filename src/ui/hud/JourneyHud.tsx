@@ -21,7 +21,7 @@ export function JourneyHud() {
   const destination = useJourneyStore((s) => s.destination);
   const phase = useJourneyStore((s) => s.phase);
   const toggleLog = useUiStore((s) => s.toggleMissionLog);
-  const arrived = useDescentStore((s) => s.stage === 'ARRIVED' && s.sysSmoothed > 0.96);
+  const arrived = useDescentStore((s) => s.stage === 'ARRIVED' && s.sysSmoothed > 0.9);
   const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
