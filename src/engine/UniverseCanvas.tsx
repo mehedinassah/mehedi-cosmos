@@ -20,6 +20,26 @@ import { useDescentStore } from '@/state/descentStore';
  * this canvas IS the site.
  */
 
+// Every loader shares THREE.Cache, so warming a URL here means the system
+// chapter's materials find it instantly — the viewer must never see a
+// texture pop in mid-journey.
+THREE.Cache.enabled = true;
+const PRELOAD_TEXTURES = [
+  '/textures/2k_sun.jpg',
+  '/textures/2k_mercury.jpg',
+  '/textures/2k_venus_atmosphere.jpg',
+  '/textures/2k_earth_daymap.jpg',
+  '/textures/2k_earth_nightmap.jpg',
+  '/textures/2k_earth_clouds.jpg',
+  '/textures/2k_moon.jpg',
+  '/textures/2k_mars.jpg',
+  '/textures/2k_jupiter.jpg',
+  '/textures/2k_saturn.jpg',
+  '/textures/2k_saturn_ring_alpha.png',
+  '/textures/2k_uranus.jpg',
+  '/textures/2k_neptune.jpg',
+];
+
 export function UniverseCanvas() {
   const dprClamp = useQualityStore((s) => s.dprClamp);
   const resolutionScale = useQualityStore((s) => s.resolutionScale);
@@ -31,6 +51,13 @@ export function UniverseCanvas() {
     const { tier } = probeCapabilities();
     useQualityStore.getState().setTier(tier);
     useQualityStore.getState().setReducedMotion(prefersReducedMotion());
+    // Warm every journey texture during the galaxy intro (idle time), so
+    // the arrival in the system never shows an untextured first frame.
+    const loader = new THREE.TextureLoader();
+    const warm = () => PRELOAD_TEXTURES.forEach((url) => loader.load(url));
+    const ric = (window as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
+    if (ric) ric(warm);
+    else window.setTimeout(warm, 1200);
   }, []);
 
   return (

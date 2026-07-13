@@ -95,10 +95,11 @@ main { position: fixed; inset: 0; }
   position: fixed;
   left: 50%;
   bottom: 7%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(10px);
   text-align: center;
   opacity: 0;
-  transition: opacity 2.6s ease;
+  /* One cinematic move: fade + a small rise, easeOutQuart-adjacent */
+  transition: opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1), transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
   z-index: 6;
   /* Legibility against the star field without a boxed backdrop */
@@ -106,6 +107,7 @@ main { position: fixed; inset: 0; }
 }
 .title-card--visible {
   opacity: 1;
+  transform: translateX(-50%);
 }
 .title-card h1 {
   margin: 0;
@@ -247,18 +249,28 @@ main { position: fixed; inset: 0; }
   flex-direction: column;
   gap: 17px;
   z-index: 7;
+  /* The rail itself must NEVER intercept the page — only the rings do */
+  pointer-events: none;
 }
 .planet-menu__item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 14px;
   background: none;
   border: none;
-  padding: 0;
+  padding: 3px; /* comfortable ring hit area, and nothing more */
   cursor: pointer;
   color: inherit;
   text-align: left;
   font: inherit;
+  pointer-events: auto;
+  /* Arrival: rings fade in one by one (animation-delay staggered inline) */
+  opacity: 0;
+  animation: menu-ring-in 0.8s ease both;
+}
+@keyframes menu-ring-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: none; }
 }
 .planet-menu__ring {
   flex: none;
@@ -275,14 +287,25 @@ main { position: fixed; inset: 0; }
   border-color: var(--accent);
   background: var(--accent);
   box-shadow: 0 0 12px var(--accent);
+  animation: ring-pulse 2.8s ease-in-out infinite;
+}
+@keyframes ring-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--accent); }
+  50% { box-shadow: 0 0 18px var(--accent); }
 }
 .planet-menu__info {
+  /* Out of layout entirely: the label must never widen the button's hit
+     area (an invisible full-width button blocked the panel's links). */
+  position: absolute;
+  left: 26px;
+  top: 50%;
+  translate: 0 -50%;
   display: flex;
   flex-direction: column;
   gap: 3px;
   opacity: 0;
   transform: translateX(-6px);
-  transition: all 0.3s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
   pointer-events: none;
   white-space: nowrap;
   /* Frosted backdrop: the label can appear at panel height, so it needs its
@@ -328,6 +351,31 @@ main { position: fixed; inset: 0; }
   text-transform: uppercase;
   color: var(--accent);
   opacity: 0.75;
+}
+/* Onboarding hint — appears with the rail, teaches the interaction, leaves */
+.planet-menu__hint {
+  position: absolute;
+  left: 30px;
+  bottom: -44px;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(210, 220, 244, 0.75);
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: rgba(6, 8, 14, 0.72);
+  box-shadow: var(--holo-glow);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  animation: hint-cycle 6.5s ease both;
+  pointer-events: none;
+}
+@keyframes hint-cycle {
+  0% { opacity: 0; transform: translateY(6px); }
+  12%, 78% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
 }
 @media (max-width: 720px) {
   .planet-menu { display: none; }

@@ -151,17 +151,18 @@ function berthAt(orbit: number, f: number, yOff: number): THREE.Vector3 {
 //   [1] sun    — a berth beside the star; the rail swings past it, not through
 //   [2..10]    — the nine worlds, each on its own bearing
 //   [11] end   — the ship keeps cruising past Pluto into the dark
-const START_KNOT = M.clone().multiplyScalar(-1600).addScaledVector(UP, 140);
-// The ship flies straight in toward the star; SUN_APPROACH is the hero beat
-// (star large, dead ahead), then SUN_KNOT swings the rail past it, clearing
-// the sun, and out to Mercury.
-// The hero stop: the star should be OVERWHELMING — ~75% of viewport height
-// (apparent fraction ~ 2.29 / (dist/radius)), with the corona reaching past
-// the frame edges.
-const SUN_APPROACH = M.clone().multiplyScalar(-395).addScaledVector(UP, 55);
-// Swing to the -PERP side so the star frames to the RIGHT (panel on the left),
-// matching every world's composition.
-const SUN_KNOT = PERP.clone().multiplyScalar(-340).addScaledVector(UP, 45);
+// The whole approach is PRE-OFFSET onto the passing side and tapers outward,
+// so the ship slides past the star on one smooth line and makes ONE gentle
+// bend out to Mercury. (A straight-in approach followed by a sideways swing
+// at the sun read as a drift-left-then-whip-right correction — the camera
+// must never look like it is fixing its own path.)
+const START_KNOT = M.clone().multiplyScalar(-1600).addScaledVector(PERP, -60).addScaledVector(UP, 130);
+// The hero stop: the star is OVERWHELMING (~75% viewport; apparent fraction
+// ~ 2.29/(dist/radius)) and frames ahead-right, panel left.
+const SUN_APPROACH = M.clone().multiplyScalar(-355).addScaledVector(PERP, -110).addScaledVector(UP, 55);
+// Passing abeam the star: lateral clearance stays outside the corona shells
+// (2.1 x 120 = 252) so the camera never dips inside the plasma.
+const SUN_KNOT = M.clone().multiplyScalar(180).addScaledVector(PERP, -300).addScaledVector(UP, 45);
 const BERTHS: THREE.Vector3[] = [
   START_KNOT,
   SUN_APPROACH,

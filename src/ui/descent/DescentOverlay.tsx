@@ -17,9 +17,9 @@ import { CHAPTERS } from '@/world/system/systemSpec';
  */
 
 const WHEEL_TRAVEL_PX = 6500; // full descent in ~6.5k px of wheel
-const WHEEL_TRAVEL_SYSTEM_PX = 52000; // drift, don't race: a flick of the
-const TOUCH_TRAVEL_PX = 2400; //          wheel should barely nudge the ship
-const TOUCH_TRAVEL_SYSTEM_PX = 19000;
+const WHEEL_TRAVEL_SYSTEM_PX = 62000; // pushing a heavy spacecraft: a flick
+const TOUCH_TRAVEL_PX = 2400; //         of the wheel barely nudges the ship
+const TOUCH_TRAVEL_SYSTEM_PX = 23000;
 
 function DescentController() {
   useEffect(() => {
@@ -48,7 +48,7 @@ function DescentController() {
 
     const onKey = (e: KeyboardEvent) => {
       if (!canScroll()) return;
-      const step = arrived() ? 0.012 : 0.03;
+      const step = arrived() ? 0.01 : 0.03;
       if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
         useDescentStore.getState().addScroll(step);
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
@@ -71,7 +71,7 @@ function DescentController() {
   return null;
 }
 
-const TITLE_DELAY_MS = 5000;
+const TITLE_DELAY_MS = 3600; // part of one continuous opening sequence
 
 function TitleCard() {
   const phase = useJourneyStore((s) => s.phase);
@@ -151,10 +151,20 @@ function ChapterPanel() {
 
 /** The navigation rail — every celestial body, pip-marked in its signature
  *  color. Click a world and the ship simply flies there: the click only
- *  moves the scroll target, so the journey stays one continuous glide. */
+ *  moves the scroll target, so the journey stays one continuous glide.
+ *  On arrival the rings fade in one by one and a brief hint teaches the
+ *  interaction, then gets out of the way. */
 function PlanetMenu() {
   const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
   const idx = useDescentStore((s) => s.sysCaptionIndex);
+  const [hint, setHint] = useState(true);
+
+  useEffect(() => {
+    if (!arrived) return;
+    const t = window.setTimeout(() => setHint(false), 6500);
+    return () => window.clearTimeout(t);
+  }, [arrived]);
+
   if (!arrived) return null;
   return (
     <nav className="planet-menu" aria-label="Journey chapters">
@@ -163,8 +173,9 @@ function PlanetMenu() {
           key={c.id}
           type="button"
           className={`planet-menu__item${k === idx ? ' planet-menu__item--active' : ''}`}
-          style={{ '--accent': c.accent } as React.CSSProperties}
+          style={{ '--accent': c.accent, animationDelay: `${1.2 + k * 0.14}s` } as React.CSSProperties}
           onClick={() => useDescentStore.setState({ sysTarget: c.sp })}
+          aria-label={`${c.title} — ${c.planet}`}
         >
           <span className="planet-menu__ring" aria-hidden="true" />
           <span className="planet-menu__info">
@@ -178,6 +189,7 @@ function PlanetMenu() {
           </span>
         </button>
       ))}
+      {hint && <div className="planet-menu__hint">Scroll to explore · click a ring to fly there</div>}
     </nav>
   );
 }
