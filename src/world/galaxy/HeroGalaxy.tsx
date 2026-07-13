@@ -45,11 +45,12 @@ export const GALAXY_TILT = new THREE.Euler(
 );
 
 const GALAXY_VIEW_DIR = new THREE.Vector3(0.06, 0.2, 1).normalize();
-// 1.68 radii: the disc spans past the frame edges so the arms run off every
-// side — you are inside the galaxy, not observing it from outside.
+// 1.9 radii: far enough that the whole tilted disc clears the frame edges
+// (its near side no longer runs off the bottom) while the arms still reach
+// comfortably toward every side.
 export const GALAXY_CAM_POS = GALAXY_CENTER.clone().addScaledVector(
   GALAXY_VIEW_DIR,
-  OUTER_RADIUS * 1.68,
+  OUTER_RADIUS * 1.9,
 );
 export const GALAXY_LOOK = GALAXY_CENTER.clone();
 

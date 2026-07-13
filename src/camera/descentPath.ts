@@ -81,6 +81,8 @@ export const REFERENCE_CURVE = buildDescentCurve(GALAXY_CAM_POS.clone());
 const axis = GALAXY_CENTER.clone().sub(GALAXY_CAM_POS).normalize();
 const frameRight = new THREE.Vector3().crossVectors(axis, new THREE.Vector3(0, 1, 0)).normalize();
 const frameUp = new THREE.Vector3().crossVectors(frameRight, axis).normalize();
+// Aim well below the core so the tilted disc rides UP into the frame — its
+// lower/near edge no longer sinks off the bottom, and the whole disc is seen.
 export const GALAXY_REST_LOOK = GALAXY_LOOK.clone()
   .addScaledVector(frameRight, 300)
-  .addScaledVector(frameUp, -300);
+  .addScaledVector(frameUp, -4200);
