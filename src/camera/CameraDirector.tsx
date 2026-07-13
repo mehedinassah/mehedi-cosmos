@@ -7,7 +7,7 @@ import { useJourneyStore } from '@/state/journeyStore';
 import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
-import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, OUTER_RADIUS } from '@/world/galaxy/HeroGalaxy';
+import { GALAXY_CAM_POS, GALAXY_LOOK } from '@/world/galaxy/HeroGalaxy';
 import { buildDescentCurve, GALAXY_REST_LOOK } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS, SUN_SP, nowS } from '@/state/descentStore';
 import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
@@ -21,30 +21,22 @@ function easeInOutCubic(x: number): number {
 // No region swap, no unmount: both worlds are mounted for the whole loop, so
 // the solar system recedes by DISTANCE and the galaxy grows by APPROACH.
 // Nothing pops in or out; the camera simply travels farther.
-const GAL_VIEW_DIR = GALAXY_CAM_POS.clone().sub(GALAXY_CENTER).normalize();
-// A waypoint far out on the opening axis, so the final leg aligns with the
-// exact opening approach direction.
-const LOOP_WP = GALAXY_CENTER.clone().addScaledVector(GAL_VIEW_DIR, OUTER_RADIUS * 3.4);
 const _loopLook = new THREE.Vector3();
-const _loopAhead = new THREE.Vector3();
+const _loopDir = new THREE.Vector3();
 const _dvFwd = new THREE.Vector3();
 const _dvPoint = new THREE.Vector3();
-// Velocity profile: a long, flat cruise with gentle shoulders — accelerate
-// smoothly, hold speed, decelerate softly. No 0-to-full jump, no mid bump.
-function loopVel(x: number): number {
-  const A = 0.24, D = 0.72; // accel ends at A, decel starts at D
-  if (x < A) {
-    const k = x / A;
-    return A * 0.5 * k * k; // ease-in (quadratic) over the accel band
-  }
-  if (x < D) {
-    return A * 0.5 + (x - A); // constant cruise
-  }
+// Distance -> arc fraction. A trapezoidal velocity (quick ramp up, long FLAT
+// cruise, gentle ramp down) integrated to displacement. Feeding this into the
+// curve's ARC-LENGTH sampling (getPointAt) makes the ship hold a constant
+// world speed the whole way — no crawl near the start, no rush in the middle.
+function loopArc(x: number): number {
+  const A = 0.1, D = 0.78; // accel ends at A, decel starts at D
+  if (x < A) return A * 0.5 * (x / A) * (x / A);
+  if (x < D) return A * 0.5 + (x - A);
   const k = (x - D) / (1 - D);
-  const cruise = A * 0.5 + (D - A);
-  return cruise + (1 - D) * (k - 0.5 * k * k); // ease-out to a soft stop
+  return A * 0.5 + (D - A) + (1 - D) * (k - 0.5 * k * k);
 }
-const LOOP_VEL_MAX = loopVel(1);
+const LOOP_ARC_MAX = loopArc(1);
 
 
 /**
@@ -112,6 +104,7 @@ export function CameraDirector() {
   const idleDrift = useRef(0);
   const descentCurve = useRef<THREE.CatmullRomCurve3 | null>(null);
   const loopCurve = useRef<THREE.CatmullRomCurve3 | null>(null);
+  const loopEntryDir = useRef(new THREE.Vector3());
   const descentAhead = useRef(new THREE.Vector3());
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
@@ -150,25 +143,34 @@ export function CameraDirector() {
       // (UniverseCanvas), so the system recedes and the galaxy grows with no
       // swap and no build hitch mid-flight.
       if (!loopCurve.current) {
+        // A gentle, near-straight flight from Pluto to the opening vantage.
+        // Distance to the sun grows the whole way (solar system recedes) and
+        // distance to the galaxy shrinks the whole way (it grows, monotonic),
+        // so nothing shrinks-then-pops. Both worlds are mounted (UniverseCanvas)
+        // so it is one continuous universe, never a swap.
         const p0 = cam.position.clone();
-        const outward = p0.clone().normalize(); // away from the sun at origin
-        const p1 = p0.clone().addScaledVector(outward, 42000);
-        loopCurve.current = new THREE.CatmullRomCurve3(
-          [p0, p1, LOOP_WP, GALAXY_CAM_POS.clone()],
-          false,
-          'centripetal',
-        );
+        const p3 = GALAXY_CAM_POS.clone();
+        const p1 = p0.clone().lerp(p3, 0.34).addScaledVector(p0.clone().normalize(), 12000);
+        const p2 = p0.clone().lerp(p3, 0.7);
+        loopCurve.current = new THREE.CatmullRomCurve3([p0, p1, p2, p3], false, 'centripetal');
+        // Remember which way we were looking, to turn smoothly toward home.
+        loopEntryDir.current.copy(currentLook.current).sub(cam.position).normalize();
       }
       const lp = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);
-      const te = loopVel(lp) / LOOP_VEL_MAX; // 0..1 arc fraction, smooth velocity
       const curve = loopCurve.current;
-      curve.getPoint(te, cam.position);
-      // Look along the path; ease onto the exact opening gaze at the very end
-      // so the handoff to idle drift is pop-free.
-      curve.getPoint(Math.min(te + 0.02, 1), _loopAhead);
-      _loopLook.copy(_loopAhead);
-      _loopLook.lerp(GALAXY_REST_LOOK, THREE.MathUtils.smoothstep(lp, 0.82, 1.0));
-      currentLook.current.lerp(_loopLook, 1 - Math.exp(-4 * delta));
+      // ARC-LENGTH sampling => constant cruise speed, no crawl, no rush.
+      const s = loopArc(lp) / LOOP_ARC_MAX;
+      curve.getPointAt(s, cam.position);
+      // Face the direction of travel (the galaxy grows dead ahead), turning
+      // gracefully out of the entry heading over the first few seconds — one
+      // smooth arc, never a snap or a 360.
+      curve.getPointAt(Math.min(s + 0.02, 1), _loopDir);
+      _loopDir.sub(cam.position).normalize();
+      _loopDir.lerp(loopEntryDir.current, 1 - THREE.MathUtils.smoothstep(lp, 0.0, 0.32)).normalize();
+      _loopLook.copy(cam.position).addScaledVector(_loopDir, 12000);
+      // Settle onto the exact opening gaze at the very end (pop-free handoff).
+      _loopLook.lerp(GALAXY_REST_LOOK, THREE.MathUtils.smoothstep(lp, 0.72, 1.0));
+      currentLook.current.lerp(_loopLook, 1 - Math.exp(-3.5 * delta));
       cam.up.set(0, 1, 0);
       cam.lookAt(currentLook.current);
       cam.fov = baseFov.current;
