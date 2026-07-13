@@ -284,8 +284,15 @@ main { position: fixed; inset: 0; }
   transform: translateX(-6px);
   transition: all 0.3s ease;
   pointer-events: none;
-  text-shadow: 0 0 14px rgba(1, 1, 4, 0.95), 0 0 5px rgba(1, 1, 4, 0.9);
   white-space: nowrap;
+  /* Frosted backdrop: the label can appear at panel height, so it needs its
+     own surface to stay legible over the chapter text behind it. */
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: rgba(6, 8, 14, 0.72);
+  box-shadow: var(--holo-glow);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
 }
 /* Labels reveal on hover/focus only — the ACTIVE chapter's story is already
    on screen (the panel), so its rail item keeps just the filled ring and
