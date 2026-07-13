@@ -216,19 +216,6 @@ function PlanetMenu() {
   );
 }
 
-/** The loop's narrative beat — shown as the ship drifts past Pluto into deep
- *  space and the galaxy begins to re-emerge. Gives the loop a purpose. */
-function LoopMessage() {
-  const looping = useDescentStore((s) => s.stage === 'LOOPING');
-  if (!looping) return null;
-  return (
-    <div className="loop-message" aria-live="polite">
-      <div className="loop-message__primary">Every journey ends where curiosity begins</div>
-      <div className="loop-message__secondary">drifting home toward the Milky Way</div>
-    </div>
-  );
-}
-
 function ArrivalFlash() {
   const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
   const [cls, setCls] = useState('');
@@ -259,7 +246,6 @@ export function DescentOverlay() {
       <DescentCaption />
       <PlanetMenu />
       <ChapterPanel />
-      <LoopMessage />
       <ArrivalFlash />
     </>
   );

@@ -37,10 +37,10 @@ export const LAST_NAV = CHAPTERS.length; // Pluto
 // cosmic distance; the planet hops are a heavy spacecraft coasting to berth.
 const DESCENT_DUR = 9.0;
 const TRAVEL_DUR = 4.6;
-// The loop home: past Pluto, drift into deep space, then the Milky Way
-// emerges from the dark and we settle back at the opening — one long,
-// unbroken orbit of a much larger journey.
-const LOOP_DUR = 16.0;
+// The loop home: past Pluto, keep travelling outward — the solar system
+// falls away and, a few seconds later, we are outside the galaxy again, back
+// at the exact opening vantage. No message, no cut; just continuous travel.
+const LOOP_DUR = 8.0;
 
 export const nowS = () =>
   (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;

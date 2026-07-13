@@ -8,11 +8,7 @@ import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
 import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, OUTER_RADIUS } from '@/world/galaxy/HeroGalaxy';
-import {
-  buildDescentCurve,
-  DESTINATION_STAR,
-  GALAXY_REST_LOOK,
-} from '@/camera/descentPath';
+import { buildDescentCurve, GALAXY_REST_LOOK } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS, SUN_SP, nowS } from '@/state/descentStore';
 import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
 
@@ -31,6 +27,8 @@ const GAL_VIEW_DIR = GALAXY_CAM_POS.clone().sub(GALAXY_CENTER).normalize();
 const LOOP_WP = GALAXY_CENTER.clone().addScaledVector(GAL_VIEW_DIR, OUTER_RADIUS * 3.4);
 const _loopLook = new THREE.Vector3();
 const _loopAhead = new THREE.Vector3();
+const _dvFwd = new THREE.Vector3();
+const _dvPoint = new THREE.Vector3();
 // Velocity profile: a long, flat cruise with gentle shoulders — accelerate
 // smoothly, hold speed, decelerate softly. No 0-to-full jump, no mid bump.
 function loopVel(x: number): number {
@@ -314,15 +312,19 @@ export function CameraDirector() {
           if (!descentCurve.current) descentCurve.current = buildDescentCurve(cam.position.clone());
           const curve = descentCurve.current;
           curve.getPoint(dp, cam.position);
-          // Gaze: hold the galaxy while committing, swing forward along the
-          // path through the arm, land on the destination star.
-          curve.getPoint(Math.min(dp + 0.06, 1), descentAhead.current);
+          // Gaze: ALWAYS look forward along the flight tangent. The old code
+          // lerped a look-target from the galaxy core (which falls behind the
+          // camera during the dive) to points ahead — when that target swept
+          // through the camera the view flipped a full 360. A forward tangent
+          // never reverses, so the camera never spins; at the very start it
+          // eases out of the resting core gaze so there is no jump.
+          curve.getPoint(Math.min(dp + 0.035, 1), descentAhead.current);
+          _dvFwd.copy(descentAhead.current).sub(cam.position);
+          if (_dvFwd.lengthSq() > 1e-6) _dvFwd.normalize();
+          _dvPoint.copy(cam.position).addScaledVector(_dvFwd, 8000);
           lookTarget.current
             .copy(GALAXY_REST_LOOK)
-            .lerp(descentAhead.current, THREE.MathUtils.smoothstep(dp, 0.12, 0.42))
-            // Ease the gaze onto the destination star over a LONG range so a
-            // fast scroll never whips the view across at the end.
-            .lerp(DESTINATION_STAR, THREE.MathUtils.smoothstep(dp, 0.5, 0.98));
+            .lerp(_dvPoint, THREE.MathUtils.smoothstep(dp, 0.02, 0.16));
           // Speed sensation mid-dive, easing off for the arrival
           if (!reducedMotion) {
             cam.fov =

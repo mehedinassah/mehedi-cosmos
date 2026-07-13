@@ -399,39 +399,6 @@ main { position: fixed; inset: 0; }
   }
 }
 
-/* Loop narrative — centered, quiet, breathes over the whole 16s home run */
-.loop-message {
-  position: fixed;
-  left: 50%;
-  top: 46%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  pointer-events: none;
-  z-index: 6;
-  text-shadow: 0 0 18px rgba(1, 1, 4, 0.95), 0 0 6px rgba(1, 1, 4, 0.85);
-  animation: loop-msg 16s ease both;
-}
-.loop-message__primary {
-  font-size: 17px;
-  font-weight: 200;
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
-  color: rgba(240, 244, 255, 0.92);
-}
-.loop-message__secondary {
-  margin-top: 14px;
-  font-size: 10px;
-  font-weight: 300;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: rgba(200, 210, 235, 0.55);
-}
-@keyframes loop-msg {
-  0% { opacity: 0; }
-  12%, 66% { opacity: 1; }
-  86%, 100% { opacity: 0; }
-}
-
 .arrival-flash {
   position: fixed;
   inset: 0;
