@@ -111,15 +111,25 @@ function DescentCaption() {
 }
 
 /** Career chapter panel — the reason the journey exists. One celestial
- *  body, one chapter; quiet typography beside the world it belongs to. */
+ *  body, one chapter; quiet typography beside the world it belongs to.
+ *  Each world's signature color tints its label and link underlines. */
 function ChapterPanel() {
   const idx = useDescentStore((s) => s.sysCaptionIndex);
   const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
   if (!arrived || idx < 0) return null;
   const c = CHAPTERS[idx];
   return (
-    <aside key={c.id} className="chapter-panel" aria-live="polite">
-      <div className="chapter-panel__planet">{c.planet}</div>
+    <aside
+      key={c.id}
+      className="chapter-panel"
+      aria-live="polite"
+      style={{ '--accent': c.accent } as React.CSSProperties}
+    >
+      <div className="chapter-panel__planet">
+        <span className="chapter-panel__pip" aria-hidden="true" />
+        {c.planet}
+        <span className="chapter-panel__au">{c.au}</span>
+      </div>
       <h2 className="chapter-panel__title">{c.title}</h2>
       {c.body.map((line) => (
         <p key={line} className="chapter-panel__line">
@@ -136,6 +146,39 @@ function ChapterPanel() {
         </div>
       )}
     </aside>
+  );
+}
+
+/** The navigation rail — every celestial body, pip-marked in its signature
+ *  color. Click a world and the ship simply flies there: the click only
+ *  moves the scroll target, so the journey stays one continuous glide. */
+function PlanetMenu() {
+  const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
+  const idx = useDescentStore((s) => s.sysCaptionIndex);
+  if (!arrived) return null;
+  return (
+    <nav className="planet-menu" aria-label="Journey chapters">
+      {CHAPTERS.map((c, k) => (
+        <button
+          key={c.id}
+          type="button"
+          className={`planet-menu__item${k === idx ? ' planet-menu__item--active' : ''}`}
+          style={{ '--accent': c.accent } as React.CSSProperties}
+          onClick={() => useDescentStore.setState({ sysTarget: c.sp })}
+        >
+          <span className="planet-menu__ring" aria-hidden="true" />
+          <span className="planet-menu__info">
+            <span className="planet-menu__title">
+              <span className="planet-menu__pip" aria-hidden="true" />
+              {c.title}
+            </span>
+            <span className="planet-menu__au">
+              {c.planet} · {c.au}
+            </span>
+          </span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -167,6 +210,7 @@ export function DescentOverlay() {
       <DescentController />
       <TitleCard />
       <DescentCaption />
+      <PlanetMenu />
       <ChapterPanel />
       <ArrivalFlash />
     </>

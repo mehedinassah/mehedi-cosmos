@@ -279,11 +279,15 @@ export interface Chapter {
   links?: { label: string; href: string }[];
   /** Designed scroll anchor — every chapter gets the same share of the ride. */
   sp: number;
+  /** Signature color — pips, labels, and accents pick it up per world. */
+  accent: string;
+  /** Distance from the sun, for the navigation rail. */
+  au: string;
 }
 
 export const CHAPTERS: Chapter[] = [
   {
-    id: 'sun', planet: 'the Sun', title: 'Mehedi Hassan', sp: 0.02,
+    id: 'sun', planet: 'the Sun', title: 'Mehedi Hassan', sp: 0.02, accent: '#ffce73', au: '0 AU',
     body: ['Full Stack Developer', 'Building software, games, AI tools, and interactive experiences.'],
     links: [
       { label: 'Email', href: 'mailto:idehemnassah@gmail.com' },
@@ -291,7 +295,7 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'mercury', planet: 'Mercury', title: 'About', sp: 0.1,
+    id: 'mercury', planet: 'Mercury', title: 'About', sp: 0.1, accent: '#E8927C', au: '0.39 AU',
     body: [
       'Full stack developer from Dhaka, Bangladesh.',
       'I build end to end: backend, frontend, mobile, and the pixels in between.',
@@ -300,7 +304,7 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'venus', planet: 'Venus', title: 'Skills', sp: 0.2,
+    id: 'venus', planet: 'Venus', title: 'Skills', sp: 0.2, accent: '#e99046', au: '0.72 AU',
     body: [
       'Languages: Java, Kotlin, TypeScript, Python',
       'Frontend: React, Next.js, Flutter',
@@ -312,7 +316,7 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'earth', planet: 'Earth', title: 'Experience', sp: 0.3,
+    id: 'earth', planet: 'Earth', title: 'Experience', sp: 0.3, accent: '#26daaa', au: '1 AU',
     body: [
       'Community Lead for a 90k+ member community',
       'Events with 500+ attendees',
@@ -321,12 +325,12 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'mars', planet: 'Mars', title: 'Projects', sp: 0.42,
+    id: 'mars', planet: 'Mars', title: 'Projects', sp: 0.42, accent: '#e55f45', au: '1.52 AU',
     body: ['Perico ERP', 'Top-Line', 'Whispers', 'banauAI', 'Smart Geo Landmarks', 'Android apps'],
     links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
   },
   {
-    id: 'jupiter', planet: 'Jupiter', title: 'Featured: Perico ERP', sp: 0.55,
+    id: 'jupiter', planet: 'Jupiter', title: 'Featured: Perico ERP', sp: 0.55, accent: '#ffa64d', au: '5.20 AU',
     body: [
       'The flagship build: a complete business ERP.',
       'Inventory, orders, and operations in one system.',
@@ -335,7 +339,7 @@ export const CHAPTERS: Chapter[] = [
     links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
   },
   {
-    id: 'saturn', planet: 'Saturn', title: 'Education', sp: 0.67,
+    id: 'saturn', planet: 'Saturn', title: 'Education', sp: 0.67, accent: '#cdb384', au: '9.54 AU',
     body: [
       'BSc in Computer Science',
       'BRAC University, 2022 to 2026',
@@ -345,7 +349,7 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'uranus', planet: 'Uranus', title: 'The Personal Side', sp: 0.78,
+    id: 'uranus', planet: 'Uranus', title: 'The Personal Side', sp: 0.78, accent: '#8dcdd8', au: '19.18 AU',
     body: [
       'Music on, world off',
       'Football on weekends',
@@ -355,7 +359,7 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'neptune', planet: 'Neptune', title: 'Contact', sp: 0.88,
+    id: 'neptune', planet: 'Neptune', title: 'Contact', sp: 0.88, accent: '#4f83e2', au: '30.06 AU',
     body: ['Dhaka, Bangladesh', '+880 1919 234860'],
     links: [
       { label: 'Email', href: 'mailto:idehemnassah@gmail.com' },
@@ -367,7 +371,7 @@ export const CHAPTERS: Chapter[] = [
     // The hidden easter egg at the edge of the map — a reward for whoever
     // scrolls all the way out. The last stretch of scroll belongs to the
     // departure: the ship keeps cruising and Pluto falls behind.
-    id: 'pluto', planet: 'Pluto', title: 'You found the easter egg.', sp: 0.95,
+    id: 'pluto', planet: 'Pluto', title: 'You found the easter egg.', sp: 0.95, accent: '#FF8732', au: '39.5 AU',
     body: [
       'Behind the scenes: Next.js, react three fiber, and hand written GLSL.',
       'Every star out here is procedural. No two visits render the same sky.',

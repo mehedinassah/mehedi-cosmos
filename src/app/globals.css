@@ -164,30 +164,46 @@ main { position: fixed; inset: 0; }
   to { opacity: 1; transform: translateX(-50%); }
 }
 
-/* Career chapter panel — quiet typography beside each world */
+/* Career chapter panel — quiet typography beside each world. Thin, uppercase,
+   generously letter-spaced; each world's signature color carries the label. */
 .chapter-panel {
   position: fixed;
-  left: 6%;
+  left: max(7%, 118px);
   top: 50%;
   transform: translateY(-50%);
-  max-width: 360px;
+  max-width: 380px;
   pointer-events: none;
   z-index: 5;
   animation: chapter-in 1.4s ease both;
   text-shadow: 0 0 16px rgba(1, 1, 4, 0.9);
 }
 .chapter-panel__planet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 11px;
   font-weight: 300;
   letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: rgba(190, 202, 230, 0.55);
+  color: var(--accent, rgba(190, 202, 230, 0.55));
+}
+.chapter-panel__pip {
+  width: 26px;
+  height: 2px;
+  background: var(--accent, rgba(190, 202, 230, 0.55));
+  flex: none;
+}
+.chapter-panel__au {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: rgba(190, 202, 230, 0.42);
 }
 .chapter-panel__title {
-  margin: 14px 0 18px;
-  font-size: 30px;
+  margin: 16px 0 18px;
+  font-size: 27px;
   font-weight: 200;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
   color: rgba(240, 244, 255, 0.94);
 }
 .chapter-panel__line {
@@ -216,7 +232,98 @@ main { position: fixed; inset: 0; }
 .chapter-panel__links a:hover,
 .chapter-panel__links a:focus-visible {
   color: #fff;
-  border-bottom-color: rgba(235, 240, 255, 0.9);
+  border-bottom-color: var(--accent, rgba(235, 240, 255, 0.9));
+}
+
+/* Navigation rail — every world is one quiet ring at the far left. The
+   active ring fills with its world's color; hover reveals the chapter and
+   distance. Clicking moves only the scroll target: the ship glides there. */
+.planet-menu {
+  position: fixed;
+  left: 26px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  z-index: 7;
+}
+.planet-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+.planet-menu__ring {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(220, 228, 248, 0.5);
+  border-radius: 50%;
+  transition: all 0.35s ease;
+}
+.planet-menu__item:hover .planet-menu__ring {
+  border-color: var(--accent);
+}
+.planet-menu__item--active .planet-menu__ring {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+.planet-menu__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+  text-shadow: 0 0 14px rgba(1, 1, 4, 0.95), 0 0 5px rgba(1, 1, 4, 0.9);
+  white-space: nowrap;
+}
+/* Labels reveal on hover/focus only — the ACTIVE chapter's story is already
+   on screen (the panel), so its rail item keeps just the filled ring and
+   never collides with the panel text beside it. */
+.planet-menu__item:hover .planet-menu__info,
+.planet-menu__item:focus-visible .planet-menu__info {
+  opacity: 1;
+  transform: none;
+}
+.planet-menu__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(235, 240, 255, 0.9);
+}
+.planet-menu__pip {
+  width: 0;
+  height: 8px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+.planet-menu__item--active .planet-menu__pip {
+  width: 20px;
+}
+.planet-menu__au {
+  font-size: 8px;
+  font-weight: 300;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.75;
+}
+@media (max-width: 720px) {
+  .planet-menu { display: none; }
 }
 @keyframes chapter-in {
   from { opacity: 0; transform: translateY(calc(-50% + 14px)); }
