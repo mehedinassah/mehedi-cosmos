@@ -217,12 +217,14 @@ export function CameraDirector() {
           lookTarget.current
             .copy(GALAXY_REST_LOOK)
             .lerp(descentAhead.current, THREE.MathUtils.smoothstep(dp, 0.12, 0.42))
-            .lerp(DESTINATION_STAR, THREE.MathUtils.smoothstep(dp, 0.85, 0.96));
+            // Ease the gaze onto the destination star over a LONG range so a
+            // fast scroll never whips the view across at the end.
+            .lerp(DESTINATION_STAR, THREE.MathUtils.smoothstep(dp, 0.5, 0.98));
           // Speed sensation mid-dive, easing off for the arrival
           if (!reducedMotion) {
             cam.fov =
               baseFov.current +
-              6 * THREE.MathUtils.smoothstep(dp, 0.15, 0.55) * (1 - THREE.MathUtils.smoothstep(dp, 0.8, 0.98));
+              4 * THREE.MathUtils.smoothstep(dp, 0.15, 0.55) * (1 - THREE.MathUtils.smoothstep(dp, 0.8, 0.98));
             cam.updateProjectionMatrix();
           }
           break;
@@ -284,16 +286,25 @@ export function CameraDirector() {
       cam.position.add(parallaxApplied.current);
     }
 
-    // BreathingIdle — additive, always-on layer (§5.1); zero under reduced motion
+    // BreathingIdle — the resting-hero sway. It must NOT ride along during
+    // the active dive: fade it out the moment the descent commits, and cap the
+    // amplitude so a far focal point (the receding galaxy) can't turn it into
+    // a large sway during flight.
     if (!reducedMotion && j.phase !== 'INTRO') {
-      const focal = cam.position.distanceTo(lookTarget.current);
-      const amp = focal * 0.003;
-      cam.position.x += Math.sin(t * 0.31) * amp * delta * 3;
-      cam.position.y += Math.sin(t * 0.23 + 1.7) * amp * delta * 3;
+      const restWeight = j.phase === 'IDLE' ? 1 - THREE.MathUtils.smoothstep(dp, 0.01, 0.08) : 1;
+      if (restWeight > 0.001) {
+        const focal = cam.position.distanceTo(lookTarget.current);
+        const amp = Math.min(focal * 0.003, 55) * restWeight;
+        cam.position.x += Math.sin(t * 0.31) * amp * delta * 3;
+        cam.position.y += Math.sin(t * 0.23 + 1.7) * amp * delta * 3;
+      }
     }
 
-    // Look-lag: the gaze trails the intent — drone weight, never a rigid rig
-    currentLook.current.lerp(lookTarget.current, 1 - Math.exp(-3.2 * delta));
+    // Look-lag: the gaze trails the intent — drone weight, never a rigid rig.
+    // Track tighter during the dive so the view stays locked to the flight
+    // (a loose lag whips when a fast scroll moves the target quickly).
+    const lookRate = j.phase === 'IDLE' && dp > 0.02 ? 5.5 : 3.2;
+    currentLook.current.lerp(lookTarget.current, 1 - Math.exp(-lookRate * delta));
     cam.lookAt(currentLook.current);
 
     // Micro roll while resting on the hero: a body floating in space has no
@@ -301,9 +312,9 @@ export function CameraDirector() {
     // Applied after lookAt, which re-levels the camera every frame, so the
     // roll never accumulates.
     if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
-      // Galaxy chapter only (the system chapter returns early with a fixed
-      // orientation): level out as the descent approaches arrival
-      const settle = 1 - THREE.MathUtils.smoothstep(dp, 0.88, 1);
+      // Galaxy hero rest only. Level the roll out as soon as the dive commits
+      // (not at the very end) so the camera never banks while flying.
+      const settle = 1 - THREE.MathUtils.smoothstep(dp, 0.02, 0.14);
       cam.rotateZ((Math.sin(t * 0.07) * 0.013 + Math.sin(t * 0.023 + 2.0) * 0.009) * settle);
     }
 
