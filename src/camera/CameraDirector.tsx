@@ -8,7 +8,6 @@ import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
 import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, OUTER_RADIUS } from '@/world/galaxy/HeroGalaxy';
-import { RAIL } from '@/world/system/systemSpec';
 import {
   buildDescentCurve,
   DESTINATION_STAR,
@@ -21,24 +20,33 @@ import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
 function easeInOutCubic(x: number): number {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
-const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
-
 /* ------------------------- the loop home ------------------------- */
-// After Pluto, drift forward off the rail's end into deep space, then (in the
-// dark) approach the galaxy from very far so the Milky Way EMERGES ahead and
-// settles exactly on the opening vantage. The camera never turns around — the
-// universe changes around it.
-const LOOP_SWAP = 0.44; // fraction: solar-system drift -> galaxy approach
-const LOOP_DRIFT = 34000;
-const _le = RAIL.getPoint(1);
-const _lep = RAIL.getPoint(0.992);
-const LOOP_DRIFT_DIR = _le.clone().sub(_lep).normalize();
-const LOOP_A_START = _le.clone();
+// ONE continuous flight from Pluto all the way to the opening galaxy vantage.
+// No region swap, no unmount: both worlds are mounted for the whole loop, so
+// the solar system recedes by DISTANCE and the galaxy grows by APPROACH.
+// Nothing pops in or out; the camera simply travels farther.
 const GAL_VIEW_DIR = GALAXY_CAM_POS.clone().sub(GALAXY_CENTER).normalize();
-// Galaxy as a distant smudge, dead ahead, at the start of the approach.
-// Kept inside the 120k far plane (disc far rim ~ 4R + tilt < far).
-const LOOP_B_START = GALAXY_CENTER.clone().addScaledVector(GAL_VIEW_DIR, OUTER_RADIUS * 4.0);
+// A waypoint far out on the opening axis, so the final leg aligns with the
+// exact opening approach direction.
+const LOOP_WP = GALAXY_CENTER.clone().addScaledVector(GAL_VIEW_DIR, OUTER_RADIUS * 3.4);
 const _loopLook = new THREE.Vector3();
+const _loopAhead = new THREE.Vector3();
+// Velocity profile: a long, flat cruise with gentle shoulders — accelerate
+// smoothly, hold speed, decelerate softly. No 0-to-full jump, no mid bump.
+function loopVel(x: number): number {
+  const A = 0.24, D = 0.72; // accel ends at A, decel starts at D
+  if (x < A) {
+    const k = x / A;
+    return A * 0.5 * k * k; // ease-in (quadratic) over the accel band
+  }
+  if (x < D) {
+    return A * 0.5 + (x - A); // constant cruise
+  }
+  const k = (x - D) / (1 - D);
+  const cruise = A * 0.5 + (D - A);
+  return cruise + (1 - D) * (k - 0.5 * k * k); // ease-out to a soft stop
+}
+const LOOP_VEL_MAX = loopVel(1);
 
 
 /**
@@ -105,6 +113,7 @@ export function CameraDirector() {
   const parallaxApplied = useRef(new THREE.Vector3());
   const idleDrift = useRef(0);
   const descentCurve = useRef<THREE.CatmullRomCurve3 | null>(null);
+  const loopCurve = useRef<THREE.CatmullRomCurve3 | null>(null);
   const descentAhead = useRef(new THREE.Vector3());
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
@@ -134,34 +143,42 @@ export function CameraDirector() {
     }
     lastStage.current = descent.stage;
 
-    // ---- the loop home: Pluto -> deep space -> galaxy -> opening ----
+    // ---- the loop home: Pluto -> the opening galaxy, one continuous flight --
     if (descent.stage === 'LOOPING' && descent.tField === 'loop') {
-      const lp = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);
-      if (lp < LOOP_SWAP) {
-        // Phase A: coast forward off the rail's end; the solar system falls
-        // behind and shrinks. Constant velocity — never a reset animation.
-        if (descent.loopHalf !== 0) useDescentStore.setState({ loopHalf: 0 });
-        const a = lp / LOOP_SWAP;
-        cam.position.copy(LOOP_A_START).addScaledVector(LOOP_DRIFT_DIR, LOOP_DRIFT * a);
-        _loopLook.copy(cam.position).add(LOOP_DRIFT_DIR);
-      } else {
-        // Phase B: approach the galaxy from far away. It emerges from the
-        // dark and grows into the exact opening framing. The region swap
-        // happens here, in near-empty space, so it is never seen.
-        if (descent.loopHalf !== 1) useDescentStore.setState({ loopHalf: 1 });
-        const b = easeOutCubic((lp - LOOP_SWAP) / (1 - LOOP_SWAP));
-        cam.position.lerpVectors(LOOP_B_START, GALAXY_CAM_POS, b);
-        // Land on the EXACT opening rest gaze so the handoff to idle drift has
-        // no pop.
-        _loopLook.copy(GALAXY_REST_LOOK);
+      // Build the flight once, from wherever the camera actually is (Pluto's
+      // berth). It coasts outward from the sun, curves gently toward the
+      // galaxy, and ends exactly on the opening approach axis. Centripetal
+      // Catmull-Rom => no kinks. Both worlds are mounted the whole time
+      // (UniverseCanvas), so the system recedes and the galaxy grows with no
+      // swap and no build hitch mid-flight.
+      if (!loopCurve.current) {
+        const p0 = cam.position.clone();
+        const outward = p0.clone().normalize(); // away from the sun at origin
+        const p1 = p0.clone().addScaledVector(outward, 42000);
+        loopCurve.current = new THREE.CatmullRomCurve3(
+          [p0, p1, LOOP_WP, GALAXY_CAM_POS.clone()],
+          false,
+          'centripetal',
+        );
       }
+      const lp = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);
+      const te = loopVel(lp) / LOOP_VEL_MAX; // 0..1 arc fraction, smooth velocity
+      const curve = loopCurve.current;
+      curve.getPoint(te, cam.position);
+      // Look along the path; ease onto the exact opening gaze at the very end
+      // so the handoff to idle drift is pop-free.
+      curve.getPoint(Math.min(te + 0.02, 1), _loopAhead);
+      _loopLook.copy(_loopAhead);
+      _loopLook.lerp(GALAXY_REST_LOOK, THREE.MathUtils.smoothstep(lp, 0.82, 1.0));
       currentLook.current.lerp(_loopLook, 1 - Math.exp(-4 * delta));
+      cam.up.set(0, 1, 0);
       cam.lookAt(currentLook.current);
       cam.fov = baseFov.current;
       cam.updateProjectionMatrix();
       cam.clearViewOffset();
       if (lp >= 1) {
-        // Home. Seamless: the camera already sits at the opening vantage.
+        // Home — already sitting at the opening vantage. Seamless handoff.
+        loopCurve.current = null;
         useDescentStore.setState({
           stage: 'DORMANT', navIndex: 0, navBusy: false,
           tField: null, loopHalf: 0, smoothed: 0, sysSmoothed: 0, sysCaptionIndex: -1,
@@ -372,37 +389,14 @@ export function CameraDirector() {
       cam.position.add(parallaxApplied.current);
     }
 
-    // BreathingIdle — the resting-hero sway. It must NOT ride along during
-    // the active dive: fade it out the moment the descent commits, and cap the
-    // amplitude so a far focal point (the receding galaxy) can't turn it into
-    // a large sway during flight.
-    if (!reducedMotion && j.phase !== 'INTRO') {
-      const restWeight = j.phase === 'IDLE' ? 1 - THREE.MathUtils.smoothstep(dp, 0.01, 0.08) : 1;
-      if (restWeight > 0.001) {
-        const focal = cam.position.distanceTo(lookTarget.current);
-        const amp = Math.min(focal * 0.003, 55) * restWeight;
-        cam.position.x += Math.sin(t * 0.31) * amp * delta * 3;
-        cam.position.y += Math.sin(t * 0.23 + 1.7) * amp * delta * 3;
-      }
-    }
-
-    // Look-lag: the gaze trails the intent — drone weight, never a rigid rig.
-    // Track tighter during the dive so the view stays locked to the flight
-    // (a loose lag whips when a fast scroll moves the target quickly).
+    // Look-lag: the gaze trails the intent with drone weight. NO breathing
+    // sway and NO micro-roll — world-up is locked every frame, so the horizon
+    // never tilts, the camera never banks, and there is zero jitter. The ship
+    // is perfectly stabilised.
     const lookRate = j.phase === 'IDLE' && dp > 0.02 ? 5.5 : 3.2;
     currentLook.current.lerp(lookTarget.current, 1 - Math.exp(-lookRate * delta));
+    cam.up.set(0, 1, 0);
     cam.lookAt(currentLook.current);
-
-    // Micro roll while resting on the hero: a body floating in space has no
-    // "up" — a barely-perceptible bank (~1°) breaks the tripod feeling.
-    // Applied after lookAt, which re-levels the camera every frame, so the
-    // roll never accumulates.
-    if (!reducedMotion && (j.phase === 'INTRO' || j.phase === 'IDLE')) {
-      // Galaxy hero rest only. Level the roll out as soon as the dive commits
-      // (not at the very end) so the camera never banks while flying.
-      const settle = 1 - THREE.MathUtils.smoothstep(dp, 0.02, 0.14);
-      cam.rotateZ((Math.sin(t * 0.07) * 0.013 + Math.sin(t * 0.023 + 2.0) * 0.009) * settle);
-    }
 
     // Rule of thirds: shift the frustum so the subject composes off-center
     // (setViewOffset — the subject stays correctly tracked/lit, only the

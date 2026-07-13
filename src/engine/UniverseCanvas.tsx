@@ -49,9 +49,13 @@ export function UniverseCanvas() {
   // the second half shows the galaxy re-emerging (the swap is masked by the
   // near-empty deep space between them).
   const stage = useDescentStore((s) => s.stage);
-  const loopHalf = useDescentStore((s) => s.loopHalf);
-  const showSystem = stage === 'ARRIVED' || (stage === 'LOOPING' && loopHalf === 0);
-  const showGalaxy = !showSystem;
+  // During the LOOP home BOTH worlds are mounted at once: the solar system
+  // recedes into the distance while the galaxy grows ahead — one persistent
+  // universe, nothing popping in or out. The dive scenery (DescentField) only
+  // exists for the galaxy->sun descent, never the loop.
+  const showSystem = stage === 'ARRIVED' || stage === 'LOOPING';
+  const showGalaxy = stage !== 'ARRIVED';
+  const showDescentField = stage === 'DORMANT' || stage === 'DESCENDING';
 
   useEffect(() => {
     const { tier } = probeCapabilities();
@@ -86,12 +90,8 @@ export function UniverseCanvas() {
       <ambientLight intensity={0.03} />
       <Starfield />
       <DeepSpace />
-      {showGalaxy && (
-        <>
-          <HeroGalaxy />
-          <DescentField />
-        </>
-      )}
+      {showGalaxy && <HeroGalaxy />}
+      {showDescentField && <DescentField />}
       {showSystem && (
         <>
           {/* The one real light: textured worlds (MeshStandard) actually use

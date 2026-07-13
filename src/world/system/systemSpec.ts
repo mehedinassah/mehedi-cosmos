@@ -411,28 +411,18 @@ DEFS.forEach((d, i) => {
   CHAP_U[d.id] = knotU(i + 3);
 });
 
-const DWELL = 0.011; // how much rail a world holds while it's the hero
-
-// Wide dwell windows: a big slice of scroll maps to the tiny bit of rail
-// around each world, so the ship slows to a crawl and lets the viewer admire
-// the hero before the narrow gaps glide on to the next.
-const PRE = 0.04;
-const POST = 0.045;
-
+// ONE anchor per chapter — no dwell windows. In the discrete FSM every flight
+// is anchor->anchor with easeInOutCubic on sp, so a monotone (dwell-free)
+// remap gives a single clean accelerate/cruise/decelerate. Dwell triples
+// stacked a second ease on top and produced a slow-fast-slow speed bump.
 const REMAP: [number, number][] = (() => {
   const pts: [number, number][] = [
-    // At rest the star already sits ahead, mid-approach; the first scroll
-    // flies in until it dominates the frame at its hero stop.
     [0, 0.05],
     [0.02, CHAP_U.sun],
-    [0.05, CHAP_U.sun + 0.02],
   ];
   for (const c of CHAPTERS) {
     if (c.id === 'sun') continue;
-    const u = CHAP_U[c.id];
-    pts.push([c.sp - PRE, u - DWELL]);
-    pts.push([c.sp, u]);
-    pts.push([c.sp + POST, u + DWELL]);
+    pts.push([c.sp, CHAP_U[c.id]]);
   }
   pts.push([1, 1]);
   // Sort and enforce strict monotonicity in both axes.
