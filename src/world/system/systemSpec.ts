@@ -220,6 +220,9 @@ const VIEW_K: Record<string, number> = {
   jupiter: 4.2, saturn: 7.0, uranus: 4.7, neptune: 4.7, pluto: 5.8,
 };
 const STANDOFF = 6.0; // fallback planet radii
+// Pull the hero framing 40% closer (apparent size is 1/distance): each world
+// renders ~40% larger at its closest stop.
+const SIZE_BOOST = 1.4;
 const FRAME_YAW = 0.36; // rad, toward the right of travel
 
 const _tan = new THREE.Vector3();
@@ -234,7 +237,7 @@ function placeWorld(def: BodyDef, knotIndex: number): THREE.Vector3 {
   _fdir.copy(_tan).applyAxisAngle(UP, -FRAME_YAW);
   _fdir.y = 0;
   _fdir.normalize();
-  const d = def.radius * (VIEW_K[def.id] ?? STANDOFF);
+  const d = (def.radius * (VIEW_K[def.id] ?? STANDOFF)) / SIZE_BOOST;
   // A gentle downward gaze: drop the world a little below the berth so the
   // level (tangent-following) view looks slightly down onto it, ~above the
   // ecliptic. The drop scales with the standoff, so the framing is identical

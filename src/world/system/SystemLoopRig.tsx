@@ -19,8 +19,11 @@ import { useDescentStore, nowS } from '@/state/descentStore';
  */
 export const systemPresence = { value: 1 };
 
-const MIN_SCALE = 0.1; // the system contracts to 1/10 size at full ascent
-const LIGHT_FLOOR = 0.14; // the Sun's light on the planets never fully dies
+// The system fades HARD on the ascent: shrinks to a tiny point and its light
+// goes to zero, so at galaxy level it is a faint speck at most, never a
+// detailed disc catching the eye. Still visible small early in the climb.
+const MIN_SCALE = 0.025; // contracts to a sub-pixel dot at full ascent
+const LIGHT_FLOOR = 0.0; // the planets go dark (invisible) as we leave
 
 /**
  * Wraps the whole solar system in one group so the loop can shrink and dim it

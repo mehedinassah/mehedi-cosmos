@@ -309,7 +309,7 @@ export function CentralStar() {
     // On the loop climb out, systemPresence dims the whole star (surface +
     // every corona shell + halo) so it recedes into a faint point among the
     // galaxy's stars instead of a glaring light. Full (1.0) everywhere else.
-    const ignite = igniteRef.current * (0.12 + 0.88 * systemPresence.value);
+    const ignite = igniteRef.current * (0.02 + 0.98 * systemPresence.value);
     matRef.current!.uniforms.uIgnite.value = ignite;
 
     for (const m of shellMats) {

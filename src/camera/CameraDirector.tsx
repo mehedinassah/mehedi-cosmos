@@ -184,8 +184,16 @@ export function CameraDirector() {
       cam.updateProjectionMatrix();
       cam.clearViewOffset();
       if (lp >= 1) {
-        // Home — already sitting at the opening vantage. Seamless handoff.
+        // Home — hold exactly where the loop landed on the galaxy. Reset the
+        // idle drift/orbit accumulators so the resting telescope CONTINUES from
+        // here instead of correcting back to the stale pre-descent pose (that
+        // correction was the shake/turn/tilt at the end of the loop). We do not
+        // restore any earlier camera position; the galaxy keeps turning on its
+        // own and the camera simply stays on it.
         loopCurve.current = null;
+        orbitAngle.current = 0;
+        idleDrift.current = 0;
+        pointerSmooth.current.set(0, 0);
         useDescentStore.setState({
           stage: 'DORMANT', navIndex: 0, navBusy: false,
           tField: null, loopHalf: 0, smoothed: 0, sysSmoothed: 0, sysCaptionIndex: -1,
