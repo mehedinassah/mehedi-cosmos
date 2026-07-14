@@ -11,6 +11,7 @@ import ringsFrag from '@/shaders/materials/rings/rings.frag';
 import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
+import { EarthImpact } from '@/world/system/EarthImpact';
 import { useDescentStore } from '@/state/descentStore';
 import {
   HEROES,
@@ -181,10 +182,14 @@ function Hero({ spec }: { spec: HeroSpec }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const cloudRef = useRef<THREE.Mesh>(null);
 
+  const isEarth = spec.id === 'earth';
   useFrame((state, delta) => {
-    // Visible, slow rotation — nothing in space is a still image
-    if (meshRef.current) meshRef.current.rotation.y += delta * (spec.radius >= 20 ? 0.02 : 0.008);
-    if (cloudRef.current) cloudRef.current.rotation.y += delta * 0.012;
+    // Visible rotation — nothing in space is a still image. Earth spins fast
+    // enough that a lingering viewer notices, with clouds drifting faster than
+    // the land under them (a living planet, not a globe).
+    const spin = isEarth ? 0.055 : spec.radius >= 20 ? 0.02 : 0.008;
+    if (meshRef.current) meshRef.current.rotation.y += delta * spin;
+    if (cloudRef.current) cloudRef.current.rotation.y += delta * (isEarth ? 0.09 : 0.012);
     atmosphere.uniforms.uCameraPos.value.copy(state.camera.position);
   });
 
@@ -681,6 +686,9 @@ export function SolarSystem() {
           station lights) and a slower, wider ring of satellites */}
       <OrbitGlints center={earth.position} count={5} radius={10.5} speed={0.34} size={0.9} color={[0.85, 0.8, 0.7]} seed={733} />
       <OrbitGlints center={earth.position} count={8} radius={14} speed={0.14} size={0.55} color={[0.6, 0.64, 0.72]} seed={947} />
+      {/* Earth carries its real-world impact: labeled satellites, aurora,
+          night-side lightning, drifting debris. Fades in at the Earth stop. */}
+      <EarthImpact center={earth.position} radius={earth.radius} />
       <AsteroidBelt />
       <KuiperBelt />
       <ZodiacalDust />

@@ -325,12 +325,13 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'earth', planet: 'Earth', title: 'Experience', sp: 0.3, accent: '#26daaa', au: '1 AU',
+    id: 'earth', planet: 'Earth', title: 'Human Impact', sp: 0.3, accent: '#26daaa', au: '1 AU',
     body: [
-      'Community Lead for a 90k+ member community',
-      'Events with 500+ attendees',
-      'Verified Upwork freelancer',
-      'BRAC University',
+      'Built communities.',
+      'Led teams.',
+      'Organized events.',
+      'Worked with clients.',
+      'Everything here happened on Earth.',
     ],
   },
   {

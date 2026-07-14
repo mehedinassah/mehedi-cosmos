@@ -212,6 +212,21 @@ main { position: fixed; inset: 0; }
   text-transform: uppercase;
   color: rgba(240, 244, 255, 0.94);
 }
+/* radio-transmission caret — a thin accent bar that blinks while the title types */
+.type-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 0.08em;
+  vertical-align: -0.12em;
+  background: var(--accent, rgba(190, 202, 230, 0.8));
+  box-shadow: 0 0 10px var(--accent, rgba(190, 202, 230, 0.6));
+  animation: caret-blink 0.6s steps(1) infinite;
+}
+@keyframes caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
 .chapter-panel__line {
   margin: 8px 0;
   font-size: 13px;

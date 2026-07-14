@@ -132,6 +132,30 @@ function DescentCaption() {
   );
 }
 
+/** Radio-transmission reveal: the letters arrive one by one, fast (~38ms
+ *  each, NASA telemetry), with a blinking caret until the line completes.
+ *  Restarts whenever the text changes (each chapter remounts the panel). */
+function TypeReveal({ text, className }: { text: string; className?: string }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    setN(0);
+    let i = 0;
+    const id = window.setInterval(() => {
+      i += 1;
+      setN(i);
+      if (i >= text.length) window.clearInterval(id);
+    }, 38);
+    return () => window.clearInterval(id);
+  }, [text]);
+  const done = n >= text.length;
+  return (
+    <span className={className}>
+      {text.slice(0, n)}
+      {!done && <span className="type-caret" aria-hidden="true" />}
+    </span>
+  );
+}
+
 /** Career chapter panel — the reason the journey exists. One celestial
  *  body, one chapter; quiet typography beside the world it belongs to.
  *  Each world's signature color tints its label and link underlines. */
@@ -152,7 +176,9 @@ function ChapterPanel() {
         {c.planet}
         <span className="chapter-panel__au">{c.au}</span>
       </div>
-      <h2 className="chapter-panel__title">{c.title}</h2>
+      <h2 className="chapter-panel__title">
+        <TypeReveal text={c.title} />
+      </h2>
       {c.body.map((line) => (
         <p key={line} className="chapter-panel__line">
           {line}
