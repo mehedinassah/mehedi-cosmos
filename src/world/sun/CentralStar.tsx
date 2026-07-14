@@ -13,6 +13,7 @@ import { useUiStore } from '@/state/uiStore';
 import { useSunRefStore } from '@/state/sunRefStore';
 import { bodyById } from '@/content/universe';
 import { Prominences } from './Prominences';
+import { systemPresence } from '@/world/system/SystemLoopRig';
 
 function coronaHaloTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
@@ -305,12 +306,16 @@ export function CentralStar() {
     const phase = useUiStore.getState().introPhase;
     const target = phase === 'DARKNESS' || phase === 'PARTICLE' ? 0 : phase === 'FORMATION' ? 0.35 : 1;
     igniteRef.current = THREE.MathUtils.damp(igniteRef.current, target, 1.2, delta + 1 / 60);
-    matRef.current!.uniforms.uIgnite.value = igniteRef.current;
+    // On the loop climb out, systemPresence dims the whole star (surface +
+    // every corona shell + halo) so it recedes into a faint point among the
+    // galaxy's stars instead of a glaring light. Full (1.0) everywhere else.
+    const ignite = igniteRef.current * (0.12 + 0.88 * systemPresence.value);
+    matRef.current!.uniforms.uIgnite.value = ignite;
 
     for (const m of shellMats) {
       m.uniforms.uTime.value = t;
       m.uniforms.uCameraPos.value.copy(state.camera.position);
-      m.uniforms.uIgnite.value = igniteRef.current;
+      m.uniforms.uIgnite.value = ignite;
     }
 
     if (spriteRef.current) {
@@ -320,10 +325,10 @@ export function CentralStar() {
       // the camera approaches (system-chapter close-ups start at ~440u).
       const camDist = state.camera.position.length();
       const nearFade = THREE.MathUtils.smoothstep(camDist, 420, 1600);
-      const sc = body.scaleU * 8 * breathe * igniteRef.current * (0.35 + 0.65 * nearFade);
+      const sc = body.scaleU * 8 * breathe * ignite * (0.35 + 0.65 * nearFade);
       spriteRef.current.scale.set(sc, sc, 1);
       (spriteRef.current.material as THREE.SpriteMaterial).opacity =
-        0.75 * igniteRef.current * (0.1 + 0.9 * nearFade);
+        0.75 * ignite * (0.1 + 0.9 * nearFade);
     }
   });
 

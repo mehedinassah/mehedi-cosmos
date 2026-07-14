@@ -8,8 +8,7 @@ import { DeepSpace } from '@/world/ambient/DeepSpace';
 import { HeroGalaxy } from '@/world/galaxy/HeroGalaxy';
 import { LoopWarpField } from '@/world/galaxy/LoopWarpField';
 import { DescentField } from '@/world/galaxy/DescentField';
-import { SolarSystem } from '@/world/system/SolarSystem';
-import { CentralStar } from '@/world/sun/CentralStar';
+import { SystemLoopRig } from '@/world/system/SystemLoopRig';
 import { CameraDirector } from '@/camera/CameraDirector';
 import { CinematicEffects } from '@/engine/CinematicEffects';
 import { probeCapabilities, prefersReducedMotion } from '@/engine/capabilities';
@@ -99,15 +98,9 @@ export function UniverseCanvas() {
           the empty crossing read as real speed. Cheap + self-gating. */}
       <LoopWarpField />
       {showDescentField && <DescentField />}
-      {showSystem && (
-        <>
-          {/* The one real light: textured worlds (MeshStandard) actually use
-              it now, so decay stays 0 for readable lighting across 20k units */}
-          <pointLight position={[0, 0, 0]} intensity={2.6} distance={0} decay={0} color="#fff2dc" />
-          <CentralStar />
-          <SolarSystem />
-        </>
-      )}
+      {/* The solar system, wrapped so the loop can shrink + dim it to a speck
+          on the climb out to the galaxy (SystemLoopRig). */}
+      {showSystem && <SystemLoopRig />}
       <CinematicEffects />
     </Canvas>
   );
