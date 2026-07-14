@@ -399,21 +399,26 @@ main { position: fixed; inset: 0; }
   }
 }
 
+/* Arrival is now a gentle cinematic exposure shift, not a white flash. The
+   galaxy has already faded to nothing by the time we land (galaxyPresence), so
+   there is no swap to hide — just a soft warm bloom easing in on the Sun side
+   (right), transparent over the content panel (left), so it reads as the eye
+   adapting to the star rather than a portal flash. */
 .arrival-flash {
   position: fixed;
   inset: 0;
-  background: #fff6e6;
+  background: radial-gradient(circle at 74% 50%, rgba(255, 238, 210, 0.55), rgba(255, 224, 190, 0.12) 42%, rgba(8, 8, 14, 0) 66%);
   opacity: 0;
   pointer-events: none;
   z-index: 40;
 }
 .arrival-flash--on {
-  opacity: 1;
+  opacity: 0.62;
   transition: none;
 }
 .arrival-flash--fade {
   opacity: 0;
-  transition: opacity 2.4s ease;
+  transition: opacity 2.6s ease;
 }
 
 /* Mission Log — semantic mirror */

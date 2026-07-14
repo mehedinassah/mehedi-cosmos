@@ -10,7 +10,40 @@ import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { useUiStore } from '@/state/uiStore';
 import { useQualityStore } from '@/state/qualityStore';
-import { useDescentStore } from '@/state/descentStore';
+import { useDescentStore, nowS } from '@/state/descentStore';
+
+/**
+ * Global galaxy visibility. 1 = the Milky Way is the hero (opening galaxy
+ * chapter and the loop's arrival back home); 0 = fully hidden while inside the
+ * solar system, where the Sun is the only focus. Every galaxy layer multiplies
+ * this into its own alpha, so the galaxy fades COMPLETELY away as we descend to
+ * the Sun and only re-emerges from the dark on the loop climb back out — never
+ * a second glowing object competing with the Sun, never a bright band behind
+ * the content panel. A module ref (not store state) so per-frame writes never
+ * trigger React re-renders.
+ */
+export const galaxyPresence = { value: 1 };
+
+/** Per-frame driver for galaxyPresence — one writer, mounted in HeroGalaxy. */
+function GalaxyPresenceDriver() {
+  useFrame((_, delta) => {
+    const d = useDescentStore.getState();
+    let target = 1;
+    if (d.stage === 'ARRIVED') {
+      target = 0; // inside the solar system: galaxy gone, Sun is the hero
+    } else if (d.stage === 'DESCENDING') {
+      // Diving in from the galaxy: it fades right out, gone well before the Sun
+      // becomes visible, so the two are never both bright at once.
+      target = 1 - THREE.MathUtils.smoothstep(d.smoothed, 0.08, 0.5);
+    } else if (d.stage === 'LOOPING') {
+      // Climbing back out: emerge slowly from the dark, full by the arrival.
+      const lp = THREE.MathUtils.clamp((nowS() - d.tStart) / d.tDur, 0, 1);
+      target = THREE.MathUtils.smoothstep(lp, 0.2, 0.9);
+    }
+    galaxyPresence.value = THREE.MathUtils.damp(galaxyPresence.value, target, 3.5, delta);
+  });
+  return null;
+}
 
 /**
  * The opening scene's centerpiece — a full galaxy, built like an
@@ -205,7 +238,9 @@ function useRevealDriver(
     const phase = useUiStore.getState().introPhase;
     const target = phase === 'DARKNESS' ? 0 : phase === 'PARTICLE' ? particleValue : 1;
     v.current = THREE.MathUtils.damp(v.current, target, speed, delta);
-    apply(v.current);
+    // Journey presence gates every galaxy layer: full in the galaxy chapter,
+    // zero inside the solar system, fading across the transitions.
+    apply(v.current * galaxyPresence.value);
   });
 }
 
@@ -539,7 +574,7 @@ function CoreGlow() {
       const m = matRefs.current[i];
       if (m) {
         const breath = 1 + 0.08 * Math.sin(t * (0.05 + i * 0.019) + i * 1.4);
-        m.opacity = vRef.current * CORE_LAYERS[i].opacity * breath;
+        m.opacity = vRef.current * CORE_LAYERS[i].opacity * breath * galaxyPresence.value;
       }
     }
   });
@@ -980,7 +1015,8 @@ function GalaxyMeteors() {
       let a = 0;
       if (m.life <= 0) {
         m.cooldown -= delta;
-        if (m.cooldown <= 0 && !reduced) {
+        // Only streak while the galaxy is present; silent inside the solar system.
+        if (m.cooldown <= 0 && !reduced && galaxyPresence.value > 0.6) {
           spawn(m);
           m.cooldown = 20 + Math.random() * 22;
         }
@@ -989,7 +1025,7 @@ function GalaxyMeteors() {
         m.head.addScaledVector(m.vel, delta);
         // fade in over the first 25%, out over the last 45%
         const p = 1 - m.life / m.dur;
-        a = Math.min(p / 0.25, 1) * Math.min((1 - p) / 0.45, 1);
+        a = Math.min(p / 0.25, 1) * Math.min((1 - p) / 0.45, 1) * galaxyPresence.value;
       }
       const dir = m.vel.clone().normalize();
       const hx = m.head.x, hy = m.head.y, hz = m.head.z;
@@ -1018,13 +1054,13 @@ function CoreLight() {
     const l = lightRef.current;
     if (!l) return;
     const phase = useUiStore.getState().introPhase;
-    // The galaxy is always mounted, but during the system chapter it sits far
-    // behind the camera — its core light must not add a second light source
-    // onto the planets (the sun at the origin is the only light there).
-    const inSystem = useDescentStore.getState().stage === 'ARRIVED';
-    const alive = !(phase === 'DARKNESS' || phase === 'PARTICLE') && !inSystem;
+    // The core light follows galaxyPresence: full while the galaxy is the hero,
+    // faded to nothing inside the solar system so the Sun at the origin is the
+    // only light source there. Tied to presence (not a hard ARRIVED gate) so it
+    // also eases down across the descent and back up on the loop climb.
+    const alive = !(phase === 'DARKNESS' || phase === 'PARTICLE');
     const breath = 1 + 0.07 * Math.sin(state.clock.elapsedTime * 0.12);
-    const target = alive ? 1.4 * breath : 0;
+    const target = alive ? 1.4 * breath * galaxyPresence.value : 0;
     l.intensity = THREE.MathUtils.damp(l.intensity, target, 0.8, delta);
   });
   return <pointLight ref={lightRef} position={GALAXY_CENTER} color="#ffdcab" intensity={0} decay={0.4} distance={0} />;
@@ -1033,6 +1069,7 @@ function CoreLight() {
 export function HeroGalaxy() {
   return (
     <group name="hero-galaxy">
+      <GalaxyPresenceDriver />
       <GalaxyDisc />
       <GalaxyStars />
       <GalaxyHaze />

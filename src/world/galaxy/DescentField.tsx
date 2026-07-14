@@ -191,9 +191,13 @@ function DestinationStar() {
     }
     const fl = flareRef.current;
     if (fl) {
-      const s = 2000 + flare * 40000; // washes the frame: masks the scene swap
+      // A soft warm bloom around the arriving star — NOT a frame-washing white
+      // flash. The galaxy has already faded (galaxyPresence) and origin is the
+      // dive's destination, so there is no scene swap left to mask; this just
+      // blooms the Sun in gently as the eye adapts to it.
+      const s = 2000 + flare * 13000;
       fl.scale.set(s, s, 1);
-      (fl.material as THREE.SpriteMaterial).opacity = flare;
+      (fl.material as THREE.SpriteMaterial).opacity = flare * 0.42;
     }
   });
 
