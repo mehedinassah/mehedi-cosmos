@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { assembleShader } from '@/shaders/assemble';
 import atmoVert from '@/shaders/materials/atmosphere/atmo.vert';
@@ -12,6 +12,7 @@ import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 import { EarthImpact } from '@/world/system/EarthImpact';
+import { earthFocus } from '@/state/earthHoverStore';
 import { useDescentStore } from '@/state/descentStore';
 import {
   HEROES,
@@ -183,21 +184,87 @@ function Hero({ spec }: { spec: HeroSpec }) {
   const cloudRef = useRef<THREE.Mesh>(null);
 
   const isEarth = spec.id === 'earth';
+  // Drag-to-spin (Earth only): pointer drag rotates the globe without moving
+  // the camera. pendingDelta is applied on the next frame; inertia carries a
+  // little spin after release.
+  const dragging = useRef(false);
+  const lastX = useRef(0);
+  const pendingDelta = useRef(0);
+  const inertia = useRef(0);
+
+  useEffect(() => {
+    if (!isEarth) return;
+    const move = (ev: PointerEvent) => {
+      if (!dragging.current) return;
+      const dx = ev.clientX - lastX.current;
+      lastX.current = ev.clientX;
+      const d = dx * 0.006;
+      pendingDelta.current += d;
+      inertia.current = d;
+    };
+    const up = () => {
+      if (dragging.current) {
+        dragging.current = false;
+        document.body.style.cursor = '';
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+  }, [isEarth]);
+
   useFrame((state, delta) => {
     // Visible rotation — nothing in space is a still image. Earth spins fast
     // enough that a lingering viewer notices, with clouds drifting faster than
-    // the land under them (a living planet, not a globe).
-    const spin = isEarth ? 0.055 : spec.radius >= 20 ? 0.02 : 0.008;
-    if (meshRef.current) meshRef.current.rotation.y += delta * spin;
-    if (cloudRef.current) cloudRef.current.rotation.y += delta * (isEarth ? 0.09 : 0.012);
+    // the land under them (a living planet, not a globe), and it can be dragged.
+    if (isEarth) {
+      let surfInc: number;
+      if (dragging.current) {
+        surfInc = pendingDelta.current;
+        pendingDelta.current = 0;
+      } else {
+        surfInc = delta * 0.055 + inertia.current;
+        inertia.current *= Math.pow(0.9, delta * 60);
+        if (Math.abs(inertia.current) < 1e-5) inertia.current = 0;
+      }
+      if (meshRef.current) meshRef.current.rotation.y += surfInc;
+      if (cloudRef.current) cloudRef.current.rotation.y += surfInc + delta * 0.035;
+    } else {
+      const spin = spec.radius >= 20 ? 0.02 : 0.008;
+      if (meshRef.current) meshRef.current.rotation.y += delta * spin;
+      if (cloudRef.current) cloudRef.current.rotation.y += delta * 0.012;
+    }
     atmosphere.uniforms.uCameraPos.value.copy(state.camera.position);
   });
+
+  const onEarthDown = (e: ThreeEvent<PointerEvent>) => {
+    if (earthFocus() < 0.4) return;
+    e.stopPropagation();
+    dragging.current = true;
+    lastX.current = e.nativeEvent.clientX;
+    inertia.current = 0;
+    document.body.style.cursor = 'grabbing';
+  };
+  const onEarthOver = () => {
+    if (earthFocus() > 0.4 && !dragging.current) document.body.style.cursor = 'grab';
+  };
+  const onEarthOut = () => {
+    if (!dragging.current) document.body.style.cursor = '';
+  };
 
   // The giants fill real screen space on their pass — they need the density
   const segs = spec.radius >= 20 ? 96 : 64;
   return (
     <group position={spec.position}>
-      <mesh ref={meshRef}>
+      <mesh
+        ref={meshRef}
+        onPointerDown={isEarth ? onEarthDown : undefined}
+        onPointerOver={isEarth ? onEarthOver : undefined}
+        onPointerOut={isEarth ? onEarthOut : undefined}
+      >
         <sphereGeometry args={[spec.radius, segs, segs]} />
         <primitive object={surface} attach="material" />
       </mesh>

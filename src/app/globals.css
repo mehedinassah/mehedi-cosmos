@@ -212,6 +212,64 @@ main { position: fixed; inset: 0; }
   text-transform: uppercase;
   color: rgba(240, 244, 255, 0.94);
 }
+/* Earth impact-satellite hologram — a projected holographic detail, no modal */
+.earth-holo {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  will-change: transform;
+}
+.earth-holo--on {
+  opacity: 1;
+}
+.earth-holo__pin {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6cffd6;
+  box-shadow: 0 0 12px rgba(60, 255, 208, 0.9);
+}
+.earth-holo__card {
+  position: absolute;
+  left: 18px;
+  bottom: 10px;
+  min-width: 196px;
+  max-width: 262px;
+  padding: 12px 15px;
+  background: linear-gradient(180deg, rgba(9, 26, 24, 0.72), rgba(5, 15, 15, 0.66));
+  border: 1px solid rgba(38, 218, 170, 0.45);
+  border-left: 2px solid #26daaa;
+  box-shadow: 0 0 26px rgba(38, 218, 170, 0.16), inset 0 0 22px rgba(38, 218, 170, 0.05);
+  backdrop-filter: blur(6px);
+  transform: translateY(7px);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.earth-holo--on .earth-holo__card {
+  transform: translateY(0);
+}
+.earth-holo__title {
+  color: #55efc4;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+  text-shadow: 0 0 14px rgba(60, 255, 208, 0.4);
+}
+.earth-holo__body {
+  color: rgba(222, 238, 242, 0.86);
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.5;
+}
+
 /* radio-transmission caret — a thin accent bar that blinks while the title types */
 .type-caret {
   display: inline-block;

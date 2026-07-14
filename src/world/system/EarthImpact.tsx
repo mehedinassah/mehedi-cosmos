@@ -1,11 +1,10 @@
 'use client';
 
 import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
-import { useDescentStore } from '@/state/descentStore';
-import { CHAPTER_SP } from '@/world/system/systemSpec';
+import { IMPACT_DETAILS, earthHover, earthFocus } from '@/state/earthHoverStore';
 
 /**
  * EarthImpact — the Earth chapter stops being a resume. The planet carries its
@@ -19,14 +18,6 @@ import { CHAPTER_SP } from '@/world/system/systemSpec';
  */
 
 const ACCENT = '#26daaa';
-
-// One satellite per achievement. Big number + a one-word label.
-const IMPACT = [
-  { big: '90K+', small: 'COMMUNITY' },
-  { big: '500+', small: 'ATTENDEES' },
-  { big: 'VERIFIED', small: 'UPWORK' },
-  { big: 'BRACU', small: 'LEADERSHIP' },
-];
 
 // A crisp label rendered to a canvas: bright accent number with a soft glow,
 // a small letter-spaced caption under it, and a dark halo so it stays legible
@@ -68,17 +59,22 @@ function makeLabelTexture(big: string, small: string): THREE.CanvasTexture {
   return tex;
 }
 
-/** Proximity to the Earth chapter: 1 parked at Earth, 0 elsewhere. */
-function earthFocus(): number {
-  const d = useDescentStore.getState();
-  if (d.stage !== 'ARRIVED') return 0;
-  return 1 - THREE.MathUtils.smoothstep(Math.abs(d.sysSmoothed - CHAPTER_SP.earth), 0.02, 0.06);
-}
-
 /* -------------------- labeled impact satellites -------------------- */
+// Recruiter mode: the satellites don't all show at once. They reveal one by
+// one the longer you linger at Earth, so curiosity is rewarded.
+const REVEAL_TIMES = [0.4, 3.5, 7.5, 12];
+
 function ImpactSatellites({ radius }: { radius: number }) {
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
   const groupRef = useRef<THREE.Group>(null);
+  const satRefs = useRef<(THREE.Group | null)[]>([]);
   const focus = useRef(0);
+  const dwell = useRef(0);
+  const reveal = useRef<number[]>(IMPACT_DETAILS.map(() => 0));
+  const hoverAmt = useRef<number[]>(IMPACT_DETAILS.map(() => 0));
+  const hovered = useRef(-1);
+
   const dotTex = useMemo(
     () => makeGlowTexture([
       [0, 'rgba(190,255,232,1)'],
@@ -87,15 +83,16 @@ function ImpactSatellites({ radius }: { radius: number }) {
     ]),
     [],
   );
-  const labels = useMemo(() => IMPACT.map((s) => makeLabelTexture(s.big, s.small)), []);
+  const labels = useMemo(() => IMPACT_DETAILS.map((s) => makeLabelTexture(s.big, s.small)), []);
   const dotMats = useRef<(THREE.SpriteMaterial | null)[]>([]);
   const labelMats = useRef<(THREE.SpriteMaterial | null)[]>([]);
+  const _wp = useMemo(() => new THREE.Vector3(), []);
 
   const orbitR = radius * 1.95;
   const sats = useMemo(
     () =>
-      IMPACT.map((_, i) => {
-        const a = (i / IMPACT.length) * Math.PI * 2;
+      IMPACT_DETAILS.map((_, i) => {
+        const a = (i / IMPACT_DETAILS.length) * Math.PI * 2;
         const incl = (i % 2 === 0 ? 1 : -1) * radius * 0.5;
         return new THREE.Vector3(Math.cos(a) * orbitR, incl, Math.sin(a) * orbitR);
       }),
@@ -103,22 +100,68 @@ function ImpactSatellites({ radius }: { radius: number }) {
   );
 
   useFrame((state, delta) => {
-    focus.current = THREE.MathUtils.damp(focus.current, earthFocus(), 3, delta);
+    const f0 = earthFocus();
+    focus.current = THREE.MathUtils.damp(focus.current, f0, 3, delta);
     if (groupRef.current) groupRef.current.rotation.y += delta * 0.05;
+    // recruiter dwell timer — accrues while parked, resets on leaving
+    if (f0 > 0.6) dwell.current += delta;
+    else if (f0 < 0.2) dwell.current = 0;
+
     const f = focus.current;
     const tw = 0.85 + 0.15 * Math.sin(state.clock.elapsedTime * 1.6);
-    for (let i = 0; i < IMPACT.length; i++) {
+    for (let i = 0; i < IMPACT_DETAILS.length; i++) {
+      const rTarget = dwell.current > REVEAL_TIMES[i] ? 1 : 0;
+      reveal.current[i] = THREE.MathUtils.damp(reveal.current[i], rTarget, 3, delta);
+      const hv = hovered.current === i ? 1 : 0;
+      hoverAmt.current[i] = THREE.MathUtils.damp(hoverAmt.current[i], hv, 9, delta);
+      const shown = f * reveal.current[i];
+      const g = satRefs.current[i];
+      if (g) g.scale.setScalar(1 + hoverAmt.current[i] * 0.55);
       const dm = dotMats.current[i];
-      if (dm) dm.opacity = f * tw;
+      if (dm) dm.opacity = shown * tw * (1 + hoverAmt.current[i] * 0.5);
       const lm = labelMats.current[i];
-      if (lm) lm.opacity = f;
+      if (lm) lm.opacity = shown;
+    }
+
+    // Project the hovered satellite to screen for the DOM hologram overlay.
+    const h = hovered.current;
+    if (h >= 0 && reveal.current[h] > 0.4) {
+      const g = satRefs.current[h];
+      if (g) {
+        g.getWorldPosition(_wp);
+        _wp.project(camera);
+        earthHover.index = h;
+        earthHover.x = (_wp.x * 0.5 + 0.5) * size.width;
+        earthHover.y = (-_wp.y * 0.5 + 0.5) * size.height;
+      }
+    } else if (earthHover.index !== -1 && h < 0) {
+      earthHover.index = -1;
     }
   });
+
+  const onOver = (i: number) => (e: ThreeEvent<PointerEvent>) => {
+    if (reveal.current[i] < 0.5) return; // only revealed satellites are hoverable
+    e.stopPropagation();
+    hovered.current = i;
+    document.body.style.cursor = 'pointer';
+  };
+  const onOut = (i: number) => () => {
+    if (hovered.current === i) {
+      hovered.current = -1;
+      earthHover.index = -1;
+      document.body.style.cursor = '';
+    }
+  };
 
   return (
     <group ref={groupRef}>
       {sats.map((p, i) => (
-        <group key={i} position={p}>
+        <group key={i} position={p} ref={(g) => { satRefs.current[i] = g; }}>
+          {/* invisible, larger hit target so the tiny satellite is easy to hover */}
+          <mesh onPointerOver={onOver(i)} onPointerOut={onOut(i)}>
+            <sphereGeometry args={[radius * 0.7, 12, 12]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
           <sprite scale={[radius * 0.18, radius * 0.18, 1]}>
             <spriteMaterial
               ref={(m) => { dotMats.current[i] = m; }}

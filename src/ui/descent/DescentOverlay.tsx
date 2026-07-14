@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useJourneyStore } from '@/state/journeyStore';
 import { useDescentStore, DESCENT_CAPTIONS, nowS } from '@/state/descentStore';
 import { CHAPTERS } from '@/world/system/systemSpec';
+import { EarthHologram } from '@/ui/descent/EarthHologram';
 
 /**
  * Descent chapter DOM layer — three quiet elements and an input bridge:
@@ -272,6 +273,7 @@ export function DescentOverlay() {
       <DescentCaption />
       <PlanetMenu />
       <ChapterPanel />
+      <EarthHologram />
       <ArrivalFlash />
     </>
   );
