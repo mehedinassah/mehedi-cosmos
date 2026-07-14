@@ -216,7 +216,7 @@ function railTangent(u: number, out: THREE.Vector3): THREE.Vector3 {
 // slides past at ~0.35*K radii lateral, so K must keep that above the
 // silhouette (rings extend Saturn's to ~2.3 radii).
 const VIEW_K: Record<string, number> = {
-  mercury: 5.0, venus: 5.2, earth: 4.8, mars: 5.2,
+  mercury: 5.0, venus: 5.2, earth: 4.3, mars: 5.2,
   jupiter: 4.2, saturn: 7.0, uranus: 4.7, neptune: 4.7, pluto: 5.8,
 };
 const STANDOFF = 6.0; // fallback planet radii
@@ -224,6 +224,10 @@ const STANDOFF = 6.0; // fallback planet radii
 // renders ~40% larger at its closest stop.
 const SIZE_BOOST = 1.4;
 const FRAME_YAW = 0.36; // rad, toward the right of travel
+// Earth is the hero of its chapter: pushed further right so the globe dominates
+// and its atmosphere runs off the frame edge, leaving the left open for the
+// mission log and the on-demand holograms.
+const FRAME_YAW_BY: Record<string, number> = { earth: 0.5 };
 
 const _tan = new THREE.Vector3();
 const _fdir = new THREE.Vector3();
@@ -234,7 +238,7 @@ function placeWorld(def: BodyDef, knotIndex: number): THREE.Vector3 {
   railTangent(u, _tan);
   // Yaw the tangent about world-up to get the framing direction, then flatten
   // to the ecliptic so the world sits near the plane (its yOff does the rest).
-  _fdir.copy(_tan).applyAxisAngle(UP, -FRAME_YAW);
+  _fdir.copy(_tan).applyAxisAngle(UP, -(FRAME_YAW_BY[def.id] ?? FRAME_YAW));
   _fdir.y = 0;
   _fdir.normalize();
   const d = (def.radius * (VIEW_K[def.id] ?? STANDOFF)) / SIZE_BOOST;

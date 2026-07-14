@@ -212,59 +212,81 @@ main { position: fixed; inset: 0; }
   text-transform: uppercase;
   color: rgba(240, 244, 255, 0.94);
 }
-/* Earth impact-satellite hologram — a projected holographic detail, no modal */
+/* Earth impact-satellite hologram — a projection that builds from a scanline,
+   in the satellite's own color, connected by a thin beam, never over Earth. */
 .earth-holo {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   z-index: 8;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.22s ease;
-  will-change: transform;
+  transition: opacity 0.28s ease;
 }
 .earth-holo--on {
   opacity: 1;
 }
-.earth-holo__pin {
+.earth-holo__link {
   position: absolute;
-  left: -3px;
-  top: -3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #6cffd6;
-  box-shadow: 0 0 12px rgba(60, 255, 208, 0.9);
+  inset: 0;
+  overflow: visible;
+}
+.earth-holo__beam {
+  stroke: var(--holo, #3fd8ff);
+  stroke-width: 1;
+  opacity: 0.5;
+  stroke-dasharray: 2 4;
+}
+.earth-holo__pin {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 6px var(--holo, #3fd8ff));
 }
 .earth-holo__card {
   position: absolute;
-  left: 18px;
-  bottom: 10px;
-  min-width: 196px;
-  max-width: 262px;
+  top: 0;
+  left: 0;
+  width: 214px;
   padding: 12px 15px;
-  background: linear-gradient(180deg, rgba(9, 26, 24, 0.72), rgba(5, 15, 15, 0.66));
-  border: 1px solid rgba(38, 218, 170, 0.45);
-  border-left: 2px solid #26daaa;
-  box-shadow: 0 0 26px rgba(38, 218, 170, 0.16), inset 0 0 22px rgba(38, 218, 170, 0.05);
+  background: linear-gradient(180deg, rgba(8, 15, 20, 0.62), rgba(5, 10, 14, 0.56));
+  border: 1px solid var(--holo-a, rgba(63, 216, 255, 0.5));
+  border-left: 2px solid var(--holo, #3fd8ff);
+  box-shadow: 0 0 28px var(--holo-glow, rgba(63, 216, 255, 0.24)),
+    inset 0 0 22px var(--holo-soft, rgba(63, 216, 255, 0.12));
   backdrop-filter: blur(6px);
-  transform: translateY(7px);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  clip-path: inset(100% 0 0 0);
+  transition: clip-path 0.34s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .earth-holo--on .earth-holo__card {
-  transform: translateY(0);
+  clip-path: inset(0 0 0 0);
+}
+/* a bright scanline that sweeps up as the card builds */
+.earth-holo__scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--holo, #3fd8ff), transparent);
+  opacity: 0;
+}
+.earth-holo__card--build .earth-holo__scan {
+  animation: holo-scan 0.42s ease-out;
+}
+@keyframes holo-scan {
+  0% { bottom: 0; opacity: 0.95; }
+  100% { bottom: 100%; opacity: 0; }
 }
 .earth-holo__title {
-  color: #55efc4;
+  color: var(--holo, #3fd8ff);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.24em;
   text-transform: uppercase;
   margin-bottom: 7px;
-  text-shadow: 0 0 14px rgba(60, 255, 208, 0.4);
+  text-shadow: 0 0 14px var(--holo-glow, rgba(63, 216, 255, 0.4));
 }
 .earth-holo__body {
-  color: rgba(222, 238, 242, 0.86);
+  color: rgba(226, 238, 245, 0.88);
   font-size: 12px;
   font-weight: 300;
   line-height: 1.5;

@@ -12,7 +12,7 @@ import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 import { EarthImpact } from '@/world/system/EarthImpact';
-import { earthFocus } from '@/state/earthHoverStore';
+import { earthFocus, earthSpin } from '@/state/earthHoverStore';
 import { useDescentStore } from '@/state/descentStore';
 import {
   HEROES,
@@ -226,12 +226,17 @@ function Hero({ spec }: { spec: HeroSpec }) {
         surfInc = pendingDelta.current;
         pendingDelta.current = 0;
       } else {
-        surfInc = delta * 0.055 + inertia.current;
+        // Gentle spin — slow enough that the region satellites read as staying
+        // over their homes, fast enough to feel alive.
+        surfInc = delta * 0.022 + inertia.current;
         inertia.current *= Math.pow(0.9, delta * 60);
         if (Math.abs(inertia.current) < 1e-5) inertia.current = 0;
       }
-      if (meshRef.current) meshRef.current.rotation.y += surfInc;
-      if (cloudRef.current) cloudRef.current.rotation.y += surfInc + delta * 0.035;
+      if (meshRef.current) {
+        meshRef.current.rotation.y += surfInc;
+        earthSpin.y = meshRef.current.rotation.y; // satellites orbit WITH the surface
+      }
+      if (cloudRef.current) cloudRef.current.rotation.y += surfInc + delta * 0.02;
     } else {
       const spin = spec.radius >= 20 ? 0.02 : 0.008;
       if (meshRef.current) meshRef.current.rotation.y += delta * spin;
