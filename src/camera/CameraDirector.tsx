@@ -7,7 +7,7 @@ import { useJourneyStore } from '@/state/journeyStore';
 import { useQualityStore } from '@/state/qualityStore';
 import { bodyById, universe } from '@/content/universe';
 import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
-import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, GALAXY_RIGHT, GALAXY_UP, OUTER_RADIUS } from '@/world/galaxy/HeroGalaxy';
+import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, OUTER_RADIUS } from '@/world/galaxy/HeroGalaxy';
 import { buildDescentCurve, GALAXY_REST_LOOK } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS, SUN_SP, nowS } from '@/state/descentStore';
 import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
@@ -141,31 +141,29 @@ export function CameraDirector() {
       // (UniverseCanvas), so the system recedes and the galaxy grows with no
       // swap and no build hitch mid-flight.
       if (!loopCurve.current) {
-        // Recede, THEN approach — the crossing that sells the journey. Pluto
-        // sits almost exactly the opening's distance from the galaxy, so a
-        // straight line there never grows the galaxy and reads as "it just
-        // appeared." Instead the ship first fires OUTWARD into the intergalactic
-        // dark: the solar system falls away and the whole Milky Way shrinks to a
-        // distant smudge. Then it curves back in and the galaxy SWELLS to the
-        // hero framing — grows from a smudge into the giant spiral, the thing
-        // the eye reads as arriving. Arc-length sampling (below) holds a constant
-        // cruise the whole path; LoopWarpField streams star-dust past so the
-        // speed is felt across the empty gulf. Both worlds stay mounted
-        // (UniverseCanvas): one continuous universe, never a swap.
-        const p0 = cam.position.clone();
-        const p4 = GALAXY_CAM_POS.clone();
-        // The far vantage: out along the galaxy's own view axis, well beyond the
-        // hero distance, lifted and pushed sideways so the flight arcs THROUGH
-        // space instead of dollying straight in and out.
-        const viewDir = GALAXY_CAM_POS.clone().sub(GALAXY_CENTER).normalize();
-        const far = GALAXY_CENTER.clone()
-          .addScaledVector(viewDir, OUTER_RADIUS * 4.0)
-          .addScaledVector(GALAXY_RIGHT, OUTER_RADIUS * 1.1)
-          .addScaledVector(GALAXY_UP, OUTER_RADIUS * 0.6);
-        const p1 = p0.clone().lerp(far, 0.5);
-        const p2 = far;
-        const p3 = far.clone().lerp(p4, 0.55);
-        loopCurve.current = new THREE.CatmullRomCurve3([p0, p1, p2, p3, p4], false, 'centripetal');
+        // One continuous forward climb — Pluto up and OUT of the disc to the
+        // hero vantage. The solar system is now embedded in the galaxy (see
+        // HeroGalaxy: origin sits on the beacon arm), so leaving Pluto means
+        // rising up through the galaxy's own stars, never crossing an empty
+        // gap. We keep heading forward (away from the Sun, never back toward
+        // it) and lift out of the disc plane; the flat sea of arm-stars slowly
+        // organizes into the full spiral as we gain altitude, and we settle
+        // exactly on the opening framing. Both worlds stay mounted the whole
+        // way (UniverseCanvas) and LoopWarpField streams stars past for speed.
+        const p0 = cam.position.clone(); // Pluto
+        const p3 = GALAXY_CAM_POS.clone(); // hero vantage
+        // "Up and out of the disc" is the direction from the core to the hero.
+        const outDir = GALAXY_CAM_POS.clone().sub(GALAXY_CENTER).normalize();
+        // Forward past Pluto: continue away from the Sun (origin) and start
+        // lifting out of the plane. Never a component back toward the Sun.
+        const awayFromSun = p0.clone().normalize();
+        const p1 = p0
+          .clone()
+          .addScaledVector(awayFromSun, OUTER_RADIUS * 0.55)
+          .addScaledVector(outDir, OUTER_RADIUS * 0.55);
+        // Well clear of the disc, most of the way home.
+        const p2 = p3.clone().addScaledVector(outDir, -OUTER_RADIUS * 0.55);
+        loopCurve.current = new THREE.CatmullRomCurve3([p0, p1, p2, p3], false, 'centripetal');
       }
       const lp = THREE.MathUtils.clamp((nowS() - descent.tStart) / descent.tDur, 0, 1);
       const curve = loopCurve.current;

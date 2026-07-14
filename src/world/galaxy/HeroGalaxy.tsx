@@ -38,20 +38,42 @@ const TWIST = 2.6;
 // The descent chapter (descentPath.ts) dives into this same arm.
 export const BEACON_THETA = 2.2;
 
-export const GALAXY_CENTER = new THREE.Vector3(9000, 3800, -46000);
+// The disc is tilted for a dramatic 3/4 hero view. Where the galaxy sits and
+// where the hero camera sits are DERIVED from this tilt, so the solar system
+// lands inside the disc, out on the beacon arm.
 export const GALAXY_TILT = new THREE.Euler(
-  THREE.MathUtils.degToRad(38),
-  THREE.MathUtils.degToRad(22),
-  THREE.MathUtils.degToRad(-14),
+  THREE.MathUtils.degToRad(30),
+  THREE.MathUtils.degToRad(16),
+  THREE.MathUtils.degToRad(-12),
 );
+const _tiltQ = new THREE.Quaternion().setFromEuler(GALAXY_TILT);
+// Disc-plane basis in world space: the plane normal, plus the world directions
+// of the beacon arm's radial and tangential axes.
+const DISC_N = new THREE.Vector3(0, 1, 0).applyQuaternion(_tiltQ).normalize();
+const _beaconDir = new THREE.Vector3(Math.cos(BEACON_THETA), 0, Math.sin(BEACON_THETA))
+  .applyQuaternion(_tiltQ)
+  .normalize();
+const _beaconTan = new THREE.Vector3(-Math.sin(BEACON_THETA), 0, Math.cos(BEACON_THETA))
+  .applyQuaternion(_tiltQ)
+  .normalize();
 
-const GALAXY_VIEW_DIR = new THREE.Vector3(0.06, 0.2, 1).normalize();
-// 1.9 radii: far enough that the whole tilted disc clears the frame edges
-// (its near side no longer runs off the bottom) while the arms still reach
-// comfortably toward every side.
+// Re-center the galaxy so the WORLD ORIGIN (the solar system) sits INSIDE the
+// disc, out on the beacon arm at ~0.7 radii — the very star the descent dives
+// onto. This is what makes the system feel embedded in the galaxy instead of a
+// separate island floating beside it: the core glows ~17k units away in the
+// disc plane, the arms wrap around the planets, and there is no empty gap to
+// cross. The offset mirrors descentPath's DESTINATION_STAR, so the dive lands
+// on the Sun with no jump and the loop home is one continuous climb back out.
+export const GALAXY_CENTER = new THREE.Vector3()
+  .addScaledVector(_beaconDir, -(OUTER_RADIUS * 0.52 - 2800))
+  .addScaledVector(_beaconTan, -13800);
+
+// Hero vantage: up out of the disc plane and back over the beacon side, far
+// enough that the whole spiral clears the frame. The loop home ends here.
+const GALAXY_VIEW_DIR = DISC_N.clone().addScaledVector(_beaconDir, 0.5).normalize();
 export const GALAXY_CAM_POS = GALAXY_CENTER.clone().addScaledVector(
   GALAXY_VIEW_DIR,
-  OUTER_RADIUS * 1.9,
+  OUTER_RADIUS * 1.75,
 );
 export const GALAXY_LOOK = GALAXY_CENTER.clone();
 
