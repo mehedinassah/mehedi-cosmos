@@ -20,10 +20,23 @@ import { useDescentStore, nowS } from '@/state/descentStore';
 export const systemPresence = { value: 1 };
 
 // The system fades HARD on the ascent: shrinks to a tiny point and its light
-// goes to zero, so at galaxy level it is a faint speck at most, never a
-// detailed disc catching the eye. Still visible small early in the climb.
-const MIN_SCALE = 0.025; // contracts to a sub-pixel dot at full ascent
+// goes to zero, so it is gone almost as soon as we leave Pluto, never a disc
+// catching the eye at galaxy level.
+const MIN_SCALE = 0.02; // contracts to a sub-pixel dot
 const LIGHT_FLOOR = 0.0; // the planets go dark (invisible) as we leave
+
+// The rig is ALWAYS mounted (so the Sun shaders compile at load, not on
+// arrival). presence maps to what we want to see per stage:
+//   DORMANT / DESCENDING -> 0  (invisible dark speck at the origin; the Sun is
+//                               still compiled and ready, just not shown)
+//   ARRIVED              -> 1  (blooms in — grows + ignites together, never a
+//                               big dark occluding sphere)
+//   LOOPING              -> 1 -> 0 fast on the climb out
+function presenceTarget(stage: string, lp: number): number {
+  if (stage === 'ARRIVED') return 1;
+  if (stage === 'LOOPING') return 1 - THREE.MathUtils.smoothstep(lp, 0.0, 0.28);
+  return 0;
+}
 
 /**
  * Wraps the whole solar system in one group so the loop can shrink and dim it
@@ -36,14 +49,11 @@ export function SystemLoopRig() {
 
   useFrame((_, delta) => {
     const d = useDescentStore.getState();
-    if (d.stage === 'LOOPING') {
-      const lp = THREE.MathUtils.clamp((nowS() - d.tStart) / d.tDur, 0, 1);
-      // Full at Pluto (lp 0), shrunk+dimmed to the floor by mid-ascent.
-      const target = 1 - THREE.MathUtils.smoothstep(lp, 0.05, 0.55);
-      systemPresence.value = THREE.MathUtils.damp(systemPresence.value, target, 4, delta);
-    } else {
-      systemPresence.value = 1; // full size in every other stage
-    }
+    const lp = d.stage === 'LOOPING' ? THREE.MathUtils.clamp((nowS() - d.tStart) / d.tDur, 0, 1) : 0;
+    const target = presenceTarget(d.stage, lp);
+    // Damp everywhere so arrival BLOOMS in (0 -> 1 over ~0.5s: grows + ignites
+    // together, no pop, no dark sphere) and the loop fade stays smooth.
+    systemPresence.value = THREE.MathUtils.damp(systemPresence.value, target, 4.5, delta);
     const p = systemPresence.value;
     if (groupRef.current) groupRef.current.scale.setScalar(MIN_SCALE + (1 - MIN_SCALE) * p);
     if (lightRef.current) lightRef.current.intensity = 2.6 * (LIGHT_FLOOR + (1 - LIGHT_FLOOR) * p);

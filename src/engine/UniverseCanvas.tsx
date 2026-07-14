@@ -57,7 +57,6 @@ export function UniverseCanvas() {
   // mounted from arrival through the whole loop home; the dive scenery only
   // exists for the galaxy->sun descent.
   const showGalaxy = true;
-  const showSystem = stage === 'ARRIVED' || stage === 'LOOPING';
   const showDescentField = stage === 'DORMANT' || stage === 'DESCENDING';
 
   useEffect(() => {
@@ -98,9 +97,12 @@ export function UniverseCanvas() {
           the empty crossing read as real speed. Cheap + self-gating. */}
       <LoopWarpField />
       {showDescentField && <DescentField />}
-      {/* The solar system, wrapped so the loop can shrink + dim it to a speck
-          on the climb out to the galaxy (SystemLoopRig). */}
-      {showSystem && <SystemLoopRig />}
+      {/* The solar system is ALWAYS mounted so the Sun's heavy procedural
+          shaders compile once during the intro load, never mid-journey — the
+          old on-arrival mount stalled a frame ("Sun takes a moment to load").
+          SystemLoopRig keeps it an invisible dark speck until arrival, blooms
+          it in on arrival, and shrinks + dims it to nothing on the loop out. */}
+      <SystemLoopRig />
       <CinematicEffects />
     </Canvas>
   );

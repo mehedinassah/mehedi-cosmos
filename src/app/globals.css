@@ -111,29 +111,33 @@ main { position: fixed; inset: 0; }
 }
 .title-card h1 {
   margin: 0;
-  font-size: 26px;
-  font-weight: 200;
+  font-size: 27px;
+  font-weight: 300;
   letter-spacing: 0.42em;
   text-transform: uppercase;
-  color: rgba(240, 244, 255, 0.92);
+  color: rgba(252, 253, 255, 1);
+  /* soft dark halo so the thin type stays legible over the bright galaxy */
+  text-shadow: 0 2px 26px rgba(0, 0, 0, 0.6);
 }
 .title-card p {
   margin: 12px 0 0;
-  font-size: 11px;
-  font-weight: 300;
-  letter-spacing: 0.32em;
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: rgba(200, 210, 235, 0.6);
+  color: rgba(224, 231, 250, 0.9);
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.55);
 }
 .title-card__hint {
   margin-top: 30px;
   font-size: 10px;
-  color: rgba(180, 195, 225, 0.5);
+  color: rgba(210, 222, 248, 0.82);
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.5);
   animation: hint-pulse 3.4s ease-in-out infinite;
 }
 @keyframes hint-pulse {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 0.95; }
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 .descent-caption {

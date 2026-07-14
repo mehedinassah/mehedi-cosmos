@@ -93,7 +93,7 @@ function DescentController() {
   return null;
 }
 
-const TITLE_DELAY_MS = 3600; // part of one continuous opening sequence
+const TITLE_DELAY_MS = 900; // appears promptly, still eases in (premium, no pop)
 
 function TitleCard() {
   const phase = useJourneyStore((s) => s.phase);
@@ -113,7 +113,7 @@ function TitleCard() {
   return (
     <div className={`title-card${shown ? ' title-card--visible' : ''}`} aria-hidden={!shown}>
       <h1>Mehedi Hassan</h1>
-      <p>Creative Technologist</p>
+      <p>Developer</p>
       <p className="title-card__hint">Scroll to Begin</p>
     </div>
   );
