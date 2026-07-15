@@ -3,43 +3,47 @@ import { useDescentStore } from '@/state/descentStore';
 import { CHAPTER_SP } from '@/world/system/systemSpec';
 
 /**
- * Shared, render-loop-free bridge between the 3D Earth and the DOM holographic
- * overlay. The satellites (in the canvas) write which one is hovered, its
- * projected screen position, and its color; the hologram (a DOM layer) reads it
- * in its own rAF loop, so we never churn React state at 60fps.
+ * Shared, render-loop-free bridge between the ONE orbiting probe (in the canvas)
+ * and the DOM hologram it projects. The probe writes its own screen position,
+ * the card anchor (offset away from Earth), and the mission color; the hologram
+ * reads it in its own rAF loop so we never churn React state at 60fps.
  *
- * Restraint pass: the satellites are silent tiny objects. NO persistent labels.
- * Each carries a color and a geographic home; its achievement is revealed only
- * on hover, briefly.
+ * Direction: not five satellites — one small autonomous probe that visits each
+ * region in turn, brakes, faces the camera, and projects the story briefly.
  */
 
-export type ImpactSat = {
+export type Mission = {
   key: string;
   title: string;
+  subtitle: string;
   body: string;
-  color: string; // reserved per achievement — never all-green
-  lat: number; // geographic home (degrees)
+  color: string; // reserved per mission — never all-green
+  lat: number; // geographic home (degrees) the probe visits
   lon: number;
 };
 
-export const IMPACT_SATS: ImpactSat[] = [
-  { key: 'community', title: 'Community', body: '90,000+ members', color: '#3fd8ff', lat: 23.8, lon: 90.4 }, // cyan · Bangladesh
-  { key: 'leadership', title: 'Leadership', body: 'Community lead and organizer', color: '#eef4ff', lat: 39, lon: -98 }, // white · N. America
-  { key: 'education', title: 'Education', body: 'BSc, BRAC University', color: '#5aa0ff', lat: 20, lon: 78 }, // blue · South Asia
-  { key: 'freelance', title: 'Freelancing', body: 'Verified on Upwork', color: '#b48cff', lat: 50, lon: 10 }, // purple · Europe
-  { key: 'events', title: 'Events', body: '500+ attendees', color: '#ffcf5c', lat: -27, lon: 134 }, // gold · Australia
+// The probe tours these in order; each is a different story, its own color,
+// over a different part of the world (aspirational geography — easy to retune).
+export const MISSIONS: Mission[] = [
+  { key: 'community', title: 'Community', subtitle: 'Community Lead', body: "One of Bangladesh's largest student communities. 90,000+ members.", color: '#3fd8ff', lat: 23.8, lon: 90.4 }, // cyan · Bangladesh
+  { key: 'events', title: 'Events', subtitle: '500+ Attendees', body: 'Organized and hosted events with 500+ attendees.', color: '#ffcf5c', lat: -25, lon: 134 }, // gold · Australia
+  { key: 'leadership', title: 'Leadership', subtitle: 'Team Lead & Organizer', body: 'Led teams and ran community operations end to end.', color: '#eef2f8', lat: 39, lon: -98 }, // white · N. America
+  { key: 'freelancing', title: 'Freelancing', subtitle: 'Verified Upwork Freelancer', body: 'Completed freelance work for international clients.', color: '#b48cff', lat: 50, lon: 10 }, // purple · Europe
+  { key: 'education', title: 'Education', subtitle: 'BRAC University', body: 'BSc in Computer Science, 2022 to 2026.', color: '#5aa0ff', lat: 20, lon: 78 }, // blue · South Asia
 ];
 
-/** Hover bridge: index (-1 none), screen position, and the hovered color. */
-export const earthHover: { index: number; x: number; y: number; color: string } = {
-  index: -1,
-  x: 0,
-  y: 0,
-  color: '#3fd8ff',
-};
+/** Probe -> hologram bridge. px/py = probe screen (beam start); the DOM places
+ *  the card in the open gap to the left. color = mission color. */
+export const earthHover: {
+  active: boolean;
+  px: number;
+  py: number;
+  color: string;
+  index: number;
+} = { active: false, px: 0, py: 0, color: '#3fd8ff', index: 0 };
 
-/** Earth's live spin (surface rotation.y), so satellites can orbit WITH their
- *  regions — including under drag. Written by Hero, read by the satellites. */
+/** Earth's live spin (surface rotation.y) so the probe's targets track their
+ *  regions — including under drag. Written by Hero, read by the probe. */
 export const earthSpin = { y: 0 };
 
 /** 1 while parked at the Earth chapter, 0 elsewhere. Gates all Earth activity. */
@@ -57,5 +61,5 @@ export function latLonDir(lat: number, lon: number, out: THREE.Vector3): THREE.V
     -Math.sin(phi) * Math.cos(theta),
     Math.cos(phi),
     Math.sin(phi) * Math.sin(theta),
-  );
+  ).normalize();
 }

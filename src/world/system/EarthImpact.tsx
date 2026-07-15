@@ -1,159 +1,19 @@
 'use client';
 
 import { useMemo, useRef } from 'react';
-import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
-import { IMPACT_SATS, earthHover, earthFocus, earthSpin, latLonDir } from '@/state/earthHoverStore';
+import { earthFocus } from '@/state/earthHoverStore';
+import { EarthProbe } from '@/world/system/EarthProbe';
 
 /**
- * EarthImpact — the living Earth's impact layer, rebuilt for RESTRAINT.
+ * EarthImpact — the living Earth's ambient layer plus its ONE touring probe.
  *
- * No shouting labels. Five TINY satellites orbit their real-world regions
- * (they rotate with the globe), silent until you hover one. Each carries its
- * own reserved color. Aurora, night-side lightning and a little debris keep
- * the planet breathing. The achievement text lives only in the on-demand
- * hologram (EarthHologram) — never floating in space.
+ * The story is told by a single small drone (EarthProbe) that visits each
+ * region, faces the camera and projects a brief hologram. Everything here is
+ * the quiet life around it: aurora, night-side lightning, a little debris.
  */
-
-/** A tiny glowing dot in the satellite's own color, white-hot at the core. */
-function makeDotTexture(color: string): THREE.CanvasTexture {
-  const s = 64;
-  const c = document.createElement('canvas');
-  c.width = c.height = s;
-  const ctx = c.getContext('2d')!;
-  const col = new THREE.Color(color);
-  const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
-  const grad = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  grad.addColorStop(0, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.28, `rgba(${r},${g},${b},0.92)`);
-  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, s, s);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-/* -------------------- tiny geographic impact satellites -------------------- */
-const REVEAL_STEP = 1.0; // one satellite reveals per second (hierarchy)
-const ALT = 1.16; // altitude above the surface
-
-function ImpactSatellites({ center, radius }: { center: THREE.Vector3; radius: number }) {
-  const camera = useThree((s) => s.camera);
-  const size = useThree((s) => s.size);
-  const spinGroup = useRef<THREE.Group>(null);
-  const satRefs = useRef<(THREE.Group | null)[]>([]);
-  const dotMats = useRef<(THREE.SpriteMaterial | null)[]>([]);
-  const focus = useRef(0);
-  const dwell = useRef(0);
-  const reveal = useRef<number[]>(IMPACT_SATS.map(() => 0));
-  const hoverAmt = useRef<number[]>(IMPACT_SATS.map(() => 0));
-  const vis = useRef<number[]>(IMPACT_SATS.map(() => 0));
-  const hovered = useRef(-1);
-
-  const dotTexs = useMemo(() => IMPACT_SATS.map((s) => makeDotTexture(s.color)), []);
-  const homes = useMemo(
-    () => IMPACT_SATS.map((s) => latLonDir(s.lat, s.lon, new THREE.Vector3()).multiplyScalar(radius * ALT)),
-    [radius],
-  );
-  const _wp = useMemo(() => new THREE.Vector3(), []);
-  const _rel = useMemo(() => new THREE.Vector3(), []);
-  const _camDir = useMemo(() => new THREE.Vector3(), []);
-  const _cam = useMemo(() => new THREE.Vector3(), []);
-
-  useFrame((state, delta) => {
-    const f0 = earthFocus();
-    focus.current = THREE.MathUtils.damp(focus.current, f0, 3, delta);
-    if (f0 > 0.6) dwell.current += delta;
-    else if (f0 < 0.2) dwell.current = 0;
-    if (spinGroup.current) spinGroup.current.rotation.y = earthSpin.y; // orbit WITH the regions
-
-    camera.getWorldPosition(_cam);
-    _camDir.copy(_cam).sub(center).normalize();
-    const t = state.clock.elapsedTime;
-
-    for (let i = 0; i < IMPACT_SATS.length; i++) {
-      const rT = dwell.current > 0.6 + i * REVEAL_STEP ? 1 : 0;
-      reveal.current[i] = THREE.MathUtils.damp(reveal.current[i], rT, 3, delta);
-      const g = satRefs.current[i];
-      if (!g) continue;
-      // subtle wobble — real objects drift, never frozen
-      const w = radius * 0.02;
-      g.position.set(
-        homes[i].x + Math.sin(t * 0.7 + i) * w,
-        homes[i].y + Math.sin(t * 0.9 + i * 2) * w,
-        homes[i].z + Math.cos(t * 0.6 + i) * w,
-      );
-      // fade out when the region rotates to the far side of the globe
-      g.getWorldPosition(_wp);
-      _rel.copy(_wp).sub(center).normalize();
-      const vTarget = THREE.MathUtils.smoothstep(_rel.dot(_camDir), -0.12, 0.18);
-      vis.current[i] = THREE.MathUtils.damp(vis.current[i], vTarget, 6, delta);
-      const hv = hovered.current === i ? 1 : 0;
-      hoverAmt.current[i] = THREE.MathUtils.damp(hoverAmt.current[i], hv, 9, delta);
-      g.scale.setScalar(1 + hoverAmt.current[i] * 0.8);
-      const twinkle = 0.82 + 0.18 * Math.sin(t * 1.7 + i * 3);
-      const shown = focus.current * reveal.current[i] * vis.current[i];
-      const dm = dotMats.current[i];
-      if (dm) dm.opacity = shown * twinkle * (1 + hoverAmt.current[i] * 0.9);
-    }
-
-    const h = hovered.current;
-    if (h >= 0 && reveal.current[h] > 0.4 && vis.current[h] > 0.3) {
-      const g = satRefs.current[h];
-      if (g) {
-        g.getWorldPosition(_wp);
-        _wp.project(camera);
-        earthHover.index = h;
-        earthHover.x = (_wp.x * 0.5 + 0.5) * size.width;
-        earthHover.y = (-_wp.y * 0.5 + 0.5) * size.height;
-        earthHover.color = IMPACT_SATS[h].color;
-      }
-    } else {
-      if (h >= 0 && vis.current[h] <= 0.3) hovered.current = -1; // rotated away
-      if (earthHover.index !== -1 && hovered.current < 0) earthHover.index = -1;
-    }
-  });
-
-  const onOver = (i: number) => (e: ThreeEvent<PointerEvent>) => {
-    if (reveal.current[i] < 0.5 || vis.current[i] < 0.3) return;
-    e.stopPropagation();
-    hovered.current = i;
-    document.body.style.cursor = 'pointer';
-  };
-  const onOut = (i: number) => () => {
-    if (hovered.current === i) {
-      hovered.current = -1;
-      earthHover.index = -1;
-      document.body.style.cursor = '';
-    }
-  };
-
-  return (
-    <group ref={spinGroup}>
-      {IMPACT_SATS.map((s, i) => (
-        <group key={s.key} ref={(g) => { satRefs.current[i] = g; }}>
-          {/* invisible hit target — a bit larger than the dot for easy hover */}
-          <mesh onPointerOver={onOver(i)} onPointerOut={onOut(i)}>
-            <sphereGeometry args={[radius * 0.38, 10, 10]} />
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-          </mesh>
-          <sprite scale={[radius * 0.1, radius * 0.1, 1]}>
-            <spriteMaterial
-              ref={(m) => { dotMats.current[i] = m; }}
-              map={dotTexs[i]}
-              transparent
-              opacity={0}
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-            />
-          </sprite>
-        </group>
-      ))}
-    </group>
-  );
-}
 
 /* -------------------- aurora at the poles -------------------- */
 function Aurora({ radius }: { radius: number }) {
@@ -301,11 +161,14 @@ function mulberry(a: number) {
 
 export function EarthImpact({ center, radius }: { center: THREE.Vector3; radius: number }) {
   return (
-    <group position={center}>
-      <Aurora radius={radius} />
-      <Lightning center={center} radius={radius} />
-      <SpaceDebris radius={radius} />
-      <ImpactSatellites center={center} radius={radius} />
-    </group>
+    <>
+      <group position={center}>
+        <Aurora radius={radius} />
+        <Lightning center={center} radius={radius} />
+        <SpaceDebris radius={radius} />
+      </group>
+      {/* The probe positions itself at `center`, so it lives outside the group. */}
+      <EarthProbe center={center} radius={radius} />
+    </>
   );
 }
