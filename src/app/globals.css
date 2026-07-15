@@ -212,15 +212,15 @@ main { position: fixed; inset: 0; }
   text-transform: uppercase;
   color: rgba(240, 244, 255, 0.94);
 }
-/* Earth impact-satellite hologram — a projection that builds from a scanline,
-   in the satellite's own color, connected by a thin beam, never over Earth. */
+/* Earth orbital hologram — a transmission FROM the craft: a hull pulse, a thin
+   beam, then a minimal engineering-display card. Vision-Pro, not dashboard. */
 .earth-holo {
   position: fixed;
   inset: 0;
   z-index: 8;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.28s ease;
+  transition: opacity 0.3s ease;
 }
 .earth-holo--on {
   opacity: 1;
@@ -232,82 +232,245 @@ main { position: fixed; inset: 0; }
 }
 .earth-holo__beam {
   stroke: var(--holo, #3fd8ff);
-  stroke-width: 1;
-  opacity: 0.5;
-  stroke-dasharray: 2 4;
+  stroke-width: 0.8;
+  opacity: 0.42;
+  stroke-dasharray: 1 5;
 }
 .earth-holo__pin {
-  fill: #ffffff;
-  filter: drop-shadow(0 0 6px var(--holo, #3fd8ff));
+  fill: var(--holo, #3fd8ff);
+  filter: drop-shadow(0 0 5px var(--holo-soft, rgba(63, 216, 255, 0.5)));
+}
+/* a tiny transmission ring that expands off the hull when a new card fires */
+.earth-holo__pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+.earth-holo__pulse::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--holo, #3fd8ff);
+  opacity: 0;
+}
+.earth-holo__pulse--go::before {
+  animation: holo-pulse 0.9s ease-out;
+}
+@keyframes holo-pulse {
+  0% { transform: scale(0.3); opacity: 0.85; }
+  100% { transform: scale(6); opacity: 0; }
 }
 .earth-holo__card {
   position: absolute;
   top: 0;
   left: 0;
-  width: 210px;
-}
-/* frosted-glass projection — no border, soft inner glow, scanline + upward drift */
-.earth-holo__panel {
-  position: relative;
-  padding: 13px 16px;
-  background: rgba(12, 18, 24, 0.14);
-  backdrop-filter: blur(16px) saturate(1.15);
-  box-shadow: inset 0 0 30px var(--holo-soft, rgba(63, 216, 255, 0.1)),
-    0 0 34px var(--holo-glow, rgba(63, 216, 255, 0.2));
-  border-radius: 3px;
-  overflow: hidden;
-  transform: translateY(12px);
-  opacity: 0;
-  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
-}
-.earth-holo--on .earth-holo__panel {
-  transform: translateY(0);
-  opacity: 1;
-}
-/* a bright scanline that sweeps up as the projection assembles */
-.earth-holo__scan {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--holo, #3fd8ff), transparent);
-  opacity: 0;
+  width: 190px;
   pointer-events: none;
 }
-.earth-holo__panel--build .earth-holo__scan {
-  animation: holo-scan 0.5s ease-out;
-}
-@keyframes holo-scan {
-  0% { bottom: 0; opacity: 0.9; }
-  100% { bottom: 100%; opacity: 0; }
+/* minimal projection — 0.8px hairline, soft transparency, ~5% blur, faint shadow.
+   opacity + translateY are driven per-frame by the transmission envelope (JS). */
+.earth-holo__panel {
+  position: relative;
+  padding: 11px 13px 9px;
+  background: rgba(10, 14, 20, 0.34);
+  backdrop-filter: blur(5px) saturate(1.05);
+  -webkit-backdrop-filter: blur(5px) saturate(1.05);
+  border: 0.8px solid var(--holo-faint, rgba(63, 216, 255, 0.16));
+  border-radius: 4px;
+  box-shadow: 0 1px 14px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  opacity: 0;
 }
 .earth-holo__title {
   color: var(--holo, #3fd8ff);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.28em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  text-shadow: 0 0 14px var(--holo-glow, rgba(63, 216, 255, 0.4));
 }
-.earth-holo__subtitle {
-  color: rgba(236, 244, 250, 0.94);
-  font-size: 13px;
-  font-weight: 300;
-  letter-spacing: 0.02em;
+.earth-holo__big {
+  color: rgba(240, 246, 252, 0.96);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.12;
   margin-top: 5px;
 }
-.earth-holo__rule {
-  height: 1px;
-  margin: 9px 0;
-  background: linear-gradient(90deg, var(--holo, #3fd8ff), transparent);
-  opacity: 0.4;
+.earth-holo__sub {
+  color: rgba(206, 220, 232, 0.62);
+  font-size: 11px;
+  font-weight: 400;
+  margin-top: 3px;
 }
-.earth-holo__body {
-  color: rgba(210, 224, 234, 0.7);
+.earth-holo__detail {
+  color: rgba(214, 226, 236, 0.74);
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+.earth-holo__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 9px;
+}
+.earth-holo__since {
+  color: rgba(176, 190, 204, 0.5);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.earth-holo__more {
+  color: var(--holo-soft, rgba(63, 216, 255, 0.5));
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* Hover tag — a small label that follows an orbiting craft under the cursor. */
+.earth-hover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.earth-hover--on {
+  opacity: 1;
+}
+.earth-hover__dot {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--holo, #5fe4ff);
+  box-shadow: 0 0 8px var(--holo, #5fe4ff);
+}
+.earth-hover__tag {
+  position: absolute;
+  left: 12px;
+  top: -9px;
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(228, 238, 248, 0.92);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(8, 12, 18, 0.5);
+  border: 0.8px solid rgba(150, 170, 190, 0.22);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Orbit side panel — opens on click; the object keeps orbiting behind it. */
+.orbit-panel {
+  position: fixed;
+  right: 26px;
+  top: 50%;
+  transform: translate(24px, -50%);
+  width: 252px;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.32s ease, transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 18px 18px 16px;
+  background: rgba(9, 12, 18, 0.6);
+  border: 0.8px solid var(--holo-faint, rgba(63, 216, 255, 0.18));
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+}
+.orbit-panel--on {
+  opacity: 1;
+  transform: translate(0, -50%);
+  pointer-events: auto;
+}
+.orbit-panel__close {
+  position: absolute;
+  top: 8px;
+  right: 11px;
+  background: none;
+  border: none;
+  color: rgba(220, 230, 240, 0.55);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.orbit-panel__close:hover {
+  color: #fff;
+}
+.orbit-panel__tag {
+  color: rgba(150, 165, 180, 0.6);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.orbit-panel__title {
+  color: var(--holo, #3fd8ff);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.orbit-panel__big {
+  color: rgba(242, 247, 252, 0.97);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin-top: 8px;
+}
+.orbit-panel__sub {
+  color: rgba(210, 222, 234, 0.7);
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 5px;
+}
+.orbit-panel__lines {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.orbit-panel__lines li {
+  position: relative;
+  color: rgba(200, 214, 228, 0.66);
   font-size: 11.5px;
   font-weight: 300;
   line-height: 1.5;
+  padding-left: 14px;
+  margin: 6px 0;
+}
+.orbit-panel__lines li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--holo, #3fd8ff);
+  opacity: 0.7;
+}
+@media (max-width: 720px) {
+  .orbit-panel { display: none; }
 }
 
 /* radio-transmission caret — a thin accent bar that blinks while the title types */

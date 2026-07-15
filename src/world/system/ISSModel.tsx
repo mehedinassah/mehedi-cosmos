@@ -16,7 +16,7 @@ import * as THREE from 'three';
  * Self-contained motion: the solar arrays slightly track the Sun (the system
  * origin) about the truss axis, so sunlight catches the panels now and then.
  * Nav lights blink on their own phases. Position / scale / heading come from
- * the parent (EarthProbe). NASA engineering aesthetic — no sci-fi.
+ * the parent (OrbitalEcosystem). NASA engineering aesthetic — no sci-fi.
  */
 
 const _wp = new THREE.Vector3();

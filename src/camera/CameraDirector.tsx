@@ -277,6 +277,9 @@ export function CameraDirector() {
       // curves through the worlds, the view eases with it. No lookAt on a
       // subject, no roll, no breathing, no parallax. The worlds come to the
       // window; the horizon of space never tilts.
+      // Earth (and every chapter): the camera is dead still on the rail. The
+      // scene comes alive on its own — Earth spins, the whole constellation
+      // orbits — with no camera automation at all.
       systemPose(sp, cam.position, cam.quaternion);
       cam.clearViewOffset();
       return;

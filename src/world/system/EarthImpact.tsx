@@ -5,14 +5,14 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 import { earthFocus } from '@/state/earthHoverStore';
-import { EarthProbe } from '@/world/system/EarthProbe';
+import { OrbitalEcosystem } from '@/world/system/OrbitalEcosystem';
 
 /**
- * EarthImpact — the living Earth's ambient layer plus its ONE touring probe.
+ * EarthImpact — the living Earth's ambient layer plus its orbital ecosystem.
  *
- * The story is told by a single small drone (EarthProbe) that visits each
- * region, faces the camera and projects a brief hologram. Everything here is
- * the quiet life around it: aurora, night-side lightning, a little debris.
+ * The story is told by a whole constellation of craft that orbit Earth
+ * continuously (OrbitalEcosystem); the camera visits one at a time. Everything
+ * here is the quiet life around them: night-side lightning and a little debris.
  */
 
 /* -------------------- night-side lightning (city blink) -------------------- */
@@ -122,8 +122,8 @@ export function EarthImpact({ center, radius }: { center: THREE.Vector3; radius:
         <Lightning center={center} radius={radius} />
         <SpaceDebris radius={radius} />
       </group>
-      {/* The probe positions itself at `center`, so it lives outside the group. */}
-      <EarthProbe center={center} radius={radius} />
+      {/* The living constellation; it self-centers at `center`. */}
+      <OrbitalEcosystem center={center} radius={radius} />
     </>
   );
 }

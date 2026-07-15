@@ -63,9 +63,9 @@ function useHeroMaterials(spec: HeroSpec) {
     if (spec.tex.night) {
       // City lights: emissive map glows independent of sunlight — invisible
       // against the lit day side, alive on the dark one
-      surface.emissive = new THREE.Color('#ffd9a0');
+      surface.emissive = new THREE.Color('#ffdca6');
       surface.emissiveMap = loadMap(spec.tex.night);
-      surface.emissiveIntensity = 0.75;
+      surface.emissiveIntensity = 0.92; // slightly richer night illumination
     }
     const clouds = spec.tex.clouds
       ? new THREE.MeshStandardMaterial({

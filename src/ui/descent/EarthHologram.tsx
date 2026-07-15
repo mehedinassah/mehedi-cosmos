@@ -1,17 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { earthHover, MISSIONS } from '@/state/earthHoverStore';
+import { orbitBridge, CRAFT } from '@/state/earthHoverStore';
 
 /**
- * The hologram the probe projects. Ephemeral, not a modal: frosted glass, no
- * border, a soft inner glow in the mission's color, a scanline reveal and a
- * slight upward drift. It sits ~80px from the probe (a projection, not a floating
- * label), connected by a thin beam, in the open space away from Earth.
+ * The brief transmission a craft projects as it passes the visible side — a
+ * hull pulse, a thin beam, a compact card that softly expands beside it and
+ * fades in ~2s while the craft keeps moving. Non-interactive; it's a signal,
+ * not a popup. Minimal: category / metric / one line.
  */
-const CARD_W = 210;
-const CARD_H = 96;
-const GAP_RIGHT = 920; // card's right edge never crosses this -> never on Earth
+const CARD_W = 190;
 
 function hexRgba(hex: string, a: number): string {
   const n = parseInt(hex.replace('#', ''), 16);
@@ -23,9 +21,9 @@ export function EarthHologram() {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const pulseRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<SVGLineElement>(null);
-  const pinRef = useRef<SVGCircleElement>(null);
-  const [c, setC] = useState<{ title: string; subtitle: string; body: string } | null>(null);
+  const [c, setC] = useState<{ title: string; big: string; sub: string } | null>(null);
   const shown = useRef(-1);
 
   useEffect(() => {
@@ -33,34 +31,41 @@ export function EarthHologram() {
     const loop = () => {
       const root = rootRef.current, card = cardRef.current, panel = panelRef.current;
       if (root && card && panel) {
-        if (earthHover.active) {
-          const i = earthHover.index;
+        if (orbitBridge.active) {
+          const i = orbitBridge.index;
           if (i !== shown.current) {
             shown.current = i;
-            const m = MISSIONS[i];
-            setC({ title: m.title, subtitle: m.subtitle, body: m.body });
-            const col = earthHover.color;
+            const m = CRAFT[i];
+            setC({ title: m.title ?? '', big: m.big ?? '', sub: m.sub ?? '' });
+            const col = orbitBridge.color;
             root.style.setProperty('--holo', col);
-            root.style.setProperty('--holo-glow', hexRgba(col, 0.22));
-            root.style.setProperty('--holo-soft', hexRgba(col, 0.1));
-            panel.classList.remove('earth-holo__panel--build');
-            void panel.offsetWidth;
-            panel.classList.add('earth-holo__panel--build');
+            root.style.setProperty('--holo-soft', hexRgba(col, 0.5));
+            root.style.setProperty('--holo-faint', hexRgba(col, 0.16));
+            if (pulseRef.current) {
+              pulseRef.current.classList.remove('earth-holo__pulse--go');
+              void pulseRef.current.offsetWidth;
+              pulseRef.current.classList.add('earth-holo__pulse--go');
+            }
           }
-          const vh = window.innerHeight;
-          // Card sits in the open gap to the LEFT of the probe — close when the
-          // probe is near the gap, but never allowed onto Earth (GAP_RIGHT).
-          const right = Math.min(earthHover.px - 30, GAP_RIGHT);
-          const left = Math.max(14, right - CARD_W);
-          const top = Math.max(14, Math.min(earthHover.py - CARD_H / 2, vh - CARD_H - 14));
+          const env = orbitBridge.env;
+          const vw = window.innerWidth, vh = window.innerHeight;
+          const px = orbitBridge.px, py = orbitBridge.py;
+          // sit just to the side of the craft, flipping to keep on-screen
+          let left = px + 30;
+          let beamX = left;
+          if (left + CARD_W > vw - 16) { left = px - 30 - CARD_W; beamX = left + CARD_W; }
+          const h = card.offsetHeight || 70;
+          const top = Math.max(16, Math.min(py - h / 2, vh - h - 16));
           card.style.transform = `translate(${left}px, ${top}px)`;
-          if (lineRef.current && pinRef.current) {
-            lineRef.current.setAttribute('x1', String(earthHover.px));
-            lineRef.current.setAttribute('y1', String(earthHover.py));
-            lineRef.current.setAttribute('x2', String(left + CARD_W)); // card's right edge
-            lineRef.current.setAttribute('y2', String(top + CARD_H / 2));
-            pinRef.current.setAttribute('cx', String(earthHover.px));
-            pinRef.current.setAttribute('cy', String(earthHover.py));
+          panel.style.opacity = String(env);
+          panel.style.transform = `translateY(${(1 - env) * 7}px)`;
+          if (pulseRef.current) pulseRef.current.style.transform = `translate(${px}px, ${py}px)`;
+          if (lineRef.current) {
+            lineRef.current.setAttribute('x1', String(px));
+            lineRef.current.setAttribute('y1', String(py));
+            lineRef.current.setAttribute('x2', String(beamX));
+            lineRef.current.setAttribute('y2', String(top + h / 2));
+            lineRef.current.style.opacity = String(env * 0.5);
           }
           root.classList.add('earth-holo--on');
         } else {
@@ -78,15 +83,13 @@ export function EarthHologram() {
     <div ref={rootRef} className="earth-holo" aria-hidden="true">
       <svg className="earth-holo__link" width="100%" height="100%">
         <line ref={lineRef} className="earth-holo__beam" x1="0" y1="0" x2="0" y2="0" />
-        <circle ref={pinRef} className="earth-holo__pin" cx="0" cy="0" r="2.5" />
       </svg>
+      <div ref={pulseRef} className="earth-holo__pulse" />
       <div ref={cardRef} className="earth-holo__card">
         <div ref={panelRef} className="earth-holo__panel">
-          <span className="earth-holo__scan" />
           <div className="earth-holo__title">{c?.title}</div>
-          <div className="earth-holo__subtitle">{c?.subtitle}</div>
-          <div className="earth-holo__rule" />
-          <div className="earth-holo__body">{c?.body}</div>
+          <div className="earth-holo__big">{c?.big}</div>
+          <div className="earth-holo__sub">{c?.sub}</div>
         </div>
       </div>
     </div>

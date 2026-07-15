@@ -5,6 +5,7 @@ import { useJourneyStore } from '@/state/journeyStore';
 import { useDescentStore, DESCENT_CAPTIONS, nowS } from '@/state/descentStore';
 import { CHAPTERS } from '@/world/system/systemSpec';
 import { EarthHologram } from '@/ui/descent/EarthHologram';
+import { HoverLabel, OrbitPanel } from '@/ui/descent/EarthOrbitUI';
 
 /**
  * Descent chapter DOM layer — three quiet elements and an input bridge:
@@ -274,6 +275,8 @@ export function DescentOverlay() {
       <PlanetMenu />
       <ChapterPanel />
       <EarthHologram />
+      <HoverLabel />
+      <OrbitPanel />
       <ArrivalFlash />
     </>
   );
