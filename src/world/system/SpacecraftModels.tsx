@@ -13,13 +13,34 @@ import type { Kind } from '@/state/earthHoverStore';
  * the ISS. Authored in unit space; the ecosystem scales each to size.
  */
 
+function makePanelTex(): THREE.CanvasTexture {
+  const w = 80, h = 56;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#22447f';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(10,20,44,0.6)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 10; i++) { ctx.beginPath(); ctx.moveTo((i / 10) * w, 0); ctx.lineTo((i / 10) * w, h); ctx.stroke(); }
+  for (let j = 1; j < 3; j++) { ctx.beginPath(); ctx.moveTo(0, (j / 3) * h); ctx.lineTo(w, (j / 3) * h); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(150,120,55,0.45)';
+  ctx.fillRect(0, h / 2 - 1, w, 2);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
 function useKit() {
   return useMemo(() => {
     const body = new THREE.MeshStandardMaterial({ color: '#d3d7df', metalness: 0.35, roughness: 0.5 });
     const dark = new THREE.MeshStandardMaterial({ color: '#8b929c', metalness: 0.5, roughness: 0.45 });
     const gold = new THREE.MeshStandardMaterial({ color: '#c7a24d', metalness: 0.6, roughness: 0.42 });
     const worn = new THREE.MeshStandardMaterial({ color: '#b7bcc4', metalness: 0.3, roughness: 0.68 });
-    const panel = new THREE.MeshBasicMaterial({ color: '#274c8f', toneMapped: false, side: THREE.DoubleSide });
+    // real photovoltaic-cell look, unlit so the intense sun can't wash it white
+    const panel = new THREE.MeshBasicMaterial({ map: makePanelTex(), toneMapped: false, side: THREE.DoubleSide });
     const dishMat = new THREE.MeshStandardMaterial({ color: '#e7ebf1', metalness: 0.2, roughness: 0.55, side: THREE.DoubleSide });
     return { body, dark, gold, worn, panel, dishMat };
   }, []);
@@ -204,16 +225,22 @@ function Moon() {
   );
 }
 
-/** A little tumbling debris chunk. */
+/** A little tumbling debris fragment — a torn panel piece on a bent strut. */
 function DebrisChunk() {
   const k = useKit();
   return (
     <group rotation={[0.5, 0.9, 0.2]}>
-      <mesh material={k.dark}>
-        <boxGeometry args={[0.5, 0.16, 0.24]} />
+      {/* torn solar-panel shard */}
+      <mesh material={k.panel} rotation={[0.2, 0.4, 0.15]}>
+        <boxGeometry args={[0.34, 0.22, 0.01]} />
       </mesh>
-      <mesh material={k.worn} position={[0.22, 0.08, 0.05]} rotation={[0.4, 0.2, 0.6]}>
-        <boxGeometry args={[0.14, 0.14, 0.14]} />
+      {/* bent strut */}
+      <mesh material={k.dark} position={[-0.18, 0.02, 0.04]} rotation={[0, 0, 0.7]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.34, 6]} />
+      </mesh>
+      {/* small crumpled node */}
+      <mesh material={k.worn} position={[-0.28, -0.1, 0.02]}>
+        <icosahedronGeometry args={[0.08, 0]} />
       </mesh>
     </group>
   );
