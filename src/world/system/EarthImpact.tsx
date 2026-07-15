@@ -15,30 +15,6 @@ import { EarthProbe } from '@/world/system/EarthProbe';
  * the quiet life around it: aurora, night-side lightning, a little debris.
  */
 
-/* -------------------- aurora at the poles -------------------- */
-function Aurora({ radius }: { radius: number }) {
-  const geo = useMemo(() => {
-    const g = new THREE.TorusGeometry(radius * 0.42, radius * 0.04, 12, 64);
-    g.rotateX(Math.PI / 2);
-    return g;
-  }, [radius]);
-  const mat = useMemo(
-    () => new THREE.MeshBasicMaterial({ color: '#3affd0', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
-    [],
-  );
-  useFrame((state, delta) => {
-    const f = earthFocus();
-    const breath = 0.09 + 0.05 * Math.sin(state.clock.elapsedTime * 0.7);
-    mat.opacity = THREE.MathUtils.damp(mat.opacity, f * breath, 3, delta);
-  });
-  return (
-    <>
-      <mesh geometry={geo} material={mat} position={[0, radius * 0.92, 0]} />
-      <mesh geometry={geo} material={mat} position={[0, -radius * 0.92, 0]} />
-    </>
-  );
-}
-
 /* -------------------- night-side lightning (city blink) -------------------- */
 const FLASHES = 4;
 function Lightning({ center, radius }: { center: THREE.Vector3; radius: number }) {
@@ -106,7 +82,6 @@ function Lightning({ center, radius }: { center: THREE.Vector3; radius: number }
 /* -------------------- faint drifting debris + ISS -------------------- */
 function SpaceDebris({ radius }: { radius: number }) {
   const groupRef = useRef<THREE.Group>(null);
-  const iss = useRef<THREE.Group>(null);
   const bits = useMemo(() => {
     const rng = mulberry(5521);
     return Array.from({ length: 4 }, () => {
@@ -117,35 +92,16 @@ function SpaceDebris({ radius }: { radius: number }) {
   }, [radius]);
   useFrame((_, delta) => {
     if (groupRef.current) groupRef.current.rotation.y += delta * 0.09;
-    if (iss.current) iss.current.rotation.y += delta * 0.16;
   });
   return (
-    <>
-      <group ref={groupRef}>
-        {bits.map((p, i) => (
-          <mesh key={i} position={p}>
-            <boxGeometry args={[radius * 0.018, radius * 0.018, radius * 0.018]} />
-            <meshBasicMaterial color="#59636f" transparent opacity={0.26} />
-          </mesh>
-        ))}
-      </group>
-      <group ref={iss}>
-        <group position={[radius * 2.3, radius * 0.35, 0]}>
-          <mesh>
-            <boxGeometry args={[radius * 0.09, radius * 0.022, radius * 0.022]} />
-            <meshBasicMaterial color="#7c8794" transparent opacity={0.5} />
-          </mesh>
-          <mesh position={[0, 0, radius * 0.07]}>
-            <boxGeometry args={[radius * 0.028, radius * 0.004, radius * 0.08]} />
-            <meshBasicMaterial color="#38455e" transparent opacity={0.55} />
-          </mesh>
-          <mesh position={[0, 0, -radius * 0.07]}>
-            <boxGeometry args={[radius * 0.028, radius * 0.004, radius * 0.08]} />
-            <meshBasicMaterial color="#38455e" transparent opacity={0.55} />
-          </mesh>
-        </group>
-      </group>
-    </>
+    <group ref={groupRef}>
+      {bits.map((p, i) => (
+        <mesh key={i} position={p}>
+          <boxGeometry args={[radius * 0.018, radius * 0.018, radius * 0.018]} />
+          <meshBasicMaterial color="#59636f" transparent opacity={0.26} />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
@@ -163,7 +119,6 @@ export function EarthImpact({ center, radius }: { center: THREE.Vector3; radius:
   return (
     <>
       <group position={center}>
-        <Aurora radius={radius} />
         <Lightning center={center} radius={radius} />
         <SpaceDebris radius={radius} />
       </group>
