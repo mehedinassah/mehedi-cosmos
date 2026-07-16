@@ -49,14 +49,15 @@ export function OrbitalEcosystem({ center, radius }: { center: THREE.Vector3; ra
 
   useFrame((state, delta) => {
     const f = earthFocus();
-    const visible = f > 0.08;
     const hovered = useEarthUI.getState().hovered;
 
-    // Recompute the camera/screen frame ONLY while parked at Earth. When the
-    // viewer scrolls away we FREEZE it, so the craft stay put in world space and
-    // recede naturally with the flight instead of swimming/rescaling in the
-    // moving frustum (that was the artificial enlarge/shrink on Earth->Mars).
-    if (f > 0.6 || !frozen.current.valid) {
+    // Capture the camera/screen frame ONLY when essentially parked at Earth
+    // (f ~ 1). The instant the viewer moves off Earth we STOP updating it, so the
+    // craft are pinned in world space and recede/approach naturally with the
+    // flight instead of swimming or rescaling in the moving frustum. (Freezing
+    // at a low threshold was the bug — it kept re-solving while the camera moved
+    // through the whole f: 1 -> 0.6 window.)
+    if (f > 0.99) {
       camera.getWorldPosition(_cam);
       _right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
       _up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
@@ -69,6 +70,8 @@ export function OrbitalEcosystem({ center, radius }: { center: THREE.Vector3; ra
       _fc.copy(_cam).addScaledVector(_fwd, dist);
       frozen.current.valid = true;
     }
+    // Show only once a parked frame exists (never during the arrival fly-in).
+    const visible = frozen.current.valid && f > 0.08;
     const halfH = frozen.current.halfH;
     const halfW = frozen.current.halfW;
 
