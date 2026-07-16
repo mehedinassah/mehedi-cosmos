@@ -3,7 +3,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import { CRAFT, orbitBridge, hoverBridge, useEarthUI, earthFocus } from '@/state/earthHoverStore';
+import { CRAFT, STORY_INDICES, orbitBridge, hoverBridge, useEarthUI, earthFocus } from '@/state/earthHoverStore';
 import { Spacecraft } from '@/world/system/SpacecraftModels';
 import { systemPose, CHAPTER_SP } from '@/world/system/systemSpec';
 
@@ -21,9 +21,6 @@ import { systemPose, CHAPTER_SP } from '@/world/system/systemSpec';
  * the orbit itself is then fixed in world space.
  */
 
-const CARD_DUR = 2.0;
-const _UP = new THREE.Vector3(0, 1, 0);
-
 export function OrbitalEcosystem({ center, radius }: { center: THREE.Vector3; radius: number }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -40,35 +37,34 @@ export function OrbitalEcosystem({ center, radius }: { center: THREE.Vector3; ra
     const camPos = new THREE.Vector3();
     const camQuat = new THREE.Quaternion();
     systemPose(CHAPTER_SP.earth, camPos, camQuat); // camera pose at the Earth stop
-    const toCam = camPos.sub(center).normalize(); // Earth -> parked camera
-    const right = new THREE.Vector3().crossVectors(toCam, _UP).normalize();
-    const up = new THREE.Vector3().crossVectors(right, toCam).normalize();
-    // screen-left / screen-up from the parked camera's own basis
+    // parked camera's own basis (screen right / up / forward-into-scene)
     const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camQuat);
     const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camQuat);
-    const offset = camRight.multiplyScalar(-1.25 * radius).addScaledVector(camUp, 0.0 * radius);
+    const camFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camQuat);
+    // Tidy zone IN FRONT of Earth (toward the camera — closer to the eye, never
+    // intersecting the planet), lifted into the open upper-center gap (never over
+    // the left text or below the screen). World-fixed, so fly-past stays natural.
+    const offset = new THREE.Vector3()
+      .addScaledVector(camFwd, -0.9 * radius) // toward camera, in front of Earth
+      .addScaledVector(camRight, -1.3 * radius) // screen-left into the gap
+      .addScaledVector(camUp, 0.55 * radius); // upper area
+    const SHRINK = 0.42; // keep the loops compact and organized in the upper band
     const list = CRAFT.map((c) => {
       const o = c.orbit;
-      const n = toCam.clone().applyAxisAngle(up, o.tiltA).applyAxisAngle(right, o.tiltB).normalize();
-      let u = new THREE.Vector3().crossVectors(_UP, n);
-      if (u.lengthSq() < 1e-4) u.copy(right);
-      u.normalize();
-      const v = new THREE.Vector3().crossVectors(n, u).normalize();
-      return { u, v, r: o.radius * radius, speed: o.speed, dir: o.dir };
+      // FACE-ON to the viewer: loop in the screen plane (camRight/camUp), with a
+      // small tilt toward the view axis for subtle depth.
+      const u = camRight.clone().applyAxisAngle(camUp, o.tiltA).normalize();
+      const v = camUp.clone().applyAxisAngle(camRight, o.tiltB).normalize();
+      return { u, v, r: o.radius * radius * SHRINK, speed: o.speed, dir: o.dir };
     });
     return { list, offset };
-  }, [center, radius]);
+  }, [radius]);
 
   const angles = useRef<number[]>(CRAFT.map((c) => c.orbit.phase));
   const hoverEase = useRef<number[]>(CRAFT.map(() => 0));
-  const nextFire = useRef<number[]>(CRAFT.map((c, i) => (c.transmit ? 1.2 + i * 1.1 + Math.random() * 3 : Infinity)));
   const presentClock = useRef(0);
-  const card = useRef({ index: -1, t: 0 });
 
-  const _p = useMemo(() => new THREE.Vector3(), []);
   const _w = useMemo(() => new THREE.Vector3(), []);
-  const _cam = useMemo(() => new THREE.Vector3(), []);
-  const _toCam = useMemo(() => new THREE.Vector3(), []);
   const _ndc = useMemo(() => new THREE.Vector3(), []);
 
   const project = (world: THREE.Vector3) => {
@@ -80,10 +76,8 @@ export function OrbitalEcosystem({ center, radius }: { center: THREE.Vector3; ra
     const f = earthFocus();
     const visible = f > 0.02;
     const hovered = useEarthUI.getState().hovered;
-    camera.getWorldPosition(_cam);
-    _toCam.copy(_cam).sub(center);
 
-    // --- real orbits around Earth (never stop) ---
+    // --- real orbits, fixed in world space (never stop) ---
     for (let i = 0; i < CRAFT.length; i++) {
       const g = pos.current[i];
       if (!g) continue;
@@ -112,47 +106,32 @@ export function OrbitalEcosystem({ center, radius }: { center: THREE.Vector3; ra
       hoverBridge.py = s.y;
     }
 
-    // --- occasional transmissions (only while parked and on the near side) ---
-    if (f < 0.4) {
-      card.current.index = -1;
+    // --- transmissions: a steady cycle so EVERY message shows within ~15s ---
+    // Only while essentially parked, so a card never lingers over empty space as
+    // the craft recede on scroll-away.
+    if (f < 0.85) {
       orbitBridge.active = false;
       orbitBridge.env = 0;
       return;
     }
     presentClock.current += delta;
-    const c = card.current;
-    if (c.index >= 0) {
-      c.t += delta;
-      const env = THREE.MathUtils.smoothstep(c.t, 0.15, 0.5) * (1 - THREE.MathUtils.smoothstep(c.t, CARD_DUR - 0.55, CARD_DUR));
-      const g = pos.current[c.index];
-      if (g) {
-        _w.copy(center).add(g.position);
-        const s = project(_w);
-        orbitBridge.px = s.x;
-        orbitBridge.py = s.y;
-      }
-      orbitBridge.index = c.index;
-      orbitBridge.color = CRAFT[c.index].color;
-      orbitBridge.env = env;
-      orbitBridge.active = env > 0.02;
-      if (c.t >= CARD_DUR) {
-        nextFire.current[c.index] = presentClock.current + 7 + Math.random() * 6;
-        c.index = -1;
-        orbitBridge.active = false;
-        orbitBridge.env = 0;
-      }
-    } else {
-      orbitBridge.active = false;
-      orbitBridge.env = 0;
-      for (let i = 0; i < CRAFT.length; i++) {
-        if (!CRAFT[i].transmit || presentClock.current < nextFire.current[i]) continue;
-        const g = pos.current[i];
-        if (!g || g.position.dot(_toCam) <= 0) continue; // wait until on the near side
-        c.index = i;
-        c.t = 0;
-        break;
-      }
+    const N = STORY_INDICES.length;
+    const SLOT = 2.4; // seconds per craft -> N*SLOT (~14.4s) for a full round
+    const slot = Math.floor(presentClock.current / SLOT) % N;
+    const tin = presentClock.current % SLOT;
+    const idx = STORY_INDICES[slot];
+    const env = THREE.MathUtils.smoothstep(tin, 0.15, 0.5) * (1 - THREE.MathUtils.smoothstep(tin, 1.85, 2.15));
+    const g = pos.current[idx];
+    if (g) {
+      _w.copy(center).add(g.position);
+      const s = project(_w);
+      orbitBridge.px = s.x;
+      orbitBridge.py = s.y;
     }
+    orbitBridge.index = idx;
+    orbitBridge.color = CRAFT[idx].color;
+    orbitBridge.env = env;
+    orbitBridge.active = env > 0.02;
   });
 
   const HIT = radius * 0.13;
