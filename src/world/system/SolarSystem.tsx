@@ -12,6 +12,7 @@ import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 import { EarthImpact } from '@/world/system/EarthImpact';
+import { SaturnKnowledge } from '@/world/system/SaturnKnowledge';
 import { earthFocus, earthSpin } from '@/state/earthHoverStore';
 import { useDescentStore } from '@/state/descentStore';
 import {
@@ -746,6 +747,7 @@ function ShootingStars() {
 export function SolarSystem() {
   const venus = HEROES.find((h) => h.id === 'venus')!;
   const earth = HEROES.find((h) => h.id === 'earth')!;
+  const saturn = HEROES.find((h) => h.id === 'saturn')!;
   return (
     <group name="solar-system">
       {HEROES.map((h) => (
@@ -761,6 +763,8 @@ export function SolarSystem() {
       {/* Earth carries its real-world impact: labeled satellites, aurora,
           night-side lightning, drifting debris. Fades in at the Earth stop. */}
       <EarthImpact center={earth.position} radius={earth.radius} />
+      {/* Saturn's rings become knowledge streams at the Education stop */}
+      <SaturnKnowledge center={saturn.position} radius={saturn.radius} />
       <AsteroidBelt />
       <KuiperBelt />
       <ZodiacalDust />

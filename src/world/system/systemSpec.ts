@@ -353,13 +353,14 @@ export const CHAPTERS: Chapter[] = [
     links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
   },
   {
-    id: 'saturn', planet: 'Saturn', title: 'Education', sp: 0.67, accent: '#cdb384', au: '9.54 AU',
+    id: 'saturn', planet: 'Saturn', title: 'Knowledge Archive', sp: 0.67, accent: '#cdb384', au: '9.54 AU',
     body: [
-      'BSc in Computer Science',
-      'BRAC University, 2022 to 2026',
-      'Community Lead for a 90k+ member community',
-      'Events with 500+ attendees',
-      'Verified Upwork freelancer',
+      'Every orbit is a semester.',
+      'Every particle is a lesson.',
+      'Inner ring: foundations.',
+      'Middle ring: core engineering.',
+      'Outer ring: specializations.',
+      'Click a card for the full record.',
     ],
   },
   {

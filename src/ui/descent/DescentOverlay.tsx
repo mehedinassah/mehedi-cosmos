@@ -6,6 +6,7 @@ import { useDescentStore, DESCENT_CAPTIONS, nowS } from '@/state/descentStore';
 import { CHAPTERS } from '@/world/system/systemSpec';
 import { EarthHologram } from '@/ui/descent/EarthHologram';
 import { HoverLabel, OrbitPanel } from '@/ui/descent/EarthOrbitUI';
+import { KnowledgeCard, SaturnTimeline, SaturnExpand } from '@/ui/descent/SaturnOverlay';
 
 /**
  * Descent chapter DOM layer — three quiet elements and an input bridge:
@@ -277,6 +278,9 @@ export function DescentOverlay() {
       <EarthHologram />
       <HoverLabel />
       <OrbitPanel />
+      <KnowledgeCard />
+      <SaturnTimeline />
+      <SaturnExpand />
       <ArrivalFlash />
     </>
   );

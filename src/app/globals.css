@@ -473,6 +473,233 @@ main { position: fixed; inset: 0; }
   .orbit-panel { display: none; }
 }
 
+/* ---- Saturn: the Knowledge Archive. Warm ivory / sand / soft gold, a tiny
+   cyan accent. Elegant, engineered, calm — education is elegant. ---- */
+.sat-holo {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.sat-holo--on {
+  opacity: 1;
+}
+.sat-holo__card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.sat-holo__panel {
+  position: relative;
+  padding: 11px 14px 9px;
+  background: rgba(20, 17, 12, 0.36);
+  backdrop-filter: blur(5px) saturate(1.04);
+  -webkit-backdrop-filter: blur(5px) saturate(1.04);
+  border: 0.8px solid rgba(205, 179, 132, 0.22);
+  border-radius: 4px;
+  box-shadow: 0 1px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+}
+.sat-holo__cat {
+  color: var(--karc, #cdb384);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+.sat-holo__title {
+  color: rgba(244, 239, 228, 0.97);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  line-height: 1.15;
+  margin-top: 4px;
+}
+.sat-holo__sub {
+  color: rgba(222, 210, 186, 0.6);
+  font-size: 10.5px;
+  font-weight: 400;
+  margin-top: 3px;
+}
+.sat-holo__more {
+  color: rgba(143, 216, 200, 0.6); /* the one tiny cyan accent */
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 7px;
+}
+
+/* the study timeline riding beneath Saturn */
+.sat-timeline {
+  position: fixed;
+  right: 12%;
+  bottom: 7%;
+  z-index: 7;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.sat-timeline--on {
+  opacity: 1;
+  transform: none;
+}
+.sat-timeline__track {
+  display: flex;
+  align-items: flex-start;
+  gap: 84px;
+  position: relative;
+  padding-top: 5px;
+}
+.sat-timeline__track::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 4px;
+  right: 4px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(205, 179, 132, 0.05), rgba(205, 179, 132, 0.4), rgba(205, 179, 132, 0.05));
+}
+.sat-timeline__stop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+}
+.sat-timeline__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 178, 106, 0.7);
+  background: rgba(20, 17, 12, 0.8);
+  transition: all 0.5s ease;
+}
+.sat-timeline__stop--lit .sat-timeline__dot {
+  background: #d8b26a;
+  box-shadow: 0 0 12px rgba(216, 178, 106, 0.8);
+}
+.sat-timeline__year {
+  color: rgba(236, 228, 210, 0.8);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+.sat-timeline__label {
+  color: rgba(205, 190, 160, 0.5);
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.sat-timeline__stop--lit .sat-timeline__year {
+  color: #f2e9d4;
+}
+
+/* full academic record — expands on click, the object keeps orbiting */
+.sat-expand {
+  position: fixed;
+  right: 26px;
+  top: 50%;
+  transform: translate(24px, -50%);
+  width: 264px;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.32s ease, transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 18px 18px 16px;
+  background: rgba(22, 18, 12, 0.62);
+  border: 0.8px solid rgba(205, 179, 132, 0.26);
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+}
+.sat-expand--on {
+  opacity: 1;
+  transform: translate(0, -50%);
+  pointer-events: auto;
+}
+.sat-expand__close {
+  position: absolute;
+  top: 8px;
+  right: 11px;
+  background: none;
+  border: none;
+  color: rgba(236, 226, 206, 0.55);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.sat-expand__close:hover {
+  color: #fff;
+}
+.sat-expand__cat {
+  color: var(--karc, #cdb384);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.sat-expand__title {
+  color: rgba(246, 241, 230, 0.97);
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.12;
+  margin-top: 7px;
+}
+.sat-expand__meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin: 13px 0 0;
+}
+.sat-expand__meta dt {
+  color: rgba(200, 186, 158, 0.55);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding-top: 1px;
+}
+.sat-expand__meta dd {
+  color: rgba(232, 224, 206, 0.85);
+  font-size: 11.5px;
+  margin: 0;
+}
+.sat-expand__topics {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 0.8px solid rgba(205, 179, 132, 0.18);
+}
+.sat-expand__topics li {
+  position: relative;
+  color: rgba(214, 204, 182, 0.7);
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1.5;
+  padding-left: 13px;
+  margin: 5px 0;
+}
+.sat-expand__topics li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--karc, #cdb384);
+  opacity: 0.7;
+}
+@media (max-width: 720px) {
+  .sat-expand, .sat-timeline { display: none; }
+}
+
 /* radio-transmission caret — a thin accent bar that blinks while the title types */
 .type-caret {
   display: inline-block;
