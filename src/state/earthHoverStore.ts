@@ -137,11 +137,20 @@ type EarthUI = {
   setHovered: (i: number | null) => void;
   setSelected: (i: number | null) => void;
 };
+let _closeTimer: ReturnType<typeof setTimeout> | null = null;
 export const useEarthUI = create<EarthUI>((set) => ({
   hovered: null,
   selected: null,
   setHovered: (i) => set({ hovered: i }),
-  setSelected: (i) => set({ selected: i }),
+  // Selecting opens the side panel and arms a 4s self-close (reset on each
+  // change). Managed here, outside React, so it can't be defeated by re-renders.
+  setSelected: (i) => {
+    if (_closeTimer) { clearTimeout(_closeTimer); _closeTimer = null; }
+    set({ selected: i });
+    if (i != null) {
+      _closeTimer = setTimeout(() => { _closeTimer = null; set({ selected: null }); }, 4000);
+    }
+  },
 }));
 
 /** Earth's live surface rotation (drag-to-spin globe writes this). */

@@ -32,6 +32,7 @@ export function OrbitalEcosystem({ center, radius }: { center: THREE.Vector3; ra
   const nextFire = useRef<number[]>(CRAFT.map((c, i) => (c.transmit ? 1.2 + i * 1.1 + Math.random() * 3 : Infinity)));
   const presentClock = useRef(0);
   const card = useRef({ index: -1, t: 0 });
+  const frozen = useRef({ halfH: 1, halfW: 1, valid: false });
 
   const _right = useMemo(() => new THREE.Vector3(), []);
   const _up = useMemo(() => new THREE.Vector3(), []);
@@ -48,20 +49,28 @@ export function OrbitalEcosystem({ center, radius }: { center: THREE.Vector3; ra
 
   useFrame((state, delta) => {
     const f = earthFocus();
-    const visible = f > 0.02;
+    const visible = f > 0.08;
     const hovered = useEarthUI.getState().hovered;
 
-    // camera/screen basis + a plane just in front of Earth to hang the loops on
-    camera.getWorldPosition(_cam);
-    _right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
-    _up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
-    _fwd.setFromMatrixColumn(camera.matrixWorld, 2).negate().normalize();
-    const camDist = _cam.distanceTo(center);
-    const dist = Math.max(radius, camDist - radius * 0.7); // in front of Earth's near face
-    const cam2 = camera as THREE.PerspectiveCamera;
-    const halfH = Math.tan(THREE.MathUtils.degToRad((cam2.fov || 50) * 0.5)) * dist;
-    const halfW = halfH * (size.width / Math.max(1, size.height));
-    _fc.copy(_cam).addScaledVector(_fwd, dist);
+    // Recompute the camera/screen frame ONLY while parked at Earth. When the
+    // viewer scrolls away we FREEZE it, so the craft stay put in world space and
+    // recede naturally with the flight instead of swimming/rescaling in the
+    // moving frustum (that was the artificial enlarge/shrink on Earth->Mars).
+    if (f > 0.6 || !frozen.current.valid) {
+      camera.getWorldPosition(_cam);
+      _right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+      _up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+      _fwd.setFromMatrixColumn(camera.matrixWorld, 2).negate().normalize();
+      const camDist = _cam.distanceTo(center);
+      const dist = Math.max(radius, camDist - radius * 0.7); // in front of Earth's near face
+      const cam2 = camera as THREE.PerspectiveCamera;
+      frozen.current.halfH = Math.tan(THREE.MathUtils.degToRad((cam2.fov || 50) * 0.5)) * dist;
+      frozen.current.halfW = frozen.current.halfH * (size.width / Math.max(1, size.height));
+      _fc.copy(_cam).addScaledVector(_fwd, dist);
+      frozen.current.valid = true;
+    }
+    const halfH = frozen.current.halfH;
+    const halfW = frozen.current.halfW;
 
     for (let i = 0; i < CRAFT.length; i++) {
       const g = pos.current[i];

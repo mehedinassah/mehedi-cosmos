@@ -3,9 +3,6 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { CRAFT, hoverBridge, useEarthUI } from '@/state/earthHoverStore';
 
-// If the viewer opens a panel and forgets it, it closes itself.
-const AUTO_CLOSE_MS = 4000;
-
 /**
  * Curiosity-driven Earth UI: a subtle tag that follows a hovered craft, and a
  * compact side panel that opens on click. The world never freezes — the object
@@ -45,13 +42,6 @@ export function OrbitPanel() {
   const selected = useEarthUI((s) => s.selected);
   const setSelected = useEarthUI((s) => s.setSelected);
   const craft = selected != null ? CRAFT[selected] : null;
-
-  // Auto-close after a few seconds (reset whenever the selection changes).
-  useEffect(() => {
-    if (selected == null) return;
-    const id = window.setTimeout(() => setSelected(null), AUTO_CLOSE_MS);
-    return () => window.clearTimeout(id);
-  }, [selected, setSelected]);
   return (
     <div
       className={`orbit-panel ${craft ? 'orbit-panel--on' : ''}`}
