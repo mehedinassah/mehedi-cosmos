@@ -4,21 +4,21 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { K_ITEMS, saturnBridge, useSaturnUI } from '@/state/saturnStore';
 
 /**
- * Saturn's Knowledge Archive DOM layer:
- * - KnowledgeCard: the compact card a particle unfolds into (rAF-driven, calm).
- *   Clicking it expands the full academic record.
- * - SaturnTimeline: 2018 —— 2020 —— 2022, dots lighting as milestones present.
- * - SaturnExpand: the full record panel (course code, institution, semester,
- *   topics), auto-closing from the store.
+ * Saturn's Knowledge Archive DOM layer.
+ * - KnowledgeCard: the card a ring particle unfolds into. VisionOS hierarchy —
+ *   one big title, tiny category above, tiny code/semester below. Clicking it
+ *   opens the full record.
+ * - SaturnExpand: the full academic record (auto-closes from the store). Also
+ *   opened by clicking a milestone beacon in 3D.
  */
 
-const CARD_W = 200;
+const CARD_W = 210;
 
 export function KnowledgeCard() {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [c, setC] = useState<{ cat: string; title: string; sub: string; accent: string } | null>(null);
+  const [c, setC] = useState<{ cat: string; title: string; meta: string } | null>(null);
   const shown = useRef(-1);
 
   useEffect(() => {
@@ -31,19 +31,21 @@ export function KnowledgeCard() {
           if (i !== shown.current) {
             shown.current = i;
             const it = K_ITEMS[i];
-            setC({ cat: it.cat, title: it.title, sub: it.sub ?? it.code ?? '', accent: it.accent ?? '#cdb384' });
-            root.style.setProperty('--karc', it.accent ?? '#cdb384');
+            const meta = it.code ? `${it.code} · ${it.sem ?? ''}` : it.sub ?? it.sem ?? '';
+            setC({ cat: it.cat, title: it.title, meta });
+            root.style.setProperty('--karc', saturnBridge.color);
           }
           const vw = window.innerWidth, vh = window.innerHeight;
           const px = saturnBridge.px, py = saturnBridge.py;
-          let left = px + 26;
-          if (left + CARD_W > vw - 16) left = px - 26 - CARD_W;
-          const h = card.offsetHeight || 80;
+          let left = px + 24; // the card unfolds just beside the particle
+          if (left + CARD_W > vw - 16) left = px - 24 - CARD_W;
+          left = Math.max(16, Math.min(left, vw - CARD_W - 16)); // never clipped
+          const h = card.offsetHeight || 78;
           const top = Math.max(16, Math.min(py - h / 2, vh - h - 16));
           card.style.transform = `translate(${left}px, ${top}px)`;
           const env = saturnBridge.env;
           panel.style.opacity = String(env);
-          panel.style.transform = `translateY(${(1 - env) * 6}px) scale(${0.96 + env * 0.04})`;
+          panel.style.transform = `translateY(${(1 - env) * 5}px) scale(${0.95 + env * 0.05})`;
           root.classList.add('sat-holo--on');
         } else {
           if (shown.current !== -1) shown.current = -1;
@@ -68,52 +70,8 @@ export function KnowledgeCard() {
         <div ref={panelRef} className="sat-holo__panel">
           <div className="sat-holo__cat">{c?.cat}</div>
           <div className="sat-holo__title">{c?.title}</div>
-          {c?.sub ? <div className="sat-holo__sub">{c.sub}</div> : null}
-          <div className="sat-holo__more">details</div>
+          <div className="sat-holo__meta">{c?.meta}</div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-const DOTS: { year: '2018' | '2020' | '2022'; label: string }[] = [
-  { year: '2018', label: 'SSC' },
-  { year: '2020', label: 'HSC' },
-  { year: '2022', label: 'BSc' },
-];
-
-export function SaturnTimeline() {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [lit, setLit] = useState<string>('');
-  const litRef = useRef('');
-
-  useEffect(() => {
-    let raf = 0;
-    const loop = () => {
-      const root = rootRef.current;
-      if (root) {
-        root.classList.toggle('sat-timeline--on', saturnBridge.focus > 0.6);
-        if (saturnBridge.milestone !== litRef.current) {
-          litRef.current = saturnBridge.milestone;
-          setLit(saturnBridge.milestone);
-        }
-      }
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  return (
-    <div ref={rootRef} className="sat-timeline" aria-hidden="true">
-      <div className="sat-timeline__track">
-        {DOTS.map((d) => (
-          <div key={d.year} className={`sat-timeline__stop ${lit === d.year ? 'sat-timeline__stop--lit' : ''}`}>
-            <span className="sat-timeline__dot" />
-            <span className="sat-timeline__year">{d.year}</span>
-            <span className="sat-timeline__label">{d.label}</span>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -126,7 +84,7 @@ export function SaturnExpand() {
   return (
     <div
       className={`sat-expand ${it ? 'sat-expand--on' : ''}`}
-      style={it ? ({ '--karc': it.accent ?? '#cdb384' } as CSSProperties) : undefined}
+      style={it ? ({ '--karc': it.kind === 'milestone' ? '#f0c674' : undefined } as CSSProperties) : undefined}
     >
       {it && (
         <>

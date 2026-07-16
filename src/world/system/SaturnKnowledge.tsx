@@ -1,35 +1,34 @@
 'use client';
 
 import { useMemo, useRef } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import { K_ITEMS, saturnBridge, saturnFocus } from '@/state/saturnStore';
+import {
+  K_ITEMS, CYCLE_INDICES, MILE_INDICES, colorOf, saturnBridge, saturnFocus, useSaturnUI,
+} from '@/state/saturnStore';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 
 /**
- * SaturnKnowledge — the rings as knowledge streams.
+ * SaturnKnowledge — the rings ARE the knowledge.
  *
- * Three particle streams ride inside Saturn's visible ring band (same tilted
- * plane), each with its own rhythm: inner fastest (foundations), outer slowest
- * (specializations). Every ~6.5s ONE particle brightens, drifts a short way out
- * of its stream and unfolds into a compact card (DOM, via saturnBridge), then
- * folds back. Larger milestone objects (two metallic capsules and a gold
- * diploma cylinder for the university) orbit farther out and light the timeline
- * when they present. Dust drifts between the layers. Calm, warm, organized.
+ * Three dim particle streams (foundations / core / specializations) ride inside
+ * the visible ring band, each with its own rhythm; ice glints and dust give the
+ * band depth. Named course particles sit in the streams, colour-coded by
+ * category. Every ~6s one lights up, drifts a few px OUT of the ring and unfolds
+ * into a card (DOM), tracing a faint constellation to its category siblings —
+ * then folds back. Milestones (SSC / HSC / BRAC) are clickable gold beacons on
+ * their own orbit, BRAC the largest.
  */
 
 const RING_TILT: [number, number, number] = [Math.PI / 2 + 0.5, 0, 0.24];
-const STREAM_R = [1.5, 1.85, 2.2]; // x planet radius, inside the 1.35–2.4 band
-const STREAM_SPEED = [0.02, 0.012, 0.007]; // inner fastest
-const STREAM_N = [260, 300, 240];
-const MILE_R = [2.75, 2.95, 3.2]; // milestone orbit radii (SSC, HSC, University)
-const MILE_SPEED = [0.009, 0.007, 0.005];
-const SLOT = 6.5; // seconds per activation
+const STREAM_R = [1.5, 1.85, 2.2];
+const STREAM_SPEED = [0.02, 0.012, 0.007];
+const STREAM_N = [300, 340, 260];
+const SLOT = 6.0;
 const GOLDEN = 2.399963;
-
 const PALETTE = ['#efe9dc', '#cdb384', '#d8b26a', '#e8dcc8'];
 
-function makeStream(n: number, r: number, radius: number, seed: number) {
+function makeCloud(n: number, r: number, radius: number, seed: number, spread: number) {
   const pos = new Float32Array(n * 3);
   const col = new Float32Array(n * 3);
   const c = new THREE.Color();
@@ -37,12 +36,12 @@ function makeStream(n: number, r: number, radius: number, seed: number) {
   const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   for (let i = 0; i < n; i++) {
     const a = rng() * Math.PI * 2;
-    const rr = (r + (rng() - 0.5) * 0.14) * radius;
+    const rr = (r + (rng() - 0.5) * spread) * radius;
     pos[i * 3] = Math.cos(a) * rr;
     pos[i * 3 + 1] = Math.sin(a) * rr;
     pos[i * 3 + 2] = (rng() - 0.5) * radius * 0.02;
     c.set(PALETTE[Math.floor(rng() * PALETTE.length)]);
-    const dim = 0.5 + rng() * 0.5;
+    const dim = 0.4 + rng() * 0.4;
     col[i * 3] = c.r * dim;
     col[i * 3 + 1] = c.g * dim;
     col[i * 3 + 2] = c.b * dim;
@@ -53,181 +52,248 @@ function makeStream(n: number, r: number, radius: number, seed: number) {
   return g;
 }
 
+const MAX_LINKS = 14;
+
 export function SaturnKnowledge({ center, radius }: { center: THREE.Vector3; radius: number }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
-  const streams = useRef<(THREE.Group | null)[]>([]);
-  const dust = useRef<THREE.Points>(null);
-  const glowRef = useRef<THREE.Sprite>(null);
-  const glowMat = useRef<THREE.SpriteMaterial>(null);
+  const fillers = useRef<(THREE.Object3D | null)[]>([]);
+  const dust = useRef<THREE.Object3D | null>(null);
+  const ice = useRef<THREE.Object3D | null>(null);
+  const markerSp = useRef<(THREE.Sprite | null)[]>([]);
+  const markerMat = useRef<(THREE.SpriteMaterial | null)[]>([]);
+  const lineRef = useRef<THREE.Object3D | null>(null);
   const miles = useRef<(THREE.Group | null)[]>([]);
   const mileGlow = useRef<(THREE.SpriteMaterial | null)[]>([]);
 
-  const geos = useMemo(
-    () => STREAM_R.map((r, i) => makeStream(STREAM_N[i], r, radius, 1013 + i * 77)),
-    [radius],
-  );
-  const dustGeo = useMemo(() => makeStream(420, 1.9, radius, 5501), [radius]);
+  const fillerGeo = useMemo(() => STREAM_R.map((r, i) => makeCloud(STREAM_N[i], r, radius, 1013 + i * 77, 0.14)), [radius]);
+  const dustGeo = useMemo(() => makeCloud(420, 1.85, radius, 5501, 0.5), [radius]);
+  const iceGeo = useMemo(() => makeCloud(90, 1.8, radius, 8821, 0.55), [radius]);
   const glowTex = useMemo(
-    () => makeGlowTexture([
-      [0, 'rgba(255,244,220,1)'],
-      [0.4, 'rgba(226,196,140,0.55)'],
-      [1, 'rgba(210,180,120,0)'],
-    ]),
+    () => makeGlowTexture([[0, 'rgba(255,250,238,1)'], [0.4, 'rgba(230,208,160,0.5)'], [1, 'rgba(210,180,120,0)']]),
     [],
   );
 
-  // fixed in-stream angle per item (golden-angle spread keeps them apart)
-  const itemAngles = useMemo(() => K_ITEMS.map((_, i) => i * GOLDEN), []);
-  const mileIndex = useMemo(() => {
-    const map: Record<string, number> = { '2018': 0, '2020': 1, '2022': 2 };
-    return K_ITEMS.map((it) => (it.kind === 'milestone' && it.year ? map[it.year] : -1));
+  // named particles = the cycle items, in cycle order (marker j <-> CYCLE_INDICES[j])
+  const markers = useMemo(
+    () => CYCLE_INDICES.map((ki, j) => {
+      const it = K_ITEMS[ki];
+      return { ki, ring: it.ring as 0 | 1 | 2, base: j * GOLDEN, color: colorOf(it), group: it.group };
+    }),
+    [],
+  );
+  const lineGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_LINKS * 2 * 3), 3));
+    return g;
   }, []);
+  const lineMat = useMemo(() => new THREE.LineBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }), []);
 
+  const streamRot = useRef([0, 0, 0]);
   const clock = useRef(0);
+  const mpos = useRef<THREE.Vector3[]>(markers.map(() => new THREE.Vector3()));
   const _w = useMemo(() => new THREE.Vector3(), []);
   const _ndc = useMemo(() => new THREE.Vector3(), []);
+  const _col = useMemo(() => new THREE.Color(), []);
 
   useFrame((state, delta) => {
     const f = saturnFocus();
     saturnBridge.focus = f;
     const visible = f > 0.02;
-    for (const g of streams.current) if (g) g.visible = visible;
+    for (const p of fillers.current) if (p) p.visible = visible;
     if (dust.current) dust.current.visible = visible;
+    if (ice.current) ice.current.visible = visible;
     for (const m of miles.current) if (m) m.visible = visible;
-    if (glowRef.current) glowRef.current.visible = visible;
+    for (const sp of markerSp.current) if (sp) sp.visible = visible;
+    if (lineRef.current) lineRef.current.visible = visible;
     if (!visible) {
       saturnBridge.active = false;
       saturnBridge.env = 0;
-      saturnBridge.milestone = '';
       return;
     }
 
-    // layered motion — each stream its own rhythm; dust drifts independently
+    // layered ring motion — each its own rhythm
     for (let i = 0; i < 3; i++) {
-      const g = streams.current[i];
-      if (g) g.rotation.z += delta * STREAM_SPEED[i];
+      streamRot.current[i] += delta * STREAM_SPEED[i];
+      const p = fillers.current[i];
+      if (p) p.rotation.z = streamRot.current[i];
     }
     if (dust.current) dust.current.rotation.z -= delta * 0.004;
+    if (ice.current) ice.current.rotation.z += delta * 0.016;
 
-    // milestones orbit slowly, farther out
+    // activation cycle (courses + achievements only; paused while reading)
+    if (!saturnBridge.paused && f > 0.85) clock.current += delta;
+    const slot = Math.floor(clock.current / SLOT) % markers.length;
+    const tin = clock.current % SLOT;
+    const env = THREE.MathUtils.smoothstep(tin, 0.6, 1.2) * (1 - THREE.MathUtils.smoothstep(tin, 4.6, 5.4));
     const t = state.clock.elapsedTime;
+
+    // place named particles (carried by their stream), light the active one
+    for (let j = 0; j < markers.length; j++) {
+      const mk = markers[j];
+      const active = j === slot;
+      const ang = mk.base + streamRot.current[mk.ring];
+      const rr = (STREAM_R[mk.ring] + (active ? env * 0.2 : 0)) * radius;
+      const p = mpos.current[j];
+      p.set(Math.cos(ang) * rr, Math.sin(ang) * rr, radius * 0.012);
+      const sp = markerSp.current[j];
+      if (sp) {
+        sp.position.copy(p);
+        sp.scale.setScalar(radius * (active ? 0.05 + env * 0.09 : 0.028));
+      }
+      const mat = markerMat.current[j];
+      if (mat) mat.opacity = active ? 0.25 + env * 0.75 : 0.28 + 0.12 * Math.sin(t * 1.6 + j);
+    }
+
+    // constellation: link the active particle to its category siblings
+    const activeMk = markers[slot];
+    const posAttr = lineGeo.attributes.position as THREE.BufferAttribute;
+    const arr = posAttr.array as Float32Array;
+    let seg = 0;
+    const a0 = mpos.current[slot];
+    for (let j = 0; j < markers.length && seg < MAX_LINKS; j++) {
+      if (j === slot || markers[j].group !== activeMk.group) continue;
+      const b = mpos.current[j];
+      arr[seg * 6] = a0.x; arr[seg * 6 + 1] = a0.y; arr[seg * 6 + 2] = a0.z;
+      arr[seg * 6 + 3] = b.x; arr[seg * 6 + 4] = b.y; arr[seg * 6 + 5] = b.z;
+      seg++;
+    }
+    for (let k = seg; k < MAX_LINKS; k++) for (let q = 0; q < 6; q++) arr[k * 6 + q] = 0;
+    posAttr.needsUpdate = true;
+    lineGeo.setDrawRange(0, seg * 2);
+    lineMat.color.copy(_col.set(activeMk.color));
+    lineMat.opacity = env * 0.4;
+
+    // milestones orbit slowly; gentle beacon pulse
+    const MILE_R = [2.7, 2.95, 2.35]; // SSC, HSC, BRAC(largest, innermost = prominent)
     for (let i = 0; i < 3; i++) {
       const m = miles.current[i];
       if (!m) continue;
-      const a = 1.2 + i * 2.0 + t * MILE_SPEED[i];
-      m.position.set(Math.cos(a) * MILE_R[i] * radius, Math.sin(a) * MILE_R[i] * radius, 0);
-      m.rotation.z = a + Math.PI / 2; // lie along the orbit
-    }
-
-    // --- activation cycle: one particle at a time, every SLOT seconds ---
-    if (!saturnBridge.paused && f > 0.85) clock.current += delta;
-    const idx = Math.floor(clock.current / SLOT) % K_ITEMS.length;
-    const tin = clock.current % SLOT;
-    const env = THREE.MathUtils.smoothstep(tin, 0.6, 1.2) * (1 - THREE.MathUtils.smoothstep(tin, 4.6, 5.4));
-    const item = K_ITEMS[idx];
-
-    if (item.ring < 3) {
-      // particle in a stream: fixed base angle, carried by the stream rotation,
-      // drifting a short way OUT of the ring while presenting
-      const g = streams.current[item.ring];
-      const r = (STREAM_R[item.ring] + env * 0.16) * radius;
-      const a = itemAngles[idx];
-      if (g && glowRef.current) {
-        glowRef.current.position.set(Math.cos(a) * r, Math.sin(a) * r, radius * 0.015);
-        // ride the stream: sprite is a child of the rotating group
-        if (glowRef.current.parent !== g) g.add(glowRef.current);
-        glowRef.current.getWorldPosition(_w);
-      }
-      saturnBridge.milestone = '';
-    } else {
-      // milestone: the object itself presents; glow rides it
-      const mi = mileIndex[idx];
-      const m = miles.current[mi];
-      if (m && glowRef.current) {
-        if (glowRef.current.parent !== m.parent) m.parent?.add(glowRef.current);
-        glowRef.current.position.copy(m.position);
-        glowRef.current.position.z += radius * 0.02;
-        glowRef.current.getWorldPosition(_w);
-      }
-      saturnBridge.milestone = env > 0.25 && item.year ? item.year : '';
-    }
-    if (glowMat.current) glowMat.current.opacity = 0.15 + env * 0.85;
-    if (glowRef.current) glowRef.current.scale.setScalar(radius * (0.1 + env * 0.1));
-    for (let i = 0; i < 3; i++) {
+      const a = 1.0 + i * 2.1 + t * (0.006 - i * 0.001);
+      m.position.set(Math.cos(a) * MILE_R[i] * radius, Math.sin(a) * MILE_R[i] * radius, radius * 0.05);
+      m.rotation.z += delta * 0.15;
       const gm = mileGlow.current[i];
-      if (gm) gm.opacity = 0.22 + (item.ring === 3 && mileIndex[idx] === i ? env * 0.6 : 0.08 * Math.sin(t * 1.4 + i));
+      if (gm) gm.opacity = 0.22 + 0.1 * Math.sin(t * 1.3 + i * 1.7);
     }
 
+    // present the active card at the particle's screen position
+    _w.copy(center).add(a0.clone().applyEuler(new THREE.Euler(...RING_TILT)));
     _ndc.copy(_w).project(camera);
-    saturnBridge.index = idx;
+    saturnBridge.index = activeMk.ki;
+    saturnBridge.color = activeMk.color;
     saturnBridge.px = (_ndc.x * 0.5 + 0.5) * size.width;
     saturnBridge.py = (-_ndc.y * 0.5 + 0.5) * size.height;
     saturnBridge.env = env;
     saturnBridge.active = env > 0.02 && f > 0.6;
   });
 
+  const onMileClick = (ki: number) => (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    useSaturnUI.getState().setSelected(ki);
+  };
+  const hit = radius * 0.22;
+
   return (
     <group position={center} rotation={RING_TILT}>
-      {/* knowledge streams */}
-      {geos.map((g, i) => (
-        <group key={i} ref={(el) => { streams.current[i] = el; }} visible={false}>
-          <points geometry={g}>
-            <pointsMaterial
-              size={radius * 0.014}
-              vertexColors
-              transparent
-              opacity={0.85}
-              depthWrite={false}
-              sizeAttenuation
-            />
-          </points>
-        </group>
+      {/* depth: dim filler streams + drifting dust + ice glints */}
+      {fillerGeo.map((g, i) => (
+        <points key={i} ref={(el) => { fillers.current[i] = el; }} geometry={g} visible={false}>
+          <pointsMaterial size={radius * 0.012} vertexColors transparent opacity={0.55} depthWrite={false} sizeAttenuation />
+        </points>
       ))}
-      {/* drifting dust between the layers */}
-      <points ref={dust} geometry={dustGeo} visible={false}>
-        <pointsMaterial size={radius * 0.006} color="#cdbf9f" transparent opacity={0.35} depthWrite={false} sizeAttenuation />
+      <points ref={(el) => { dust.current = el; }} geometry={dustGeo} visible={false}>
+        <pointsMaterial size={radius * 0.006} color="#cdbf9f" transparent opacity={0.3} depthWrite={false} sizeAttenuation />
+      </points>
+      <points ref={(el) => { ice.current = el; }} geometry={iceGeo} visible={false}>
+        <pointsMaterial size={radius * 0.01} color="#fbf4e2" transparent opacity={0.55} depthWrite={false} blending={THREE.AdditiveBlending} sizeAttenuation />
       </points>
 
-      {/* the active particle's glow */}
-      <sprite ref={glowRef} visible={false} scale={[radius * 0.12, radius * 0.12, 1]}>
-        <spriteMaterial ref={glowMat} map={glowTex} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </sprite>
+      {/* named course particles (colour = category) */}
+      {markers.map((mk, j) => (
+        <sprite key={mk.ki} ref={(el) => { markerSp.current[j] = el; }} visible={false} scale={[radius * 0.028, radius * 0.028, 1]}>
+          <spriteMaterial
+            ref={(m) => { markerMat.current[j] = m; if (m) m.color.set(mk.color); }}
+            map={glowTex}
+            transparent
+            opacity={0.3}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </sprite>
+      ))}
 
-      {/* milestone objects: SSC capsule, HSC capsule, University diploma */}
+      {/* constellation lines between related subjects */}
+      <lineSegments ref={(el) => { lineRef.current = el; }} geometry={lineGeo} material={lineMat} visible={false} />
+
+      {/* milestone gold beacons: SSC, HSC, and BRAC (the largest) */}
       <group ref={(el) => { miles.current[0] = el; }} visible={false}>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <capsuleGeometry args={[radius * 0.035, radius * 0.08, 6, 14]} />
-          <meshStandardMaterial color="#cfd4da" metalness={0.75} roughness={0.35} />
+        <MileBeacon radius={radius} scale={0.9} />
+        <mesh onClick={onMileClick(MILE_INDICES[0])} onPointerOver={() => (document.body.style.cursor = 'pointer')} onPointerOut={() => (document.body.style.cursor = '')}>
+          <sphereGeometry args={[hit, 8, 8]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
-        <sprite scale={[radius * 0.16, radius * 0.16, 1]}>
+        <sprite scale={[radius * 0.2, radius * 0.2, 1]}>
           <spriteMaterial ref={(m) => { mileGlow.current[0] = m; }} map={glowTex} transparent opacity={0.2} depthWrite={false} blending={THREE.AdditiveBlending} />
         </sprite>
       </group>
       <group ref={(el) => { miles.current[1] = el; }} visible={false}>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <capsuleGeometry args={[radius * 0.04, radius * 0.09, 6, 14]} />
-          <meshStandardMaterial color="#d8cdb4" metalness={0.7} roughness={0.38} />
+        <MileBeacon radius={radius} scale={1.0} />
+        <mesh onClick={onMileClick(MILE_INDICES[1])} onPointerOver={() => (document.body.style.cursor = 'pointer')} onPointerOut={() => (document.body.style.cursor = '')}>
+          <sphereGeometry args={[hit, 8, 8]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
-        <sprite scale={[radius * 0.17, radius * 0.17, 1]}>
+        <sprite scale={[radius * 0.22, radius * 0.22, 1]}>
           <spriteMaterial ref={(m) => { mileGlow.current[1] = m; }} map={glowTex} transparent opacity={0.2} depthWrite={false} blending={THREE.AdditiveBlending} />
         </sprite>
       </group>
-      {/* university — the destination the knowledge revolves around */}
+      {/* BRAC — the largest: a gold graduation cap, the centre of it all */}
       <group ref={(el) => { miles.current[2] = el; }} visible={false}>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[radius * 0.045, radius * 0.045, radius * 0.2, 18]} />
-          <meshStandardMaterial color="#d8b26a" metalness={0.65} roughness={0.32} />
+        <GradCap radius={radius} />
+        <mesh onClick={onMileClick(MILE_INDICES[2])} onPointerOver={() => (document.body.style.cursor = 'pointer')} onPointerOut={() => (document.body.style.cursor = '')}>
+          <sphereGeometry args={[hit * 1.3, 8, 8]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
-        {/* diploma ribbon band */}
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[radius * 0.05, radius * 0.05, radius * 0.03, 18]} />
-          <meshStandardMaterial color="#8fd8c8" metalness={0.4} roughness={0.4} emissive="#2a6b60" emissiveIntensity={0.5} />
-        </mesh>
-        <sprite scale={[radius * 0.24, radius * 0.24, 1]}>
-          <spriteMaterial ref={(m) => { mileGlow.current[2] = m; }} map={glowTex} transparent opacity={0.25} depthWrite={false} blending={THREE.AdditiveBlending} />
+        <sprite scale={[radius * 0.34, radius * 0.34, 1]}>
+          <spriteMaterial ref={(m) => { mileGlow.current[2] = m; }} map={glowTex} transparent opacity={0.28} depthWrite={false} blending={THREE.AdditiveBlending} />
         </sprite>
       </group>
+    </group>
+  );
+}
+
+/** A small gold beacon: an octahedron core with a bright emissive centre. */
+function MileBeacon({ radius, scale }: { radius: number; scale: number }) {
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#d8b26a', metalness: 0.7, roughness: 0.32, emissive: '#8a6a2a', emissiveIntensity: 0.5 }), []);
+  return (
+    <mesh material={mat} scale={scale}>
+      <octahedronGeometry args={[radius * 0.05, 0]} />
+    </mesh>
+  );
+}
+
+/** BRAC — a gold graduation cap (mortarboard + tassel). */
+function GradCap({ radius }: { radius: number }) {
+  const gold = useMemo(() => new THREE.MeshStandardMaterial({ color: '#e0b662', metalness: 0.72, roughness: 0.3 }), []);
+  const dark = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3a2f18', metalness: 0.5, roughness: 0.5 }), []);
+  const R = radius;
+  return (
+    <group rotation={[Math.PI / 2, 0, 0]}>
+      {/* cap base */}
+      <mesh material={dark} position={[0, -R * 0.035, 0]}>
+        <cylinderGeometry args={[R * 0.06, R * 0.07, R * 0.06, 20]} />
+      </mesh>
+      {/* mortarboard */}
+      <mesh material={gold} position={[0, R * 0.01, 0]}>
+        <boxGeometry args={[R * 0.2, R * 0.014, R * 0.2]} />
+      </mesh>
+      {/* button */}
+      <mesh material={gold} position={[0, R * 0.025, 0]}>
+        <sphereGeometry args={[R * 0.014, 10, 8]} />
+      </mesh>
+      {/* tassel */}
+      <mesh material={gold} position={[R * 0.09, R * 0.0, R * 0.09]} rotation={[0.2, 0, 0.2]}>
+        <cylinderGeometry args={[R * 0.004, R * 0.004, R * 0.09, 6]} />
+      </mesh>
     </group>
   );
 }

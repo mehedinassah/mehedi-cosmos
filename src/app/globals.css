@@ -505,33 +505,29 @@ main { position: fixed; inset: 0; }
   box-shadow: 0 1px 14px rgba(0, 0, 0, 0.35);
   opacity: 0;
 }
+/* VisionOS hierarchy: tiny category, ONE large title, tiny meta. */
 .sat-holo__cat {
   color: var(--karc, #cdb384);
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
+  opacity: 0.9;
 }
 .sat-holo__title {
-  color: rgba(244, 239, 228, 0.97);
-  font-size: 17px;
+  color: rgba(246, 241, 231, 0.98);
+  font-size: 21px;
   font-weight: 400;
-  letter-spacing: -0.005em;
-  line-height: 1.15;
-  margin-top: 4px;
+  letter-spacing: -0.012em;
+  line-height: 1.1;
+  margin-top: 5px;
 }
-.sat-holo__sub {
-  color: rgba(222, 210, 186, 0.6);
-  font-size: 10.5px;
+.sat-holo__meta {
+  color: rgba(214, 202, 178, 0.5);
+  font-size: 9.5px;
   font-weight: 400;
-  margin-top: 3px;
-}
-.sat-holo__more {
-  color: rgba(143, 216, 200, 0.6); /* the one tiny cyan accent */
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin-top: 7px;
+  letter-spacing: 0.04em;
+  margin-top: 6px;
 }
 
 /* the study timeline riding beneath Saturn */

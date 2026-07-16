@@ -355,12 +355,11 @@ export const CHAPTERS: Chapter[] = [
   {
     id: 'saturn', planet: 'Saturn', title: 'Knowledge Archive', sp: 0.67, accent: '#cdb384', au: '9.54 AU',
     body: [
-      'Every orbit is a semester.',
-      'Every particle is a lesson.',
-      'Inner ring: foundations.',
-      'Middle ring: core engineering.',
-      'Outer ring: specializations.',
-      'Click a card for the full record.',
+      'Four years.',
+      '41 courses.',
+      'Hundreds of assignments.',
+      'Thousands of hours.',
+      'Every orbit shaped the engineer you are exploring today.',
     ],
   },
   {
