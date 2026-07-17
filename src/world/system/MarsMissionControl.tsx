@@ -149,14 +149,19 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
     const toCam = fwd.clone().multiplyScalar(-1);
-    // orbit hub lifted above Mars: the near arc rides up-and-toward-camera
-    // (visible, above the planet); the far arc dips down-and-behind (occluded).
+    // orbit hub lifted above Mars so drones ride the upper view.
     const hub = center.clone().addScaledVector(up, UP_OFFSET * radius);
+    // each class gets a distinct 3D plane: normal n tilts off the view axis by
+    // `incl` toward direction `tiltAz`; u,v span the orbit plane.
     const planes: Record<string, { u: THREE.Vector3; v: THREE.Vector3; b: number }> = {};
     (Object.keys(CLASS_ORBIT) as MissionClass[]).forEach((c) => {
       const o = CLASS_ORBIT[c];
-      const u = right.clone().applyAxisAngle(toCam, o.roll);
-      const v = up.clone().multiplyScalar(Math.cos(o.incl)).addScaledVector(toCam, Math.sin(o.incl)).applyAxisAngle(toCam, o.roll);
+      const tiltDir = right.clone().multiplyScalar(Math.cos(o.tiltAz)).addScaledVector(up, Math.sin(o.tiltAz));
+      const n = toCam.clone().multiplyScalar(Math.cos(o.incl)).addScaledVector(tiltDir, Math.sin(o.incl)).normalize();
+      const u = new THREE.Vector3().crossVectors(up, n);
+      if (u.lengthSq() < 0.02) u.crossVectors(right, n);
+      u.normalize();
+      const v = new THREE.Vector3().crossVectors(n, u).normalize();
       planes[c] = { u, v, b: 1 - o.ecc };
     });
     const landing = MISSIONS.map((m) => {
@@ -225,18 +230,19 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     const t = state.clock.elapsedTime;
     appear.current = Math.min(1, appear.current + delta * 0.8);
     const app = THREE.MathUtils.smoothstep(appear.current, 0, 1);
-    const hovered = useMarsUI.getState().hovered;
+    const ui = useMarsUI.getState();
+    const focusIdx = ui.hovered != null ? ui.hovered : ui.selected;
 
-    // On arrival, seed every drone onto the near-upper arc (all visible first);
-    // varied orbits then drift some behind Mars over the next ~15s.
+    // On arrival, seed every drone at ITS orbit's most camera-facing point (all
+    // visible / closest to the viewer first); varied planes then carry some
+    // behind Mars over the next ~15s, each moving in its own direction.
     if (f < 0.1) started.current = false;
     if (!started.current && f > 0.5) {
-      // spread across the open upper-left arc (Mars sits low-right), all visible;
-      // interleave so neighbours aren't adjacent -> they desync into steady cover
       const N = MISSIONS.length;
-      for (let k = 0; k < N; k++) {
-        const i = (k * 3) % N; // interleave
-        spin.current[i] = 0.5 * Math.PI + (k / (N - 1)) * 0.8 * Math.PI;
+      for (let i = 0; i < N; i++) {
+        const pl = basis.planes[MISSIONS[i].cls];
+        const a0 = Math.atan2(pl.v.dot(basis.toCam) * pl.b, pl.u.dot(basis.toCam));
+        spin.current[i] = a0 + (i - (N - 1) / 2) * 0.14; // small stagger
       }
       started.current = true;
     }
@@ -244,7 +250,7 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     for (let i = 0; i < MISSIONS.length; i++) {
       const m = MISSIONS[i];
       const o = CLASS_ORBIT[m.cls];
-      const isHover = i === hovered;
+      const isHover = i === focusIdx;
       slow.current[i] += ((isHover ? 0.12 : 1) - slow.current[i]) * Math.min(1, delta * 5);
       spin.current[i] += delta * o.speed * o.dir * slow.current[i];
       const pl = basis.planes[m.cls];
@@ -303,18 +309,20 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     commGeo.attributes.color.needsUpdate = true;
     if (colonyMat.current) colonyMat.current.opacity = (0.14 + 0.05 * Math.sin(t * 0.7)) * app;
 
-    // card bridge
-    if (hovered != null && dvis.current[hovered]) {
-      _ndc.copy(dpos.current[hovered]).project(camera);
-      marsBridge.index = hovered;
-      marsBridge.color = colorOfMission(MISSIONS[hovered]);
+    // card bridge — the mission log is CLICK-driven (a pinned selection that
+    // self-closes in 3s); hover only highlights the drone, it doesn't pop a card
+    const cardIdx = ui.selected;
+    if (cardIdx != null && dvis.current[cardIdx]) {
+      _ndc.copy(dpos.current[cardIdx]).project(camera);
+      marsBridge.index = cardIdx;
+      marsBridge.color = colorOfMission(MISSIONS[cardIdx]);
       marsBridge.px = (_ndc.x * 0.5 + 0.5) * size.width;
       marsBridge.py = (-_ndc.y * 0.5 + 0.5) * size.height;
       marsBridge.env += ((_ndc.z < 1 ? 1 : 0) - marsBridge.env) * Math.min(1, delta * 8);
       marsBridge.active = _ndc.z < 1;
     } else {
       marsBridge.env += (0 - marsBridge.env) * Math.min(1, delta * 8);
-      marsBridge.active = hovered != null;
+      marsBridge.active = cardIdx != null;
     }
   });
 
@@ -331,7 +339,7 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
   const onClick = (i: number) => (e: ThreeEvent<MouseEvent>) => {
     if (marsFocus() < 0.4) return;
     e.stopPropagation();
-    window.open(MISSIONS[i].href, '_blank', 'noopener');
+    useMarsUI.getState().setSelected(i); // pin the mission log (auto-closes in 3s)
   };
   const hitR = radius * 0.24;
   const S = radius * 0.055;
