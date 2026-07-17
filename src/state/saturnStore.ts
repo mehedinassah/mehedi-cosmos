@@ -79,10 +79,21 @@ export const K_ITEMS: KItem[] = [
 
 export const colorOf = (it: KItem): string => GROUP_COLOR[it.group];
 
-/** Indices that participate in the activation cycle (everything but milestones). */
+/** Course/achievement particles that live in the rings (for ambience + the
+ *  constellation links). Milestones are beacons, not ring particles. */
 export const CYCLE_INDICES: number[] = K_ITEMS.map((it, i) => (it.kind === 'milestone' ? -1 : i)).filter((i) => i >= 0);
 /** Milestone indices, in orbital order (SSC -> HSC -> BRAC). */
 export const MILE_INDICES: number[] = K_ITEMS.map((it, i) => (it.kind === 'milestone' ? i : -1)).filter((i) => i >= 0);
+
+// Activation order: the IMPORTANT cards surface first (degree, then HSC, SSC,
+// thesis), then everything else. All items get a card; milestones are also
+// clickable beacons.
+const _byTitle = (t: string) => K_ITEMS.findIndex((it) => it.title === t);
+const IMPORTANT = ['BSc Computer Science', 'HSC', 'SSC', 'Smart OCR'].map(_byTitle).filter((i) => i >= 0);
+export const CYCLE_ORDER: number[] = [
+  ...IMPORTANT,
+  ...K_ITEMS.map((_, i) => i).filter((i) => !IMPORTANT.includes(i)),
+];
 
 /** Active card -> DOM. env 0..1 drives unfold/fold; px/py = particle screen pos. */
 export const saturnBridge: {

@@ -4,7 +4,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
-  K_ITEMS, CYCLE_INDICES, MILE_INDICES, colorOf, saturnBridge, saturnFocus, useSaturnUI,
+  K_ITEMS, CYCLE_INDICES, CYCLE_ORDER, MILE_INDICES, colorOf, saturnBridge, saturnFocus, useSaturnUI,
 } from '@/state/saturnStore';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 
@@ -21,6 +21,7 @@ import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
  */
 
 const RING_TILT: [number, number, number] = [Math.PI / 2 + 0.5, 0, 0.24];
+const EULER_TILT = new THREE.Euler(...RING_TILT);
 const STREAM_R = [1.5, 1.85, 2.2];
 const STREAM_SPEED = [0.02, 0.012, 0.007];
 const STREAM_N = [300, 340, 260];
@@ -92,6 +93,10 @@ export function SaturnKnowledge({ center, radius }: { center: THREE.Vector3; rad
   const streamRot = useRef([0, 0, 0]);
   const clock = useRef(0);
   const mpos = useRef<THREE.Vector3[]>(markers.map(() => new THREE.Vector3()));
+  const presGlow = useRef<THREE.Sprite | null>(null);
+  const presGlowMat = useRef<THREE.SpriteMaterial | null>(null);
+  const presAngles = useRef<number[]>([]);
+  const presReady = useRef(false);
   const _w = useMemo(() => new THREE.Vector3(), []);
   const _ndc = useMemo(() => new THREE.Vector3(), []);
   const _col = useMemo(() => new THREE.Color(), []);
@@ -105,6 +110,7 @@ export function SaturnKnowledge({ center, radius }: { center: THREE.Vector3; rad
     if (ice.current) ice.current.visible = visible;
     for (const m of miles.current) if (m) m.visible = visible;
     for (const sp of markerSp.current) if (sp) sp.visible = visible;
+    if (presGlow.current) presGlow.current.visible = visible;
     if (lineRef.current) lineRef.current.visible = visible;
     if (!visible) {
       saturnBridge.active = false;
@@ -121,47 +127,82 @@ export function SaturnKnowledge({ center, radius }: { center: THREE.Vector3; rad
     if (dust.current) dust.current.rotation.z -= delta * 0.004;
     if (ice.current) ice.current.rotation.z += delta * 0.016;
 
-    // activation cycle (courses + achievements only; paused while reading)
+    if (f < 0.4) { clock.current = 0; presReady.current = false; } // reset each visit
+
+    // Compute the presentation spots once we are (near-)parked: the ring points
+    // that sit HIGHEST on screen. Cards always surface there — in the viewer's
+    // sightline, above the planet, never at the lower/occluded end.
+    if (!presReady.current && f > 0.9) {
+      const found: { a: number; sy: number }[] = [];
+      for (let k = 0; k < 120; k++) {
+        const a = (k / 120) * Math.PI * 2;
+        _w.set(Math.cos(a) * 1.9 * radius, Math.sin(a) * 1.9 * radius, 0).applyEuler(EULER_TILT).add(center);
+        _ndc.copy(_w).project(camera);
+        if (_ndc.z >= 1) continue;
+        const sx = (_ndc.x * 0.5 + 0.5) * size.width;
+        if (sx < 0 || sx > size.width) continue;
+        found.push({ a, sy: (-_ndc.y * 0.5 + 0.5) * size.height });
+      }
+      found.sort((x, y) => x.sy - y.sy); // highest on screen first
+      const top = found.slice(0, Math.min(found.length, 14)).sort((x, y) => x.a - y.a);
+      const picks: number[] = [];
+      if (top.length) {
+        const step = Math.max(1, Math.floor(top.length / 4));
+        for (let i = 0; i < top.length && picks.length < 4; i += step) picks.push(top[i].a);
+      }
+      if (picks.length) { presAngles.current = picks; presReady.current = true; }
+    }
+
+    // activation cycle — important first (BSc / HSC / SSC / thesis), then the
+    // rest. Paused while reading an expanded record.
     if (!saturnBridge.paused && f > 0.85) clock.current += delta;
-    const slot = Math.floor(clock.current / SLOT) % markers.length;
+    const activation = Math.floor(clock.current / SLOT);
+    const itemIdx = CYCLE_ORDER[activation % CYCLE_ORDER.length];
+    const item = K_ITEMS[itemIdx];
     const tin = clock.current % SLOT;
     const env = THREE.MathUtils.smoothstep(tin, 0.6, 1.2) * (1 - THREE.MathUtils.smoothstep(tin, 4.6, 5.4));
     const t = state.clock.elapsedTime;
 
-    // place named particles (carried by their stream), light the active one
+    // ambient course particles (dim, carried by their streams). The active
+    // subject's home particle brightens so you see where the card came from.
     for (let j = 0; j < markers.length; j++) {
       const mk = markers[j];
-      const active = j === slot;
       const ang = mk.base + streamRot.current[mk.ring];
-      const rr = (STREAM_R[mk.ring] + (active ? env * 0.2 : 0)) * radius;
+      const rr = STREAM_R[mk.ring] * radius;
       const p = mpos.current[j];
       p.set(Math.cos(ang) * rr, Math.sin(ang) * rr, radius * 0.012);
       const sp = markerSp.current[j];
-      if (sp) {
-        sp.position.copy(p);
-        sp.scale.setScalar(radius * (active ? 0.05 + env * 0.09 : 0.028));
-      }
+      if (sp) { sp.position.copy(p); sp.scale.setScalar(radius * (mk.ki === itemIdx ? 0.038 + env * 0.03 : 0.028)); }
       const mat = markerMat.current[j];
-      if (mat) mat.opacity = active ? 0.25 + env * 0.75 : 0.28 + 0.12 * Math.sin(t * 1.6 + j);
+      if (mat) mat.opacity = mk.ki === itemIdx ? 0.4 + env * 0.5 : 0.28 + 0.12 * Math.sin(t * 1.6 + j);
     }
 
-    // constellation: link the active particle to its category siblings
-    const activeMk = markers[slot];
+    // the presentation particle sits on the upper arc and drifts OUT while it
+    // presents; colour = the subject's category.
+    const pa = presAngles.current.length ? presAngles.current[activation % presAngles.current.length] : Math.PI * 0.7;
+    const pr = (1.95 + env * 0.18) * radius; // fixed band so every card is upper & in view
+    const gx = Math.cos(pa) * pr, gy = Math.sin(pa) * pr, gz = radius * 0.02;
+    const pg = presGlow.current;
+    if (pg) { pg.position.set(gx, gy, gz); pg.scale.setScalar(radius * (0.03 + env * 0.1)); }
+    const pgm = presGlowMat.current;
+    if (pgm) { pgm.color.copy(_col.set(colorOf(item))); pgm.opacity = env * 0.92; }
+
+    // constellation: link the presentation to the subject's category siblings
+    // (courses/achievements). Milestones stand alone.
     const posAttr = lineGeo.attributes.position as THREE.BufferAttribute;
     const arr = posAttr.array as Float32Array;
     let seg = 0;
-    const a0 = mpos.current[slot];
     for (let j = 0; j < markers.length && seg < MAX_LINKS; j++) {
-      if (j === slot || markers[j].group !== activeMk.group) continue;
+      if (markers[j].group !== item.group) continue;
       const b = mpos.current[j];
-      arr[seg * 6] = a0.x; arr[seg * 6 + 1] = a0.y; arr[seg * 6 + 2] = a0.z;
+      arr[seg * 6] = gx; arr[seg * 6 + 1] = gy; arr[seg * 6 + 2] = gz;
       arr[seg * 6 + 3] = b.x; arr[seg * 6 + 4] = b.y; arr[seg * 6 + 5] = b.z;
       seg++;
     }
     for (let k = seg; k < MAX_LINKS; k++) for (let q = 0; q < 6; q++) arr[k * 6 + q] = 0;
     posAttr.needsUpdate = true;
     lineGeo.setDrawRange(0, seg * 2);
-    lineMat.color.copy(_col.set(activeMk.color));
+    lineMat.color.copy(_col.set(colorOf(item)));
     lineMat.opacity = env * 0.4;
 
     // milestones orbit slowly; gentle beacon pulse
@@ -176,11 +217,11 @@ export function SaturnKnowledge({ center, radius }: { center: THREE.Vector3; rad
       if (gm) gm.opacity = 0.22 + 0.1 * Math.sin(t * 1.3 + i * 1.7);
     }
 
-    // present the active card at the particle's screen position
-    _w.copy(center).add(a0.clone().applyEuler(new THREE.Euler(...RING_TILT)));
+    // present the card at the presentation particle's screen position
+    _w.set(gx, gy, gz).applyEuler(EULER_TILT).add(center);
     _ndc.copy(_w).project(camera);
-    saturnBridge.index = activeMk.ki;
-    saturnBridge.color = activeMk.color;
+    saturnBridge.index = itemIdx;
+    saturnBridge.color = colorOf(item);
     saturnBridge.px = (_ndc.x * 0.5 + 0.5) * size.width;
     saturnBridge.py = (-_ndc.y * 0.5 + 0.5) * size.height;
     saturnBridge.env = env;
@@ -221,6 +262,11 @@ export function SaturnKnowledge({ center, radius }: { center: THREE.Vector3; rad
           />
         </sprite>
       ))}
+
+      {/* the presentation particle — the one that surfaces a card, on the upper arc */}
+      <sprite ref={(el) => { presGlow.current = el; }} visible={false} scale={[radius * 0.05, radius * 0.05, 1]}>
+        <spriteMaterial ref={(m) => { presGlowMat.current = m; }} map={glowTex} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </sprite>
 
       {/* constellation lines between related subjects */}
       <lineSegments ref={(el) => { lineRef.current = el; }} geometry={lineGeo} material={lineMat} visible={false} />
