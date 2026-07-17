@@ -38,12 +38,17 @@ export const CLASS_LABEL: Record<MissionClass, string> = {
 // dir, craft size. Deliberately uneven — different altitudes, inclinations
 // (research is near-polar), eccentricities, speeds and directions, with real
 // breathing room from the planet.
+// Full revolution ~30s each (speed ~ 2pi/30), varied so nothing syncs. Radii
+// clear the surface with breathing room; inclinations are moderate (no
+// near-polar edge-on orbit that would cut across the disc). Each orbit's centre
+// is nudged UP (see component) so drones ride the upper view and dip BEHIND
+// Mars — never parked at the lower end.
 export const CLASS_ORBIT: Record<MissionClass, { radius: number; incl: number; roll: number; ecc: number; speed: number; dir: 1 | -1; size: number }> = {
-  web: { radius: 1.6, incl: 0.62, roll: -0.3, ecc: 0.12, speed: 0.055, dir: -1, size: 0.9 },
-  enterprise: { radius: 1.88, incl: 0.46, roll: 0.14, ecc: 0.18, speed: 0.044, dir: 1, size: 1.3 },
-  mobile: { radius: 2.12, incl: 0.4, roll: 0.36, ecc: 0.24, speed: 0.06, dir: 1, size: 0.78 },
-  ai: { radius: 2.4, incl: 0.7, roll: -0.24, ecc: 0.15, speed: 0.03, dir: -1, size: 1.05 },
-  research: { radius: 2.68, incl: 1.28, roll: 0.5, ecc: 0.3, speed: 0.036, dir: 1, size: 0.98 },
+  web: { radius: 1.36, incl: 0.5, roll: -0.26, ecc: 0.1, speed: 0.222, dir: -1, size: 0.9 },
+  enterprise: { radius: 1.56, incl: 0.48, roll: 0.14, ecc: 0.12, speed: 0.2, dir: 1, size: 1.3 },
+  mobile: { radius: 1.44, incl: 0.6, roll: 0.32, ecc: 0.13, speed: 0.243, dir: -1, size: 0.78 },
+  ai: { radius: 1.62, incl: 0.55, roll: -0.2, ecc: 0.12, speed: 0.188, dir: 1, size: 1.05 },
+  research: { radius: 1.74, incl: 0.64, roll: 0.36, ecc: 0.14, speed: 0.205, dir: -1, size: 0.98 },
 };
 
 export type Mission = {

@@ -25,6 +25,7 @@ const CYAN = new THREE.Color('#8fe6ee');
 const THRUST = new THREE.Color('#6fb4ff');
 const N_COMM = 6;
 const N_COLONY = 16;
+const UP_OFFSET = 0.3; // lift the orbit hub above Mars so drones ride the upper view
 
 /* ---- one distinct spacecraft per mission class ---- */
 function Craft({ cls, s, col, glowRef, thrustRef }: {
@@ -100,7 +101,7 @@ function Craft({ cls, s, col, glowRef, thrustRef }: {
     );
   }
 
-  const g = s * 5;
+  const g = s * 3.6;
   return (
     <>
       {body}
@@ -148,11 +149,14 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
     const toCam = fwd.clone().multiplyScalar(-1);
+    // orbit hub lifted above Mars: the near arc rides up-and-toward-camera
+    // (visible, above the planet); the far arc dips down-and-behind (occluded).
+    const hub = center.clone().addScaledVector(up, UP_OFFSET * radius);
     const planes: Record<string, { u: THREE.Vector3; v: THREE.Vector3; b: number }> = {};
     (Object.keys(CLASS_ORBIT) as MissionClass[]).forEach((c) => {
       const o = CLASS_ORBIT[c];
       const u = right.clone().applyAxisAngle(toCam, o.roll);
-      const v = up.clone().multiplyScalar(Math.cos(o.incl)).addScaledVector(fwd, Math.sin(o.incl)).applyAxisAngle(toCam, o.roll);
+      const v = up.clone().multiplyScalar(Math.cos(o.incl)).addScaledVector(toCam, Math.sin(o.incl)).applyAxisAngle(toCam, o.roll);
       planes[c] = { u, v, b: 1 - o.ecc };
     });
     const landing = MISSIONS.map((m) => {
@@ -172,7 +176,7 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
       colony[i * 3] = p.x; colony[i * 3 + 1] = p.y; colony[i * 3 + 2] = p.z;
     }
     const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.BufferAttribute(colony, 3));
-    return { right, up, toCam, planes, landing, colonyGeo: cg };
+    return { right, up, toCam, planes, landing, colonyGeo: cg, hub };
   }, [center, radius]);
 
   const dpos = useRef<THREE.Vector3[]>(MISSIONS.map(() => new THREE.Vector3()));
@@ -180,7 +184,7 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
   const spin = useRef<number[]>(MISSIONS.map((m) => m.phase));
   const slow = useRef<number[]>(MISSIONS.map(() => 1));
   const beamGrow = useRef<number[]>(MISSIONS.map(() => 0));
-  const dock = useRef<number[]>(MISSIONS.map((_, i) => i * 2.1));
+  const started = useRef(false);
   const appear = useRef(0);
   const commGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -194,7 +198,6 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
   );
   const comms = useMemo(() => Array.from({ length: N_COMM }, (_, i) => ({ m: (i * 3) % MISSIONS.length, t: i / N_COMM })), []);
   const _p = useMemo(() => new THREE.Vector3(), []);
-  const _ap = useMemo(() => new THREE.Vector3(), []);
   const _perp = useMemo(() => new THREE.Vector3(), []);
   const _ndc = useMemo(() => new THREE.Vector3(), []);
 
@@ -224,6 +227,20 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     const app = THREE.MathUtils.smoothstep(appear.current, 0, 1);
     const hovered = useMarsUI.getState().hovered;
 
+    // On arrival, seed every drone onto the near-upper arc (all visible first);
+    // varied orbits then drift some behind Mars over the next ~15s.
+    if (f < 0.1) started.current = false;
+    if (!started.current && f > 0.5) {
+      // spread across the open upper-left arc (Mars sits low-right), all visible;
+      // interleave so neighbours aren't adjacent -> they desync into steady cover
+      const N = MISSIONS.length;
+      for (let k = 0; k < N; k++) {
+        const i = (k * 3) % N; // interleave
+        spin.current[i] = 0.5 * Math.PI + (k / (N - 1)) * 0.8 * Math.PI;
+      }
+      started.current = true;
+    }
+
     for (let i = 0; i < MISSIONS.length; i++) {
       const m = MISSIONS[i];
       const o = CLASS_ORBIT[m.cls];
@@ -234,19 +251,7 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
       const R = o.radius * radius;
       const a = spin.current[i];
       const p = dpos.current[i];
-      p.copy(center).addScaledVector(pl.u, Math.cos(a) * R).addScaledVector(pl.v, Math.sin(a) * R * pl.b);
-
-      // periodic docking run: descend toward the colony, hold, climb back
-      dock.current[i] += delta;
-      const P = 20 + i * 1.6;
-      const ph = dock.current[i] % P;
-      const dockRaw = ph < 5 ? Math.sin((ph / 5) * Math.PI) : 0;
-      const dockE = isHover ? 0 : dockRaw;
-      if (dockE > 0.001) {
-        const land = basis.landing[i];
-        _ap.copy(land.pos).addScaledVector(land.dir, radius * 0.4);
-        p.lerp(_ap, dockE * 0.6);
-      }
+      p.copy(basis.hub).addScaledVector(pl.u, Math.cos(a) * R).addScaledVector(pl.v, Math.sin(a) * R * pl.b);
       const vis = occ(p);
       dvis.current[i] = vis;
 
@@ -262,7 +267,7 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
       const gm = glowMat.current[i];
       if (gm) gm.opacity = (isHover ? 0.85 : 0.4 + 0.12 * Math.sin(t * 1.6 + i)) * app * (vis ? 1 : 0);
       const tm = thrustMat.current[i];
-      if (tm) tm.opacity = (isHover ? (0.55 + 0.35 * Math.sin(t * 22)) : dockE * 0.4) * app;
+      if (tm) tm.opacity = (isHover ? (0.55 + 0.35 * Math.sin(t * 22)) : 0) * app;
 
       // colony + soft laser
       const land = basis.landing[i];
@@ -275,8 +280,8 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
       const bg = beamGrow.current[i];
       const bm = beamMesh.current[i];
       const bmt = beamMat.current[i];
-      if (bm) { bm.position.copy(land.pos); bm.quaternion.copy(land.quat); bm.scale.set(1, Math.max(0.001, radius * 1.6 * bg), 1); bm.visible = visible && lvis && bg > 0.02; }
-      if (bmt) bmt.opacity = bg * (0.14 + 0.05 * Math.sin(t * 5)) * app; // soft NASA laser, ~15%
+      if (bm) { bm.position.copy(land.pos); bm.quaternion.copy(land.quat); bm.scale.set(1, Math.max(0.001, radius * 1.5 * bg), 1); bm.visible = visible && lvis && bg > 0.02; }
+      if (bmt) bmt.opacity = bg * (0.055 + 0.02 * Math.sin(t * 5)) * app; // very faint marker laser
 
       const hit = hits.current[i];
       if (hit) { hit.position.copy(p); hit.visible = visible && vis && app > 0.6; }
