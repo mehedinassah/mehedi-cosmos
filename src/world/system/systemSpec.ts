@@ -339,9 +339,15 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'mars', planet: 'Mars', title: 'Projects', sp: 0.42, accent: '#e55f45', au: '1.52 AU',
-    body: ['Perico ERP', 'Top-Line', 'Whispers', 'banauAI', 'Smart Geo Landmarks', 'Android apps'],
-    links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
+    id: 'mars', planet: 'Mars', title: 'Mission Control', sp: 0.42, accent: '#e55f45', au: '1.52 AU',
+    body: [
+      'Mission database online.',
+      '8 active missions across 5 classes.',
+      'Enterprise systems, AI research, mobile, web.',
+      'Each drone is a repository. Its landing site sits on the surface below.',
+      'Hover a drone to open its mission log.',
+    ],
+    links: [{ label: 'Mission Control · GitHub', href: 'https://github.com/mehedinassah' }],
   },
   {
     id: 'jupiter', planet: 'Jupiter', title: 'Featured: Perico ERP', sp: 0.55, accent: '#ffa64d', au: '5.20 AU',

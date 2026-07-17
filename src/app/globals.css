@@ -819,6 +819,149 @@ main { position: fixed; inset: 0; }
   .vsk-holo { display: none; }
 }
 
+/* ---- Mars: Mission Control. Classified mission log — NASA telemetry meets
+   Vision Pro glass. ---- */
+.mars-log {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.mars-log--on { opacity: 1; }
+.mars-log__card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 244px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.mars-log__panel {
+  position: relative;
+  padding: 13px 15px 12px;
+  background: rgba(16, 12, 12, 0.52);
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  border: 0.8px solid rgba(255, 255, 255, 0.12);
+  border-left: 2px solid var(--marc, #e55f45);
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+}
+.mars-log__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mars-log__code {
+  font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  color: rgba(214, 220, 232, 0.6);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+}
+.mars-log__status {
+  font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  color: var(--marc, #e55f45);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  padding: 2px 7px;
+  border: 0.8px solid color-mix(in srgb, var(--marc, #e55f45) 45%, transparent);
+  border-radius: 100px;
+}
+.mars-log__title {
+  color: rgba(248, 249, 252, 0.98);
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin-top: 9px;
+}
+.mars-log__sub {
+  color: rgba(210, 216, 228, 0.55);
+  font-size: 10.5px;
+  font-weight: 300;
+  margin-top: 4px;
+}
+.mars-log__grid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 0.8px solid rgba(255, 255, 255, 0.08);
+}
+.mars-log__k {
+  color: rgba(200, 206, 220, 0.42);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+.mars-log__k:first-child { margin-top: 0; }
+.mars-log__v {
+  color: rgba(230, 234, 244, 0.86);
+  font-size: 11.5px;
+  margin-top: 1px;
+}
+.mars-log__ring {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+.mars-log__pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(240, 242, 248, 0.9);
+  font-size: 9px;
+  font-weight: 500;
+}
+.mars-log__pct i { font-style: normal; opacity: 0.5; font-size: 7px; }
+.mars-log__tech {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 12px;
+}
+.mars-log__chip {
+  color: rgba(226, 230, 240, 0.78);
+  font-size: 10px;
+  font-weight: 300;
+  padding: 2px 8px;
+  border: 0.8px solid rgba(255, 255, 255, 0.14);
+  border-radius: 100px;
+}
+.mars-log__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 0.8px solid rgba(255, 255, 255, 0.08);
+}
+.mars-log__year {
+  font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  color: rgba(200, 206, 220, 0.5);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.mars-log__open {
+  color: var(--marc, #e55f45);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+@media (max-width: 720px) {
+  .mars-log { display: none; }
+}
+
 /* radio-transmission caret — a thin accent bar that blinks while the title types */
 .type-caret {
   display: inline-block;
