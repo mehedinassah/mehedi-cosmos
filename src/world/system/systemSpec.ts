@@ -317,14 +317,15 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'venus', planet: 'Venus', title: 'Skill Galaxy', sp: 0.2, accent: '#e99046', au: '0.72 AU',
+    id: 'venus', planet: 'Venus', title: 'Engineering Ecosystem', sp: 0.2, accent: '#e99046', au: '0.72 AU',
     body: [
       'Engineering is more than individual tools.',
-      'Every technology strengthens another.',
-      'Languages form the foundation.',
-      'Frameworks build the experience.',
-      'Infrastructure powers the systems.',
-      'Hover each orbit to discover the technologies behind my work.',
+      'Languages are the foundation.',
+      'Frontend creates the experience.',
+      'Backend powers the applications.',
+      'Databases preserve the knowledge.',
+      'AI extends the intelligence.',
+      'Hover any orbit to see how it all connects.',
     ],
   },
   {

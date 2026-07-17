@@ -18,13 +18,28 @@ export function SkillCard() {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
   const [c, setC] = useState<Card | null>(null);
+  const [label, setLabel] = useState('');
   const shown = useRef(-1);
+  const shownLabel = useRef('');
 
   useEffect(() => {
     let raf = 0;
     const loop = () => {
-      const root = rootRef.current, card = cardRef.current, panel = panelRef.current;
+      const root = rootRef.current, card = cardRef.current, panel = panelRef.current, lab = labelRef.current;
+      // tiny monospaced orbit label, following the active orbit
+      if (lab) {
+        if (venusBridge.catLabel && venusBridge.env > 0.02) {
+          if (venusBridge.catLabel !== shownLabel.current) { shownLabel.current = venusBridge.catLabel; setLabel(venusBridge.catLabel); }
+          lab.style.transform = `translate(${venusBridge.catPx}px, ${venusBridge.catPy}px)`;
+          lab.style.opacity = String(venusBridge.env * 0.85);
+          lab.style.color = venusBridge.catColor;
+        } else {
+          lab.style.opacity = '0';
+          shownLabel.current = '';
+        }
+      }
       if (root && card && panel) {
         const env = venusBridge.env;
         if (venusBridge.active || env > 0.02) {
@@ -60,6 +75,7 @@ export function SkillCard() {
 
   return (
     <div ref={rootRef} className="vsk-holo">
+      <div ref={labelRef} className="vsk-orbit-label">{label}</div>
       <div ref={cardRef} className="vsk-holo__card">
         <div ref={panelRef} className="vsk-holo__panel">
           <div className="vsk-holo__cat">{c?.cat}</div>

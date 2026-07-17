@@ -796,6 +796,25 @@ main { position: fixed; inset: 0; }
   font-weight: 400;
   letter-spacing: 0.04em;
 }
+/* tiny monospaced orbit label, only on hover */
+.vsk-orbit-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-100px, -100px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-top: 0.8px solid currentColor;
+  border-bottom: 0.8px solid currentColor;
+  will-change: transform, opacity;
+}
 @media (max-width: 720px) {
   .vsk-holo { display: none; }
 }
