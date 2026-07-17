@@ -49,10 +49,11 @@ function buildLoopGeometry(radius: number, rng: () => number, scale = 1): THREE.
     points.push(local.add(surfacePoint.multiplyScalar(1 - arc * 0.12)));
   }
   const curve = new THREE.CatmullRomCurve3(points);
-  return new THREE.TubeGeometry(curve, 44, radius * 0.017 * Math.max(scale, 0.55), 7, false);
+  // Thin ropes, not noodles — the fine coronal-loop bundle carries the detail now.
+  return new THREE.TubeGeometry(curve, 46, radius * 0.010 * Math.max(scale, 0.55), 7, false);
 }
 
-const LOOP_COUNT = 5;
+const LOOP_COUNT = 3;
 const SPICULE_COUNT = 9;
 
 function Loop({

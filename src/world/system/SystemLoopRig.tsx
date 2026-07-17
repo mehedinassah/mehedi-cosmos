@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CentralStar } from '@/world/sun/CentralStar';
 import { SolarSystem } from '@/world/system/SolarSystem';
+import { sunActivity } from '@/world/sun/sunActivity';
 import { useDescentStore, nowS } from '@/state/descentStore';
 
 /**
@@ -47,7 +48,7 @@ export function SystemLoopRig() {
   const groupRef = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.PointLight>(null);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const d = useDescentStore.getState();
     const lp = d.stage === 'LOOPING' ? THREE.MathUtils.clamp((nowS() - d.tStart) / d.tDur, 0, 1) : 0;
     const target = presenceTarget(d.stage, lp);
@@ -56,7 +57,15 @@ export function SystemLoopRig() {
     systemPresence.value = THREE.MathUtils.damp(systemPresence.value, target, 4.5, delta);
     const p = systemPresence.value;
     if (groupRef.current) groupRef.current.scale.setScalar(MIN_SCALE + (1 - MIN_SCALE) * p);
-    if (lightRef.current) lightRef.current.intensity = 2.6 * (LIGHT_FLOOR + (1 - LIGHT_FLOOR) * p);
+    if (lightRef.current) {
+      // The star's light is alive, not static: a ~1.5% activity shimmer (two
+      // incommensurate breaths so it never obviously repeats), plus a brief few
+      // percent lift while a flare erupts. Never enough to read as flicker.
+      const t = state.clock.elapsedTime;
+      const shimmer = 1 + 0.009 * Math.sin(t * 0.73) + 0.006 * Math.sin(t * 2.17 + 1.3)
+        + 0.03 * sunActivity.flare;
+      lightRef.current.intensity = 2.6 * (LIGHT_FLOOR + (1 - LIGHT_FLOOR) * p) * shimmer;
+    }
   });
 
   return (

@@ -13,6 +13,8 @@ import { useUiStore } from '@/state/uiStore';
 import { useSunRefStore } from '@/state/sunRefStore';
 import { bodyById } from '@/content/universe';
 import { Prominences } from './Prominences';
+import { CoronalLoops } from './CoronalLoops';
+import { sunActivity } from './sunActivity';
 import { systemPresence } from '@/world/system/SystemLoopRig';
 
 function coronaHaloTexture(): THREE.CanvasTexture {
@@ -92,7 +94,7 @@ function PlasmaEjecta({ radius }: { radius: number }) {
     life: new Float32Array(EJECTA_COUNT), // remaining seconds; <=0 waiting
     max: new Float32Array(EJECTA_COUNT),
     // flare event state
-    nextFlare: 12,
+    nextFlare: 20,
     flareT: -1, // <0 idle, else seconds since eruption
     flareDir: new THREE.Vector3(1, 0, 0),
   });
@@ -175,23 +177,26 @@ function PlasmaEjecta({ radius }: { radius: number }) {
       d.flareT += delta;
       if (d.flareT > 3.2) {
         d.flareT = -1;
-        d.nextFlare = 15 + Math.random() * 15;
+        d.nextFlare = 30 + Math.random() * 30; // one understated flare every 30-60s
       }
     }
     // flare glow sprite: grow fast, fade slow, at the eruption site
     const fl = flareRef.current;
+    let flareGlow = 0;
     if (fl) {
       if (d.flareT >= 0) {
         const grow = Math.min(d.flareT / 0.5, 1);
         const fade = 1 - THREE.MathUtils.smoothstep(d.flareT, 1.1, 3.2);
+        flareGlow = grow * fade;
         const s = radius * (0.35 + grow * 0.55);
         fl.position.copy(d.flareDir).multiplyScalar(radius * 1.02);
         fl.scale.set(s, s, 1);
-        (fl.material as THREE.SpriteMaterial).opacity = grow * fade * 0.85;
+        (fl.material as THREE.SpriteMaterial).opacity = flareGlow * 0.85;
       } else {
         (fl.material as THREE.SpriteMaterial).opacity = 0;
       }
     }
+    sunActivity.flare = flareGlow; // shared: brightens coronal loops + the light
 
     // ---- the continuous drizzle ----
     for (let i = 0; i < EJECTA_COUNT; i++) {
@@ -311,6 +316,7 @@ export function CentralStar() {
     // galaxy's stars instead of a glaring light. Full (1.0) everywhere else.
     const ignite = igniteRef.current * (0.02 + 0.98 * systemPresence.value);
     matRef.current!.uniforms.uIgnite.value = ignite;
+    sunActivity.ignite = ignite; // shared with CoronalLoops + the system light
 
     for (const m of shellMats) {
       m.uniforms.uTime.value = t;
@@ -364,6 +370,7 @@ export function CentralStar() {
         <primitive object={outerMat} attach="material" />
       </mesh>
       <Prominences radius={body.scaleU} ignite={igniteRef.current} />
+      <CoronalLoops radius={body.scaleU} />
       <PlasmaEjecta radius={body.scaleU} />
       <sprite ref={spriteRef}>
         <spriteMaterial map={halo} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0} />

@@ -17,13 +17,14 @@ void main() {
   float grow = smoothstep(0.0, 0.25, uLife) * (1.0 - smoothstep(0.72, 1.0, uLife));
 
   // Footpoints glow hotter where the rope meets the photosphere.
-  // H-alpha pink-red — cool plasma suspended above the gold photosphere, so
-  // it CONTRASTS and reads as a prominence instead of blending into corona.
+  // Bright orange core fading to a softer, slightly reddish outer glow — a
+  // limb prominence lifted above the gold photosphere.
   float apex = sin(vAlong * 3.14159);
-  vec3 col = mix(vec3(1.0, 0.32, 0.32), vec3(1.0, 0.62, 0.5), strands);
+  vec3 col = mix(vec3(1.0, 0.46, 0.2), vec3(1.0, 0.7, 0.46), strands);
   col *= mix(1.5, 0.9, apex); // brighter at the feet
 
-  float alpha = (0.18 + 0.95 * strands) * grow;
+  // Semi-transparent: a soft glowing arc, not an opaque rope.
+  float alpha = (0.1 + 0.72 * strands) * grow;
   if (alpha < 0.01) discard;
-  gl_FragColor = vec4(col, alpha * 1.4);
+  gl_FragColor = vec4(col, alpha * 0.95);
 }

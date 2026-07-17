@@ -81,8 +81,10 @@ export const HeatShimmer = forwardRef<HeatShimmerEffect>(function HeatShimmer(_p
 
     const arrived = useDescentStore.getState().stage === 'ARRIVED';
     const onScreen = _v.z < 1 && uvx > -0.4 && uvx < 1.4 && uvy > -0.4 && uvy < 1.4;
-    // Only when we're actually near the star and it fills a good chunk of frame
-    const target = arrived && onScreen && rUv > 0.08 ? 0.0016 : 0.0;
+    // Grows with approach: the more of the frame the star fills, the more its
+    // heat warps the space at the limb (still tiny — felt, not noticed).
+    const near = THREE.MathUtils.smoothstep(rUv, 0.08, 0.55);
+    const target = arrived && onScreen ? 0.0006 + near * 0.0024 : 0.0;
     const cur = u.get('uStrength')!.value as number;
     u.get('uStrength')!.value = cur + (target - cur) * 0.08;
   });
