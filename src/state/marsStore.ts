@@ -34,22 +34,18 @@ export const CLASS_LABEL: Record<MissionClass, string> = {
   web: 'WEB',
   research: 'RESEARCH',
 };
-// `moveDir` = the SCREEN direction the drone actually travels: 0 = horizontal
-// (left-right), pi/2 = vertical (up-down), in between = diagonal. The orbit's
-// LONG screen axis is built ALONG moveDir (a constant-speed ellipse reads by its
-// biggest excursion, so the long axis must BE the travel direction). `radius` =
-// long-axis size (Mars radii), `minRatio` = perpendicular bob / long, `depth` =
-// how far in FRONT the near pass floats and behind the far pass dips (>1 so the
-// near pass clears the sphere and never skims through it), `up` / `side` = orbit
-// hub offset above / beside Mars centre (keeps the visible arc in the open
-// upper-left, above the planet's middle). Full revolution ~30s; varied so
-// nothing syncs.
-export const CLASS_ORBIT: Record<MissionClass, { radius: number; moveDir: number; minRatio: number; depth: number; up: number; side: number; speed: number; dir: 1 | -1; size: number }> = {
-  enterprise: { radius: 1.5, moveDir: 0.0, minRatio: 0.26, depth: 1.42, up: 0.55, side: -0.2, speed: 0.2, dir: 1, size: 0.8 }, // horizontal, high across the top
-  research: { radius: 1.5, moveDir: 0.32, minRatio: 0.3, depth: 1.36, up: 0.32, side: -0.4, speed: 0.185, dir: -1, size: 0.8 }, // diagonal up-right
-  mobile: { radius: 1.4, moveDir: 2.85, minRatio: 0.32, depth: 1.3, up: 0.62, side: 0.05, speed: 0.235, dir: -1, size: 0.74 }, // horizontal (right-to-left), high
-  web: { radius: 1.4, moveDir: 1.57, minRatio: 0.34, depth: 1.34, up: 0.05, side: -0.55, speed: 0.215, dir: -1, size: 0.78 }, // vertical, on the left
-  ai: { radius: 1.5, moveDir: 2.25, minRatio: 0.3, depth: 1.42, up: 0.42, side: -0.25, speed: 0.175, dir: 1, size: 0.84 }, // diagonal up-left
+// Each project loops in its OWN small ellipse BESIDE Mars — drawn in the screen
+// plane (facing the camera), so no drone ever crosses the planet's face or hides
+// behind it; they all circle in the open space wrapping Mars's upper-left flank.
+// `cx` / `cy` = loop-centre offset from Mars centre (Mars radii, +x right / +y
+// up), `a` / `b` = ellipse semi-axes (Mars radii), `tilt` = ellipse rotation
+// (rad). Full loop ~30s; varied so nothing syncs.
+export const CLASS_ORBIT: Record<MissionClass, { cx: number; cy: number; a: number; b: number; tilt: number; speed: number; dir: 1 | -1; size: number }> = {
+  enterprise: { cx: -0.15, cy: 1.4, a: 0.55, b: 0.16, tilt: 0.0, speed: 0.2, dir: 1, size: 0.8 }, // flat wide loop across the top
+  mobile: { cx: -0.85, cy: 1.15, a: 0.3, b: 0.28, tilt: 0.3, speed: 0.235, dir: -1, size: 0.74 }, // small loop, top-left
+  ai: { cx: -1.38, cy: 0.78, a: 0.32, b: 0.34, tilt: 0.4, speed: 0.175, dir: 1, size: 0.84 }, // upper-left corner
+  research: { cx: -1.45, cy: 0.0, a: 0.26, b: 0.4, tilt: 0.05, speed: 0.185, dir: -1, size: 0.8 }, // tall narrow loop, mid-left
+  web: { cx: -1.42, cy: -0.5, a: 0.3, b: 0.4, tilt: -0.2, speed: 0.215, dir: -1, size: 0.78 }, // loop, lower-left
 };
 
 export type Mission = {

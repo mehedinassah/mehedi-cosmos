@@ -148,22 +148,19 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
     const toCam = fwd.clone().multiplyScalar(-1);
-    // Each class travels a DIFFERENT screen direction. The long (cos) axis u is
-    // built ALONG moveDir so the drone's biggest excursion IS the travel
-    // direction (a constant-speed ellipse reads by its longest axis). The short
-    // (sin) axis v is a small perpendicular bob PLUS a big depth swing (>1 Mars
-    // radius) so the near half floats clearly in FRONT of the planet (never
-    // skims through it) and the far half dips behind. The hub is lifted up/left
-    // so the visible arc rides above Mars's middle. Pos = hub + u cos a + v sin a.
+    // Each class loops in a small ellipse drawn ENTIRELY in the screen plane
+    // (spanned by right & up) and offset into the open space beside Mars, so the
+    // loop faces the camera, never dips toward/behind the planet, and stays fully
+    // visible. u / v are the ellipse's (tilted) major / minor axes; hub is the
+    // loop centre offset beside Mars. Pos = hub + u cos a + v sin a.
     const planes: Record<string, { u: THREE.Vector3; v: THREE.Vector3; hub: THREE.Vector3 }> = {};
     (Object.keys(CLASS_ORBIT) as MissionClass[]).forEach((c) => {
       const o = CLASS_ORBIT[c];
-      const mDir = right.clone().multiplyScalar(Math.cos(o.moveDir)).addScaledVector(up, Math.sin(o.moveDir)); // motion / long axis
-      const pDir = right.clone().multiplyScalar(-Math.sin(o.moveDir)).addScaledVector(up, Math.cos(o.moveDir)); // perpendicular bob
-      const maj = o.radius * radius;
-      const u = mDir.multiplyScalar(maj);
-      const v = pDir.multiplyScalar(o.minRatio * maj).addScaledVector(toCam, o.depth * radius);
-      const hub = center.clone().addScaledVector(up, o.up * radius).addScaledVector(right, o.side * radius);
+      const dA = right.clone().multiplyScalar(Math.cos(o.tilt)).addScaledVector(up, Math.sin(o.tilt)); // major axis
+      const dB = right.clone().multiplyScalar(-Math.sin(o.tilt)).addScaledVector(up, Math.cos(o.tilt)); // minor axis
+      const u = dA.multiplyScalar(o.a * radius);
+      const v = dB.multiplyScalar(o.b * radius);
+      const hub = center.clone().addScaledVector(right, o.cx * radius).addScaledVector(up, o.cy * radius);
       planes[c] = { u, v, hub };
     });
     const landing = MISSIONS.map((m) => {
@@ -235,27 +232,12 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     const ui = useMarsUI.getState();
     const focusIdx = ui.hovered != null ? ui.hovered : ui.selected;
 
-    // On arrival, seed every drone at ITS orbit's most camera-facing point (all
-    // visible / closest to the viewer first); varied planes then carry some
-    // behind Mars over the next ~15s, each moving in its own direction.
+    // Every loop sits beside Mars (all points visible), so there's nothing to
+    // hide from — just spread each drone around its own loop by its mission phase
+    // so arrival already shows an even distribution wrapping the planet's flank.
     if (f < 0.1) started.current = false;
     if (!started.current && f > 0.5) {
-      const N = MISSIONS.length;
-      for (let i = 0; i < N; i++) {
-        const pl = basis.planes[MISSIONS[i].cls];
-        // seed at the angle that sits most in the open area (leftward, visible)
-        let bestA = Math.PI, best = -Infinity;
-        for (let k = 0; k < 24; k++) {
-          const a = (k / 24) * Math.PI * 2;
-          _p.copy(pl.hub).addScaledVector(pl.u, Math.cos(a)).addScaledVector(pl.v, Math.sin(a));
-          if (!occ(_p)) continue;
-          _ndc.copy(_p).project(camera);
-          if (_ndc.z >= 1) continue;
-          const score = -_ndc.x - 0.3 * Math.max(0, -_ndc.y); // favour left, avoid low
-          if (score > best) { best = score; bestA = a; }
-        }
-        spin.current[i] = bestA + (i - (N - 1) / 2) * 0.28; // stagger so same-class craft separate
-      }
+      for (let i = 0; i < MISSIONS.length; i++) spin.current[i] = MISSIONS[i].phase;
       started.current = true;
     }
 
