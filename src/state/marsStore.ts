@@ -34,17 +34,19 @@ export const CLASS_LABEL: Record<MissionClass, string> = {
   web: 'WEB',
   research: 'RESEARCH',
 };
-// Each class orbits in a DIFFERENT 3D plane: `incl` = how far the orbit normal
-// tilts off the view axis (0 = face-on / always visible, higher = more edge-on
-// / swings behind Mars), `tiltAz` = the DIRECTION of that tilt spread around the
-// clock, so some drones sweep vertically, some horizontally, some diagonally.
-// Full revolution ~30s each (speed ~ 2pi/30), varied so nothing syncs.
-export const CLASS_ORBIT: Record<MissionClass, { radius: number; incl: number; tiltAz: number; ecc: number; speed: number; dir: 1 | -1; size: number }> = {
-  web: { radius: 1.4, incl: 0.62, tiltAz: 0.0, ecc: 0.1, speed: 0.222, dir: -1, size: 0.9 },
-  enterprise: { radius: 1.6, incl: 0.85, tiltAz: 1.28, ecc: 0.12, speed: 0.2, dir: 1, size: 1.3 },
-  mobile: { radius: 1.48, incl: 0.7, tiltAz: 2.55, ecc: 0.13, speed: 0.243, dir: -1, size: 0.78 },
-  ai: { radius: 1.66, incl: 0.78, tiltAz: 3.85, ecc: 0.12, speed: 0.188, dir: 1, size: 1.05 },
-  research: { radius: 1.78, incl: 0.92, tiltAz: 5.1, ecc: 0.14, speed: 0.205, dir: -1, size: 0.98 },
+// `moveDir` = the SCREEN direction the drone travels where it lingers most (its
+// visible pass): 0 = horizontal / left-right, ~pi/2 = vertical / up-down, in
+// between = diagonal. The orbit's long (screen) axis is built PERPENDICULAR to
+// moveDir so the drone dwells while moving that way. `radius` = long-axis size
+// (Mars radii), `minRatio` = short/long, `depth` = how far it dips behind Mars,
+// `up` = orbit height above Mars. Full revolution ~30s each; varied so nothing
+// syncs.
+export const CLASS_ORBIT: Record<MissionClass, { radius: number; moveDir: number; minRatio: number; depth: number; up: number; speed: number; dir: 1 | -1; size: number }> = {
+  enterprise: { radius: 1.28, moveDir: 0.0, minRatio: 0.5, depth: 0.66, up: 0.16, speed: 0.2, dir: 1, size: 1.3 }, // horizontal
+  research: { radius: 1.36, moveDir: 0.28, minRatio: 0.5, depth: 0.66, up: 0.12, speed: 0.205, dir: -1, size: 0.98 }, // diagonal down-right
+  mobile: { radius: 1.42, moveDir: 0.78, minRatio: 0.55, depth: 0.62, up: 0.24, speed: 0.243, dir: -1, size: 0.78 }, // steep diagonal
+  web: { radius: 1.48, moveDir: 1.57, minRatio: 0.5, depth: 0.64, up: 0.18, speed: 0.222, dir: -1, size: 0.9 }, // vertical
+  ai: { radius: 1.5, moveDir: 2.45, minRatio: 0.55, depth: 0.6, up: 0.22, speed: 0.188, dir: 1, size: 1.05 }, // diagonal (other way)
 };
 
 export type Mission = {
