@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { SKILLS, NEIGHBORS, LAYER_LABEL, venusBridge, useVenusUI } from '@/state/venusStore';
+import { SKILLS, NEIGHBORS, catLabelOf, colorOfSkill, venusBridge, useVenusUI } from '@/state/venusStore';
 
 /**
  * Venus's Skill Constellation DOM layer.
- * - SkillCard: the compact card a node unfolds into. VisionOS hierarchy — one
+ * - SkillCard: the compact card a node surfaces. Vision Pro hierarchy — one
  *   big name, a tiny category above, a tiny tagline below. Follows the node.
- * - VenusExpand: the full skill record (auto-closes from the store). Opened by
+ * - VenusExpand: the full record (auto-closes from the store). Opened by
  *   clicking a node; lists what it connects to.
  */
 
@@ -30,16 +30,16 @@ export function SkillCard() {
           if (i !== shown.current) {
             shown.current = i;
             const it = SKILLS[i];
-            setC({ cat: it.cat, title: it.name, meta: it.tagline });
+            setC({ cat: catLabelOf(it), title: it.name, meta: it.tagline });
             root.style.setProperty('--varc', venusBridge.color);
           }
           const vw = window.innerWidth, vh = window.innerHeight;
           const px = venusBridge.px, py = venusBridge.py;
-          // The network sits left of Venus, so unfold toward the open space on
-          // the left; only flip right if that would run off the left edge.
+          // The graph sits in the open area to Venus's left, so unfold toward
+          // the open space; only flip if it would run off the left edge.
           let left = px - 22 - CARD_W;
           if (left < 16) left = px + 22;
-          left = Math.max(16, Math.min(left, vw - CARD_W - 16)); // never clipped
+          left = Math.max(16, Math.min(left, vw - CARD_W - 16));
           const h = card.offsetHeight || 74;
           const top = Math.max(16, Math.min(py - h / 2, vh - h - 16));
           card.style.transform = `translate(${left}px, ${top}px)`;
@@ -85,24 +85,14 @@ export function VenusExpand() {
   return (
     <div
       className={`vsk-expand ${it ? 'vsk-expand--on' : ''}`}
-      style={it ? ({ '--varc': it.color } as CSSProperties) : undefined}
+      style={it ? ({ '--varc': colorOfSkill(it) } as CSSProperties) : undefined}
     >
       {it && (
         <>
           <button className="vsk-expand__close" onClick={() => setSelected(null)} aria-label="Close">×</button>
-          <div className="vsk-expand__cat">{it.cat}</div>
+          <div className="vsk-expand__cat">{catLabelOf(it)}</div>
           <div className="vsk-expand__title">{it.name}</div>
           <div className="vsk-expand__tagline">{it.tagline}</div>
-          <dl className="vsk-expand__meta">
-            <dt>Layer</dt><dd>{LAYER_LABEL[it.layer]}</dd>
-          </dl>
-          {it.tags.length > 0 && (
-            <div className="vsk-expand__tags">
-              {it.tags.map((tg) => (
-                <span key={tg} className="vsk-expand__tag">{tg}</span>
-              ))}
-            </div>
-          )}
           {linked.length > 0 && (
             <div className="vsk-expand__links">
               <div className="vsk-expand__links-label">Connects to</div>

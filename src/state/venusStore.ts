@@ -6,111 +6,154 @@ import { CHAPTER_SP } from '@/world/system/systemSpec';
 /**
  * Venus — the Skill Constellation.
  *
- * Not a bullet list of technologies: a living neural network. Every skill is an
- * energy node orbiting Venus in one of three shells — Languages (inner, the
- * foundation), Frameworks (middle), Infrastructure (outer). Related
- * technologies constantly form and drop glowing connections; tiny signals
- * travel the active ones like current. Hover a node and its neighbours light
- * up; click and it unfolds into a compact holographic record. Every ~14s the
- * whole web synchronises for a breath, so a passive viewer sees that these are
- * not just tools he knows — they form a connected system.
+ * One idea: skills are interconnected; every technology strengthens another.
+ * The constellation is not a floating UI graph — it is emitted BY Venus. Small
+ * glowing particles leave the atmosphere and crystallise into a designed graph
+ * that arcs AROUND the planet like a magnetic field: some nodes pass in front,
+ * some behind (real depth + occlusion). The whole chart rotates around Venus
+ * almost imperceptibly; nodes breathe; signals drift along the edges; every few
+ * seconds Venus emits an atmospheric pulse that brightens the entire network.
  *
- * Warm by design: amber, gold, orange; ivory for the infrastructure ring. The
- * ONE cool accent — soft cyan — is reserved for the connection lines and the
- * signals, so the wiring reads instantly against the warm nodes.
+ * Museum-like, not flashy. One warm palette: amber/orange nodes (AI a touch
+ * cooler), soft cyan for the wiring, white for the hovered highlight. The graph
+ * is meaningful — every edge is a relationship a CS mind reads instantly.
  *
  * Bridges are plain mutable objects (written every frame in the canvas, read in
- * a DOM rAF loop) so React never churns at 60fps; discrete hover/select lives
- * in a tiny zustand store.
+ * a DOM rAF loop) so React never churns at 60fps.
  */
 
-export type Layer = 'inner' | 'middle' | 'outer';
-export type Cluster = 'languages' | 'frontend' | 'backend' | 'database' | 'ai' | 'devops';
+export type Category = 'core' | 'engineering' | 'ai' | 'development' | 'infra';
 
-export const LAYER_LABEL: Record<Layer, string> = {
-  inner: 'LANGUAGES',
-  middle: 'FRAMEWORKS',
-  outer: 'INFRASTRUCTURE',
+// One warm palette. AI reads a touch cooler (paler gold), never a rainbow.
+export const CAT_COLOR: Record<Category, string> = {
+  core: '#f2bd64', // brightest gold — the foundation
+  engineering: '#e79a4a', // amber
+  ai: '#d7cc9a', // cooler pale gold
+  development: '#e0813c', // warm orange
+  infra: '#c99a63', // dim warm, supporting
+};
+// Core fundamentals are the largest nodes; infrastructure the smallest.
+export const CAT_SIZE: Record<Category, number> = {
+  core: 1.0,
+  engineering: 0.82,
+  ai: 0.84,
+  development: 0.64,
+  infra: 0.54,
+};
+export const CAT_LABEL: Record<Category, string> = {
+  core: 'FOUNDATION',
+  engineering: 'ENGINEERING',
+  ai: 'INTELLIGENCE',
+  development: 'DEVELOPMENT',
+  infra: 'INFRASTRUCTURE',
 };
 
 export type Skill = {
   name: string;
-  layer: Layer;
-  cluster: Cluster;
-  cat: string; // small-caps category line on the card
-  color: string; // warm node colour
-  pulse: number; // idle pulse speed
-  tagline: string; // one calm line — the card's meta
-  tags: string[]; // expanded record chips
+  category: Category;
+  tagline: string; // one calm line — the card meta
+  lx: number; // designed layout X (left = open area / front, right = wraps toward Venus)
+  ly: number; // designed layout Y (up / down)
 };
 
-// The archive. Colours stay warm (amber / gold / orange), infrastructure runs
-// cool ivory, and the AI pair (PyTorch / OpenCV) leans warm red-orange to hint
-// its cluster. Cyan is never a node — it belongs to the wiring alone.
+// The graph. Positions are hand-designed so it reads left-to-right: the
+// important clusters (AI + fundamentals) sit LEFT in the open dark area
+// (readable); development + infrastructure sit RIGHT and wrap over / behind
+// Venus. Edges stay short within and between neighbouring clusters.
 export const SKILLS: Skill[] = [
-  // Inner shell — Languages (the foundation)
-  { name: 'Java', layer: 'inner', cluster: 'languages', cat: 'LANGUAGE · JVM', color: '#e8a24a', pulse: 0.9, tagline: 'Backend and Android foundation', tags: ['Spring Boot APIs', 'Android', 'OOP at scale'] },
-  { name: 'Python', layer: 'inner', cluster: 'ai', cat: 'LANGUAGE · AI', color: '#f2c561', pulse: 0.7, tagline: 'Automation, ML, and tooling', tags: ['PyTorch', 'OpenCV', 'OCR thesis', 'Scripting'] },
-  { name: 'TypeScript', layer: 'inner', cluster: 'frontend', cat: 'LANGUAGE · WEB', color: '#f0a94e', pulse: 1.0, tagline: 'Typed from client to server', tags: ['React', 'Next.js', 'Node'] },
-  { name: 'Kotlin', layer: 'inner', cluster: 'backend', cat: 'LANGUAGE · MOBILE', color: '#eeb15a', pulse: 0.85, tagline: 'Modern Android, MVVM', tags: ['Android', 'Coroutines', 'Jetpack'] },
+  // AI — upper-left, open, cooler glow
+  { name: 'Artificial Intelligence', category: 'ai', tagline: 'Machines that reason', lx: -1.05, ly: 0.72 },
+  { name: 'Machine Learning', category: 'ai', tagline: 'Learning from data', lx: -0.72, ly: 0.48 },
+  { name: 'Pattern Recognition', category: 'ai', tagline: 'Finding structure', lx: -0.95, ly: 0.18 },
+  { name: 'Image Processing', category: 'ai', tagline: 'Seeing with code', lx: -1.18, ly: 0.42 },
 
-  // Middle shell — Frameworks
-  { name: 'React', layer: 'middle', cluster: 'frontend', cat: 'FRAMEWORK · UI', color: '#e99046', pulse: 1.1, tagline: 'Component driven interfaces', tags: ['Hooks', 'State', 'Design systems'] },
-  { name: 'Next.js', layer: 'middle', cluster: 'frontend', cat: 'FRAMEWORK · FULLSTACK', color: '#e07b3a', pulse: 1.0, tagline: 'React across the whole stack', tags: ['App Router', 'Server rendering', 'APIs'] },
-  { name: 'Flutter', layer: 'middle', cluster: 'backend', cat: 'FRAMEWORK · MOBILE', color: '#eda45c', pulse: 0.9, tagline: 'One codebase, both platforms', tags: ['Dart', 'Cross platform', 'Native feel'] },
-  { name: 'Spring Boot', layer: 'middle', cluster: 'backend', cat: 'FRAMEWORK · BACKEND', color: '#e58a44', pulse: 0.8, tagline: 'Java services and REST APIs', tags: ['REST', 'JPA', 'Security'] },
-  { name: 'Node.js', layer: 'middle', cluster: 'backend', cat: 'RUNTIME · BACKEND', color: '#d98b4a', pulse: 0.95, tagline: 'JavaScript on the server', tags: ['APIs', 'Realtime', 'Tooling'] },
+  // Core fundamentals — center-left spine (largest)
+  { name: 'Algorithms', category: 'core', tagline: 'Solving efficiently', lx: -0.55, ly: 0.28 },
+  { name: 'Data Structures', category: 'core', tagline: 'Organising information', lx: -0.50, ly: -0.08 },
+  { name: 'Programming', category: 'core', tagline: 'Where every system begins', lx: -0.62, ly: -0.45 },
+  { name: 'Operating Systems', category: 'core', tagline: 'How machines run', lx: -0.28, ly: 0.00 },
 
-  // Outer shell — Infrastructure (cool ivory / the AI pair warm)
-  { name: 'Docker', layer: 'outer', cluster: 'devops', cat: 'INFRA · CONTAINERS', color: '#d9dbe0', pulse: 0.7, tagline: 'Reproducible environments', tags: ['Compose', 'Images', 'Deploy'] },
-  { name: 'Git', layer: 'outer', cluster: 'devops', cat: 'INFRA · VERSION', color: '#e6e0d4', pulse: 0.6, tagline: 'History and collaboration', tags: ['Branching', 'Reviews', 'CI'] },
-  { name: 'Prisma', layer: 'outer', cluster: 'database', cat: 'DATA · ORM', color: '#d6d2c8', pulse: 0.75, tagline: 'Typed database access', tags: ['Schema', 'Migrations', 'Type safety'] },
-  { name: 'PostgreSQL', layer: 'outer', cluster: 'database', cat: 'DATA · SQL', color: '#cdd4dc', pulse: 0.65, tagline: 'The relational backbone', tags: ['Modeling', 'Indexes', 'Transactions'] },
-  { name: 'Supabase', layer: 'outer', cluster: 'database', cat: 'DATA · PLATFORM', color: '#d2ddd4', pulse: 0.8, tagline: 'Postgres with batteries', tags: ['Auth', 'Realtime', 'Storage'] },
-  { name: 'OpenCV', layer: 'outer', cluster: 'ai', cat: 'AI · VISION', color: '#e6b088', pulse: 0.85, tagline: 'Classical computer vision', tags: ['Preprocessing', 'Segmentation', 'OCR'] },
-  { name: 'PyTorch', layer: 'outer', cluster: 'ai', cat: 'AI · DEEP LEARNING', color: '#e8895a', pulse: 0.9, tagline: 'Neural networks and training', tags: ['CNNs', 'Training', 'Thesis pipeline'] },
+  // Engineering — center (medium)
+  { name: 'Software Engineering', category: 'engineering', tagline: 'Building to last', lx: -0.34, ly: -0.32 },
+  { name: 'Networks', category: 'engineering', tagline: 'Systems that talk', lx: -0.05, ly: 0.28 },
+  { name: 'Computer Architecture', category: 'engineering', tagline: 'Under the hood', lx: 0.00, ly: -0.02 },
+  { name: 'Database', category: 'engineering', tagline: 'Modelling and storing data', lx: -0.08, ly: -0.40 },
+
+  // Development — right, wraps onto Venus (smaller)
+  { name: 'React', category: 'development', tagline: 'Interfaces in components', lx: 0.20, ly: -0.35 },
+  { name: 'Next.js', category: 'development', tagline: 'React across the stack', lx: 0.16, ly: -0.66 },
+  { name: 'Kotlin', category: 'development', tagline: 'Modern Android', lx: 0.40, ly: -0.20 },
+  { name: 'Android', category: 'development', tagline: 'Apps in your pocket', lx: 0.58, ly: -0.05 },
+  { name: 'Flutter', category: 'development', tagline: 'One codebase, both platforms', lx: 0.34, ly: -0.50 },
+
+  // Infrastructure — far right, wraps around / behind Venus (small)
+  { name: 'PostgreSQL', category: 'infra', tagline: 'The relational backbone', lx: 0.28, ly: -0.66 },
+  { name: 'Prisma', category: 'infra', tagline: 'Typed database access', lx: 0.14, ly: -0.90 },
+  { name: 'Supabase', category: 'infra', tagline: 'Postgres with batteries', lx: 0.44, ly: -0.85 },
+  { name: 'Docker', category: 'infra', tagline: 'Reproducible environments', lx: 0.56, ly: -0.60 },
+  { name: 'Git', category: 'infra', tagline: 'History and collaboration', lx: 0.66, ly: -0.32 },
 ];
 
-export const colorOfSkill = (s: Skill): string => s.color;
+export const colorOfSkill = (s: Skill): string => CAT_COLOR[s.category];
+export const sizeOfSkill = (s: Skill): number => CAT_SIZE[s.category];
+export const catLabelOf = (s: Skill): string => CAT_LABEL[s.category];
 
 const _idx = (n: string) => SKILLS.findIndex((s) => s.name === n);
 
-// The connective tissue — related technologies that wire up. These are the
-// lines that flicker in and out, and the paths the signals travel.
-const REL_NAMES: [string, string][] = [
-  ['Java', 'Kotlin'],
-  ['Java', 'Spring Boot'],
-  ['Kotlin', 'Flutter'],
-  ['Python', 'PyTorch'],
-  ['Python', 'OpenCV'],
-  ['PyTorch', 'OpenCV'],
-  ['TypeScript', 'React'],
+// Meaningful edges — every connection a CS mind reads instantly. Sparse and
+// intentional: readability over a tangled web.
+const EDGE_NAMES: [string, string][] = [
+  ['Programming', 'Data Structures'],
+  ['Data Structures', 'Algorithms'],
+  ['Algorithms', 'Operating Systems'],
+  ['Data Structures', 'Database'],
+  ['Algorithms', 'Software Engineering'],
+  ['Operating Systems', 'Computer Architecture'],
+  ['Operating Systems', 'Networks'],
+  ['Networks', 'Computer Architecture'],
+  ['Algorithms', 'Machine Learning'],
+  ['Artificial Intelligence', 'Machine Learning'],
+  ['Machine Learning', 'Pattern Recognition'],
+  ['Machine Learning', 'Image Processing'],
+  ['Pattern Recognition', 'Image Processing'],
+  ['Software Engineering', 'React'],
+  ['Software Engineering', 'Kotlin'],
+  ['Database', 'PostgreSQL'],
   ['React', 'Next.js'],
-  ['TypeScript', 'Next.js'],
-  ['Next.js', 'Node.js'],
-  ['Node.js', 'Spring Boot'],
-  ['Node.js', 'Docker'],
+  ['Android', 'Kotlin'],
+  ['Kotlin', 'Flutter'],
+  ['Next.js', 'Prisma'],
+  ['Git', 'Docker'],
+  ['Docker', 'PostgreSQL'],
   ['PostgreSQL', 'Prisma'],
   ['Prisma', 'Supabase'],
   ['PostgreSQL', 'Supabase'],
-  ['Prisma', 'Next.js'],
-  ['Docker', 'Git'],
-  ['TypeScript', 'Node.js'],
-  ['Python', 'Docker'],
 ];
 
-export const RELATIONS: [number, number][] = REL_NAMES
+export const EDGES: [number, number][] = EDGE_NAMES
   .map(([a, b]) => [_idx(a), _idx(b)] as [number, number])
   .filter(([a, b]) => a >= 0 && b >= 0);
 
-/** Adjacency: for a node, the indices it is wired to. */
+/** Adjacency for hover highlight + the card's "connects to" list. */
 export const NEIGHBORS: number[][] = SKILLS.map((_, i) =>
-  RELATIONS.filter(([a, b]) => a === i || b === i).map(([a, b]) => (a === i ? b : a)),
+  EDGES.filter(([a, b]) => a === i || b === i).map(([a, b]) => (a === i ? b : a)),
 );
 
-// Featured cycle: the strongest skills surface first, then the rest. Every node
-// still gets its moment; hover/click override the cycle at any time.
-const IMPORTANT = ['Python', 'TypeScript', 'React', 'Next.js', 'PyTorch'].map(_idx).filter((i) => i >= 0);
+// Knowledge-flow pulses: occasionally a bright signal runs a whole path, e.g.
+// Programming -> ... -> AI, so it reads as knowledge flowing through the graph.
+const PULSE_PATH_NAMES: string[][] = [
+  ['Programming', 'Data Structures', 'Algorithms', 'Machine Learning', 'Artificial Intelligence'],
+  ['Database', 'PostgreSQL', 'Prisma', 'Supabase'],
+  ['Operating Systems', 'Computer Architecture', 'Networks'],
+  ['Software Engineering', 'React', 'Next.js', 'Prisma'],
+];
+export const PULSE_PATHS: number[][] = PULSE_PATH_NAMES
+  .map((p) => p.map(_idx))
+  .filter((p) => p.every((i) => i >= 0));
+
+// Featured cycle: fundamentals surface first, then the rest. Hover overrides.
+const IMPORTANT = ['Programming', 'Data Structures', 'Algorithms', 'Artificial Intelligence', 'Machine Learning']
+  .map(_idx).filter((i) => i >= 0);
 export const CYCLE_ORDER: number[] = [
   ...IMPORTANT,
   ...SKILLS.map((_, i) => i).filter((i) => !IMPORTANT.includes(i)),
@@ -127,7 +170,7 @@ export const venusBridge: {
   focus: number; // chapter focus 0..1, gates the DOM layer
   paused: boolean; // expanded record open -> hold the cycle
   hovering: boolean; // a node is under the pointer
-} = { active: false, index: 0, px: 0, py: 0, env: 0, color: '#e99046', focus: 0, paused: false, hovering: false };
+} = { active: false, index: 0, px: 0, py: 0, env: 0, color: '#e79a4a', focus: 0, paused: false, hovering: false };
 
 /** Discrete pointer state (low frequency -> fine for React). */
 type VenusUI = {
@@ -144,8 +187,6 @@ export const useVenusUI = create<VenusUI>((set) => ({
     venusBridge.hovering = i != null;
     set({ hovered: i });
   },
-  // Selecting opens the record and arms a 9s self-close; managed here, outside
-  // React, so re-render churn can't defeat the timer.
   setSelected: (i) => {
     if (_closeTimer) { clearTimeout(_closeTimer); _closeTimer = null; }
     set({ selected: i });
