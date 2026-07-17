@@ -317,15 +317,14 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'venus', planet: 'Venus', title: 'Skills', sp: 0.2, accent: '#e99046', au: '0.72 AU',
+    id: 'venus', planet: 'Venus', title: 'Skill Constellation', sp: 0.2, accent: '#e99046', au: '0.72 AU',
     body: [
-      'Languages: Java, Kotlin, TypeScript, Python',
-      'Frontend: React, Next.js, Flutter',
-      'Backend: Spring Boot, Node',
-      'Data: PostgreSQL, Prisma, Supabase',
-      'Mobile: Android, Kotlin MVVM',
-      'AI: OpenCV, PyTorch',
-      'Tools: Docker, Git',
+      'Not a list of technologies.',
+      'A connected system.',
+      'Languages at the core.',
+      'Frameworks around them.',
+      'Infrastructure holding it together.',
+      'Hover a node. Watch what it lights up.',
     ],
   },
   {

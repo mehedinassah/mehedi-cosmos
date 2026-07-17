@@ -13,6 +13,7 @@ import starFrag from '@/shaders/materials/starfield/star.frag';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 import { EarthImpact } from '@/world/system/EarthImpact';
 import { SaturnKnowledge } from '@/world/system/SaturnKnowledge';
+import { VenusConstellation } from '@/world/system/VenusConstellation';
 import { earthFocus, earthSpin } from '@/state/earthHoverStore';
 import { useDescentStore } from '@/state/descentStore';
 import {
@@ -754,8 +755,9 @@ export function SolarSystem() {
         <Hero key={h.id} spec={h} />
       ))}
       <EarthMoon />
-      {/* Venus wears its skills as a ring of satellites */}
-      <OrbitGlints center={venus.position} count={13} radius={18} speed={0.08} size={5} color={[0.55, 0.66, 0.8]} seed={311} />
+      {/* Venus wears its skills as a living constellation — three orbital shells,
+          connection lines, and travelling signals. Fades in at the Skills stop. */}
+      <VenusConstellation center={venus.position} radius={venus.radius} />
       {/* Earth's spacecraft: two orbital shells — low fast traffic (ISS,
           station lights) and a slower, wider ring of satellites */}
       <OrbitGlints center={earth.position} count={5} radius={10.5} speed={0.34} size={0.9} color={[0.85, 0.8, 0.7]} seed={733} />
