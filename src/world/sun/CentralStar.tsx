@@ -13,7 +13,6 @@ import { useUiStore } from '@/state/uiStore';
 import { useSunRefStore } from '@/state/sunRefStore';
 import { bodyById } from '@/content/universe';
 import { Prominences } from './Prominences';
-import { CoronalLoops } from './CoronalLoops';
 import { sunActivity } from './sunActivity';
 import { systemPresence } from '@/world/system/SystemLoopRig';
 
@@ -70,6 +69,7 @@ function useShellMaterial(params: {
           uRimPow: { value: params.rimPow },
           uBase: { value: params.base },
           uMuHi: { value: params.muHi ?? 1.0 },
+          uBreathe: { value: 1 },
         },
         transparent: true,
         depthWrite: false,
@@ -289,8 +289,8 @@ export function CentralStar() {
     muHi: 0.72, // plasma dust: the layer between corona and vacuum
   });
   const outerMat = useShellMaterial({
-    col1: '#ff8a3d', col2: '#ffd9a0', alpha: 0.6, freq: 1.1, speed: 0.014, rimPow: 2.6, base: 0.0,
-    muHi: 0.88, // pure streamers: the gaps collapse, the silhouette breaks
+    col1: '#ff8a3d', col2: '#ffd9a0', alpha: 0.55, freq: 1.1, speed: 0.014, rimPow: 2.6, base: 0.0,
+    muHi: 0.92, // scale 2.55: peak at the disc edge (sqrt(1 - 1/2.55^2)); streamers reach far
   });
   const shellMats = useMemo(
     () => [scatterMat, chromoMat, innerMat, dustMat, outerMat],
@@ -316,12 +316,18 @@ export function CentralStar() {
     // galaxy's stars instead of a glaring light. Full (1.0) everywhere else.
     const ignite = igniteRef.current * (0.02 + 0.98 * systemPresence.value);
     matRef.current!.uniforms.uIgnite.value = ignite;
-    sunActivity.ignite = ignite; // shared with CoronalLoops + the system light
+    sunActivity.ignite = ignite; // shared with Prominences + the system light
 
-    for (const m of shellMats) {
+    // Slow volumetric breathing: the whole corona swells and settles on two
+    // incommensurate cycles (~48s and ~90s) so its density never obviously
+    // repeats. Outer shells breathe a little more than the tight inner ones.
+    const breathe = 1 + 0.07 * Math.sin(t * 0.13) + 0.05 * Math.sin(t * 0.07 + 1.0);
+    for (let i = 0; i < shellMats.length; i++) {
+      const m = shellMats[i];
       m.uniforms.uTime.value = t;
       m.uniforms.uCameraPos.value.copy(state.camera.position);
       m.uniforms.uIgnite.value = ignite;
+      m.uniforms.uBreathe.value = 1 + (breathe - 1) * (0.35 + 0.65 * (i / (shellMats.length - 1)));
     }
 
     if (spriteRef.current) {
@@ -364,13 +370,12 @@ export function CentralStar() {
         <sphereGeometry args={[body.scaleU, 48, 48]} />
         <primitive object={dustMat} attach="material" />
       </mesh>
-      {/* outer corona — huge irregular wisps, never a circle */}
-      <mesh scale={2.1}>
+      {/* outer corona — huge irregular wisps reaching well beyond the limb */}
+      <mesh scale={2.55}>
         <sphereGeometry args={[body.scaleU, 48, 48]} />
         <primitive object={outerMat} attach="material" />
       </mesh>
       <Prominences radius={body.scaleU} ignite={igniteRef.current} />
-      <CoronalLoops radius={body.scaleU} />
       <PlasmaEjecta radius={body.scaleU} />
       <sprite ref={spriteRef}>
         <spriteMaterial map={halo} transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0} />
