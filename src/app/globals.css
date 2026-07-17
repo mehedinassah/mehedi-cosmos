@@ -696,8 +696,8 @@ main { position: fixed; inset: 0; }
   .sat-expand, .sat-timeline { display: none; }
 }
 
-/* ---- Venus: the Skill Constellation. Warm amber / gold / orange nodes, a
-   single cool cyan reserved for the wiring. Same VisionOS card hierarchy. ---- */
+/* ---- Venus: the Skill Galaxy. Apple Vision Pro card — dark translucent
+   glass, a very thin category-tinted border, soft blur, small type. ---- */
 .vsk-holo {
   position: fixed;
   inset: 0;
@@ -713,167 +713,91 @@ main { position: fixed; inset: 0; }
   position: absolute;
   top: 0;
   left: 0;
-  width: 198px;
-  pointer-events: auto;
-  cursor: pointer;
+  width: 222px;
+  pointer-events: none;
 }
 .vsk-holo__panel {
   position: relative;
-  padding: 11px 14px 9px;
-  background: rgba(24, 16, 10, 0.38);
-  backdrop-filter: blur(5px) saturate(1.05);
-  -webkit-backdrop-filter: blur(5px) saturate(1.05);
-  border: 0.8px solid rgba(233, 144, 70, 0.24);
-  border-radius: 4px;
-  box-shadow: 0 1px 14px rgba(0, 0, 0, 0.35);
+  padding: 14px 16px 13px;
+  background: rgba(14, 15, 20, 0.5);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  border: 0.8px solid rgba(255, 255, 255, 0.12);
+  border-left: 2px solid var(--varc, #e8913f);
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   opacity: 0;
 }
 .vsk-holo__cat {
-  color: var(--varc, #e99046);
-  font-size: 9px;
+  color: var(--varc, #e8913f);
+  font-size: 8.5px;
   font-weight: 600;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  opacity: 0.92;
+  opacity: 0.9;
 }
 .vsk-holo__title {
-  color: rgba(248, 240, 231, 0.98);
-  font-size: 21px;
+  color: rgba(248, 249, 252, 0.98);
+  font-size: 20px;
   font-weight: 400;
-  letter-spacing: -0.012em;
+  letter-spacing: -0.01em;
   line-height: 1.1;
   margin-top: 5px;
 }
-.vsk-holo__meta {
-  color: rgba(226, 206, 184, 0.52);
-  font-size: 9.5px;
+.vsk-holo__role {
+  color: rgba(210, 216, 228, 0.55);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  margin-top: 4px;
+}
+.vsk-holo__bullets {
+  list-style: none;
+  margin: 11px 0 0;
+  padding: 10px 0 0;
+  border-top: 0.8px solid rgba(255, 255, 255, 0.08);
+}
+.vsk-holo__bullets li {
+  position: relative;
+  color: rgba(214, 220, 232, 0.72);
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1.55;
+  padding-left: 13px;
+}
+.vsk-holo__bullets li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--varc, #e8913f);
+  opacity: 0.75;
+}
+.vsk-holo__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 0.8px solid rgba(255, 255, 255, 0.08);
+}
+.vsk-holo__used {
+  color: rgba(220, 226, 238, 0.7);
+  font-size: 10px;
+  font-weight: 300;
+}
+.vsk-holo__years {
+  color: rgba(190, 198, 214, 0.5);
+  font-size: 10px;
   font-weight: 400;
   letter-spacing: 0.04em;
-  margin-top: 6px;
-}
-
-/* full skill record — expands on click, the node keeps orbiting */
-.vsk-expand {
-  position: fixed;
-  right: 26px;
-  top: 50%;
-  transform: translate(24px, -50%);
-  width: 264px;
-  z-index: 9;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.32s ease, transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
-  padding: 18px 18px 16px;
-  background: rgba(26, 17, 10, 0.64);
-  border: 0.8px solid rgba(233, 144, 70, 0.28);
-  border-radius: 8px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(10px) saturate(1.06);
-  -webkit-backdrop-filter: blur(10px) saturate(1.06);
-}
-.vsk-expand--on {
-  opacity: 1;
-  transform: translate(0, -50%);
-  pointer-events: auto;
-}
-.vsk-expand__close {
-  position: absolute;
-  top: 8px;
-  right: 11px;
-  background: none;
-  border: none;
-  color: rgba(238, 226, 208, 0.55);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-.vsk-expand__close:hover {
-  color: #fff;
-}
-.vsk-expand__cat {
-  color: var(--varc, #e99046);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-}
-.vsk-expand__title {
-  color: rgba(248, 240, 230, 0.97);
-  font-size: 22px;
-  font-weight: 400;
-  line-height: 1.12;
-  margin-top: 7px;
-}
-.vsk-expand__tagline {
-  color: rgba(224, 206, 184, 0.62);
-  font-size: 11.5px;
-  font-weight: 300;
-  margin-top: 5px;
-  line-height: 1.4;
-}
-.vsk-expand__meta {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 14px;
-  margin: 13px 0 0;
-}
-.vsk-expand__meta dt {
-  color: rgba(214, 190, 160, 0.55);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  padding-top: 1px;
-}
-.vsk-expand__meta dd {
-  color: rgba(234, 222, 204, 0.85);
-  font-size: 11.5px;
-  margin: 0;
-  letter-spacing: 0.1em;
-}
-.vsk-expand__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 13px;
-  padding-top: 12px;
-  border-top: 0.8px solid rgba(233, 144, 70, 0.16);
-}
-.vsk-expand__tag {
-  color: rgba(228, 210, 188, 0.78);
-  font-size: 10.5px;
-  font-weight: 300;
-  padding: 3px 9px;
-  border: 0.8px solid rgba(233, 144, 70, 0.22);
-  border-radius: 100px;
-}
-.vsk-expand__links {
-  margin-top: 14px;
-}
-.vsk-expand__links-label {
-  color: rgba(127, 216, 224, 0.72);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-.vsk-expand__links-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.vsk-expand__chip {
-  color: rgba(207, 227, 230, 0.82);
-  font-size: 10.5px;
-  font-weight: 300;
-  padding: 3px 9px;
-  border: 0.8px solid rgba(127, 216, 224, 0.28);
-  border-radius: 4px;
-  background: rgba(127, 216, 224, 0.05);
 }
 @media (max-width: 720px) {
-  .vsk-expand { display: none; }
+  .vsk-holo { display: none; }
 }
 
 /* radio-transmission caret — a thin accent bar that blinks while the title types */

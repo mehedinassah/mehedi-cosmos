@@ -4,284 +4,283 @@ import { useMemo, useRef } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
-  SKILLS, EDGES, NEIGHBORS, PULSE_PATHS, CYCLE_ORDER,
-  colorOfSkill, sizeOfSkill, venusBridge, venusFocus, useVenusUI,
+  SKILLS, ORBITS, CATEGORY_ORDER, RELATED, colorOfSkill, venusBridge, venusFocus, useVenusUI,
+  type Category,
 } from '@/state/venusStore';
 import { CHAPTER_SP, systemPose } from '@/world/system/systemSpec';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 
 /**
- * VenusConstellation — a designed skill graph emitted by Venus.
+ * VenusConstellation — the Skill Galaxy.
  *
- * On arrival the nodes rise OUT of Venus's atmosphere and settle into a fixed,
- * meaningful graph that arcs AROUND the planet (a cylindrical band about Venus's
- * up-axis): the readable core faces the open area, the right edge wraps toward
- * the limb where nodes tuck in front of and behind the planet (depth-tested, so
- * Venus occludes the ones behind it). The whole band rotates imperceptibly.
- *
- * Nodes breathe; cyan signals drift the edges; a knowledge pulse occasionally
- * runs a whole path (Programming -> ... -> AI); every ~6.5s Venus emits an
- * atmospheric pulse that brightens the network. Hover a node and it plus its
- * neighbours hold full brightness while everything else falls to 20%.
+ * Six tilted orbits circle Venus, each a skill category with its own colour and
+ * kind of celestial body. Orbits turn at their own pace; objects sweep in front
+ * of and behind the planet (depth-tested occlusion). Hover a skill and it grows
+ * and brightens, its related technologies light, cyan curves animate out to
+ * them, and everything else falls to 25%. Faint dust rings mark each orbit and
+ * brighten with its category; energy pulses run the rings; the cursor exerts a
+ * tiny gravity. No permanent labels — discovery is through hover alone.
  */
 
-// The graph is a facing plane, yawed in 3D about Venus's up-axis so its RIGHT
-// edge (AI / infrastructure) recedes behind the planet's limb while the
-// fundamentals sit forward in the open dark area — a chart wrapped around
-// Venus, some nodes in front, some behind (depth-tested occlusion).
-const SPREAD_X = 1.15; // lx -> horizontal (planet radii along the yawed plane)
-const SPREAD_Y = 0.95; // ly -> vertical (planet radii)
-const CENTER_X = 0.55; // shift the graph left so AI + fundamentals sit in open space
-const OFF_UP = 0.05;
-const PLANE_YAW = 0.5; // tilt so the right edge wraps behind Venus (front/back)
-const YAW_OSC = 0.1; // gentle chart rotation (almost imperceptible)
-const YAW_RATE = 0.05;
-
-const SLOT = 5.2; // featured-card cadence
-const FORM_DUR = 2.6; // Venus -> constellation formation
-const PULSE_PERIOD = 6.5; // atmospheric pulse
-const KFLOW_PERIOD = 5.5; // knowledge-flow pulse along a path
-const CYAN = new THREE.Color('#7fd8e0');
-const WHITE = new THREE.Color('#fff6ec');
-const N_SIG = 16;
+const CYAN = new THREE.Color('#8fe6ee');
+const WHITE = new THREE.Color('#ffffff');
+const MAX_CONN = 6;
+const SEG = 12;
+const N_PULSE = 6;
+const RING_PTS = 128;
 
 export function VenusConstellation({ center, radius }: { center: THREE.Vector3; radius: number }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
 
-  const nodeSp = useRef<(THREE.Sprite | null)[]>([]);
-  const nodeMat = useRef<(THREE.SpriteMaterial | null)[]>([]);
+  const glowSp = useRef<(THREE.Sprite | null)[]>([]);
+  const glowMat = useRef<(THREE.SpriteMaterial | null)[]>([]);
+  const coreMesh = useRef<(THREE.Mesh | null)[]>([]);
+  const coreMat = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   const hits = useRef<(THREE.Mesh | null)[]>([]);
-  const lineRef = useRef<THREE.Object3D | null>(null);
-  const sigRef = useRef<THREE.Object3D | null>(null);
-  const pulseSp = useRef<THREE.Sprite | null>(null);
-  const pulseMat = useRef<THREE.SpriteMaterial | null>(null);
-  const haloSp = useRef<THREE.Sprite | null>(null);
-  const haloMat = useRef<THREE.SpriteMaterial | null>(null);
+  const ringRef = useRef<(THREE.Object3D | null)[]>([]);
+  const ringMat = useRef<(THREE.LineBasicMaterial | null)[]>([]);
+  const connRef = useRef<THREE.Object3D | null>(null);
+  const pulseRef = useRef<THREE.Object3D | null>(null);
 
-  const nodeTex = useMemo(
-    () => makeGlowTexture([[0, 'rgba(255,247,232,1)'], [0.35, 'rgba(240,178,96,0.7)'], [1, 'rgba(230,150,80,0)']]),
-    [],
-  );
-  const haloTex = useMemo(
-    () => makeGlowTexture([[0, 'rgba(255,228,180,0.5)'], [0.5, 'rgba(240,180,110,0.18)'], [1, 'rgba(230,150,80,0)']]),
+  const glowTex = useMemo(
+    () => makeGlowTexture([[0, 'rgba(255,255,255,1)'], [0.35, 'rgba(220,220,230,0.55)'], [1, 'rgba(200,200,220,0)']]),
     [],
   );
 
-  // Fixed camera-basis of the parked pose (computed once). right/up span the
-  // graph plane; yawing `right` about `up` tilts the plane into depth.
-  const frame = useMemo(() => {
+  // Parked camera basis + per-orbit plane basis (computed once, world-fixed).
+  const basis = useMemo(() => {
     const pos = new THREE.Vector3(), quat = new THREE.Quaternion();
     systemPose(CHAPTER_SP.venus, pos, quat);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
-    return { right, up };
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
+    const toCam = fwd.clone().multiplyScalar(-1);
+    const planes = {} as Record<Category, { u: THREE.Vector3; v: THREE.Vector3 }>;
+    for (const c of CATEGORY_ORDER) {
+      const incl = ORBITS[c].incl;
+      const u = right.clone();
+      const v = up.clone().multiplyScalar(Math.cos(incl)).addScaledVector(fwd, Math.sin(incl));
+      planes[c] = { u, v };
+    }
+    return { right, up, fwd, toCam, planes };
   }, []);
 
-  // Per-node plane coords + breathing phase.
-  const meta = useMemo(
-    () => SKILLS.map((s, i) => ({
-      hx: s.lx * SPREAD_X - CENTER_X,
-      vy: s.ly * SPREAD_Y + OFF_UP,
-      color: new THREE.Color(colorOfSkill(s)),
-      sizeF: sizeOfSkill(s),
-      phase: i * 1.7,
-    })),
-    [],
-  );
+  // Per-node: orbit, base angle spread within its orbit, colour.
+  const nodes = useMemo(() => {
+    const counts = {} as Record<Category, number>;
+    const seen = {} as Record<Category, number>;
+    CATEGORY_ORDER.forEach((c) => { counts[c] = 0; seen[c] = 0; });
+    SKILLS.forEach((s) => { counts[s.category]++; });
+    const catOff: Record<Category, number> = { lang: 0.3, frontend: 1.1, backend: 2.0, database: 0.7, ai: 1.7, tools: 2.6 };
+    return SKILLS.map((s) => {
+      const k = seen[s.category]++;
+      const phase = (k / counts[s.category]) * Math.PI * 2 + catOff[s.category];
+      const o = ORBITS[s.category];
+      return { cat: s.category, phase, r: o.radius * radius, color: new THREE.Color(colorOfSkill(s)) };
+    });
+  }, [radius]);
 
-  const lineGeo = useMemo(() => {
+  // Static dust rings (one per orbit), built in world space from the fixed basis.
+  const ringGeo = useMemo(() => CATEGORY_ORDER.map((c) => {
+    const o = ORBITS[c]; const pl = basis.planes[c];
+    const pos = new Float32Array(RING_PTS * 3);
+    const v = new THREE.Vector3();
+    for (let i = 0; i < RING_PTS; i++) {
+      const a = (i / RING_PTS) * Math.PI * 2;
+      v.copy(center).addScaledVector(pl.u, Math.cos(a) * o.radius * radius).addScaledVector(pl.v, Math.sin(a) * o.radius * radius);
+      pos[i * 3] = v.x; pos[i * 3 + 1] = v.y; pos[i * 3 + 2] = v.z;
+    }
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(EDGES.length * 2 * 3), 3));
-    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(EDGES.length * 2 * 3), 3));
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    return g;
+  }), [center, radius, basis]);
+
+  const connGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_CONN * SEG * 2 * 3), 3));
     return g;
   }, []);
-  const lineMat = useMemo(
-    () => new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }),
+  const connMat = useMemo(
+    () => new THREE.LineBasicMaterial({ color: CYAN, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
     [],
   );
-  const sigGeo = useMemo(() => {
+  const pulseGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N_SIG * 3), 3));
-    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N_SIG * 3), 3));
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N_PULSE * 3), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N_PULSE * 3), 3));
     return g;
   }, []);
-  const sigMat = useMemo(
-    () => new THREE.PointsMaterial({ size: radius * 0.055, vertexColors: true, map: nodeTex, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }),
-    [radius, nodeTex],
+  const pulseMat = useMemo(
+    () => new THREE.PointsMaterial({ size: radius * 0.05, vertexColors: true, map: glowTex, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }),
+    [radius, glowTex],
   );
+  const pulses = useMemo(() => Array.from({ length: N_PULSE }, (_, i) => ({
+    cat: CATEGORY_ORDER[i % CATEGORY_ORDER.length],
+    phase: (i * 2.399963) % (Math.PI * 2),
+    speed: 0.5 + (i % 3) * 0.14,
+  })), []);
 
-  const clock = useRef(0);
-  const formClock = useRef(0);
+  const spin = useRef<Record<Category, number>>({ lang: 0, frontend: 0, backend: 0, database: 0, ai: 0, tools: 0 });
+  const appear = useRef(0);
   const hoverMix = useRef(0);
-  const formed = useRef(false);
+  const connGrow = useRef(0);
   const npos = useRef<THREE.Vector3[]>(SKILLS.map(() => new THREE.Vector3()));
-  const _rt = useMemo(() => new THREE.Vector3(), []);
-  const _dir = useMemo(() => new THREE.Vector3(), []);
-  const _start = useMemo(() => new THREE.Vector3(), []);
+  const nvis = useRef<boolean[]>(SKILLS.map(() => true));
+  const _p = useMemo(() => new THREE.Vector3(), []);
+  const _perp = useMemo(() => new THREE.Vector3(), []);
   const _ndc = useMemo(() => new THREE.Vector3(), []);
+  const _a = useMemo(() => new THREE.Vector3(), []);
+  const _b = useMemo(() => new THREE.Vector3(), []);
+  const _m = useMemo(() => new THREE.Vector3(), []);
+  const _c = useMemo(() => new THREE.Color(), []);
 
   useFrame((state, delta) => {
     const f = venusFocus();
     venusBridge.focus = f;
     const visible = f > 0.02;
-    for (const sp of nodeSp.current) if (sp) sp.visible = visible;
-    for (const h of hits.current) if (h) h.visible = visible;
-    if (lineRef.current) lineRef.current.visible = visible;
-    if (sigRef.current) sigRef.current.visible = visible;
-    if (pulseSp.current) pulseSp.current.visible = visible;
-    if (haloSp.current) haloSp.current.visible = visible;
+    for (const s of glowSp.current) if (s) s.visible = visible;
+    for (const m of coreMesh.current) if (m) m.visible = visible;
+    for (const r of ringRef.current) if (r) r.visible = visible;
+    if (connRef.current) connRef.current.visible = visible;
+    if (pulseRef.current) pulseRef.current.visible = visible;
     if (!visible) {
-      venusBridge.active = false;
-      venusBridge.env = 0;
-      formed.current = false;
-      formClock.current = 0;
+      for (const h of hits.current) if (h) h.visible = false;
+      venusBridge.active = false; venusBridge.env = 0;
+      appear.current = 0; connGrow.current = 0;
       return;
     }
 
     const t = state.clock.elapsedTime;
-    const running = !venusBridge.paused && f > 0.85;
-    if (f < 0.4) { clock.current = 0; formClock.current = 0; formed.current = false; }
-    if (running) {
-      clock.current += delta;
-      formClock.current += delta;
-    }
+    appear.current = Math.min(1, appear.current + delta * 0.8);
+    const app = THREE.MathUtils.smoothstep(appear.current, 0, 1);
+    for (const c of CATEGORY_ORDER) spin.current[c] += delta * ORBITS[c].speed * ORBITS[c].dir;
 
-    // yawed graph plane: right axis tilted about up, gently rotating
-    const yaw = PLANE_YAW + YAW_OSC * Math.sin(t * YAW_RATE);
-    _rt.copy(frame.right).applyAxisAngle(frame.up, yaw);
-
-    // formation: nodes rise out of Venus and settle into the band
-    const form = THREE.MathUtils.clamp(formClock.current / FORM_DUR, 0, 1);
-
-    // atmospheric pulse — Venus powers the network
-    const pin = formClock.current % PULSE_PERIOD;
-    const pulseEnv = Math.max(0, Math.sin((pin / PULSE_PERIOD) * Math.PI * 2)) ** 3;
-
-    // hover state (user) vs featured node (cycle)
+    // hover state
     const hovered = useVenusUI.getState().hovered;
     const hoverActive = hovered != null;
     hoverMix.current += ((hoverActive ? 1 : 0) - hoverMix.current) * Math.min(1, delta * 8);
+    connGrow.current += ((hoverActive ? 1 : 0) - connGrow.current) * Math.min(1, delta * 6);
     const hm = hoverMix.current;
-    const activation = Math.floor(clock.current / SLOT);
-    const featIdx = CYCLE_ORDER[activation % CYCLE_ORDER.length];
-    const tin = clock.current % SLOT;
-    const featEnv = THREE.MathUtils.smoothstep(tin, 0.5, 1.1) * (1 - THREE.MathUtils.smoothstep(tin, SLOT - 1.2, SLOT - 0.4));
-    const activeIdx = hoverActive ? hovered! : featIdx;
-    const cardEnv = hoverActive ? 1 : featEnv;
-    const focusSet = new Set<number>([activeIdx, ...(NEIGHBORS[activeIdx] ?? [])]);
+    const focusSet = new Set<number>(hoverActive ? [hovered!, ...(RELATED[hovered!] ?? [])] : []);
+    const activeCat: Category | null = hoverActive ? SKILLS[hovered!].category : null;
+    const ptr = state.pointer; // NDC -1..1
 
-    // 1) node positions (form from surface) + brightness
+    // 1) node positions (orbit + cursor gravity) + visuals
     for (let i = 0; i < SKILLS.length; i++) {
-      const m = meta[i];
-      const target = npos.current[i];
-      target.copy(center).addScaledVector(_rt, m.hx * radius).addScaledVector(frame.up, m.vy * radius);
-      if (form < 1) {
-        // formation: rise out of Venus's atmosphere along the node's direction
-        _dir.copy(_rt).multiplyScalar(m.hx).addScaledVector(frame.up, m.vy);
-        if (_dir.lengthSq() > 1e-6) _dir.normalize();
-        _start.copy(center).addScaledVector(_dir, 1.02 * radius);
-        const fe = THREE.MathUtils.smoothstep(THREE.MathUtils.clamp(form * 1.3 - i * 0.014, 0, 1), 0, 1);
-        target.lerpVectors(_start, target, fe);
+      const nd = nodes[i];
+      const pl = basis.planes[nd.cat];
+      const a = nd.phase + spin.current[nd.cat];
+      const p = npos.current[i];
+      p.copy(center).addScaledVector(pl.u, Math.cos(a) * nd.r).addScaledVector(pl.v, Math.sin(a) * nd.r);
+
+      // occlusion: behind Venus and within its silhouette -> hidden
+      _p.copy(p).sub(center);
+      const along = _p.dot(basis.toCam);
+      _perp.copy(_p).addScaledVector(basis.toCam, -along);
+      const occluded = along < 0 && _perp.length() < radius * 1.02;
+      nvis.current[i] = !occluded;
+
+      // cursor gravity — a gentle pull, only for visible nodes
+      _ndc.copy(p).project(camera);
+      if (!occluded && _ndc.z < 1) {
+        const dx = ptr.x - _ndc.x, dy = ptr.y - _ndc.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 0.16) {
+          const pull = (1 - d / 0.16) * 0.09 * radius;
+          p.addScaledVector(basis.right, dx * pull).addScaledVector(basis.up, dy * pull);
+        }
       }
 
-      const isActive = i === activeIdx;
+      const o = ORBITS[nd.cat];
+      const breathe = 0.5 + 0.5 * Math.sin(t * 0.8 + i * 1.3);
+      const isHover = i === hovered;
       const inFocus = focusSet.has(i);
-      const breathe = 0.5 + 0.5 * Math.sin(t * 0.7 + m.phase);
-      let op = (0.42 + 0.14 * breathe) * form; // base + breathing, faded in on formation
-      op += pulseEnv * 0.18; // Venus pulse lifts the whole network
-      // hover: focus nodes stay full, everything else falls toward 20%
-      const dimF = inFocus ? 1 : (1 - 0.8 * hm);
-      op *= dimF;
-      if (isActive) op = Math.max(op, (0.85 + 0.15 * cardEnv) * form);
-      else if (inFocus) op = Math.max(op, (0.6 + 0.25 * hm) * form);
+      const grow = isHover ? 1.15 : inFocus ? 1.06 : 1;
+      const dim = hoverActive ? (inFocus ? 1 : 0.25) : 1;
 
-      const sp = nodeSp.current[i];
-      const mat = nodeMat.current[i];
-      const sc = radius * (0.135 * m.sizeF) * (isActive ? 1.35 : inFocus ? 1.12 : 1) * (0.9 + 0.1 * breathe) * (0.5 + 0.5 * form);
-      if (sp) { sp.position.copy(target); sp.scale.setScalar(sc); }
-      if (mat) {
-        // hovered node highlights toward white
-        mat.color.copy(m.color).lerp(WHITE, isActive && hoverActive ? 0.6 : 0);
-        mat.opacity = op;
+      const sp = glowSp.current[i];
+      const gm = glowMat.current[i];
+      const gsc = radius * o.glow * grow * (0.9 + 0.14 * breathe);
+      if (sp) { sp.position.copy(p); sp.scale.setScalar(gsc); }
+      if (gm) {
+        gm.color.copy(nd.color).lerp(WHITE, isHover ? 0.4 : 0);
+        let op = (0.42 + 0.16 * breathe) * app * dim;
+        if (isHover) op = Math.max(op, 0.95 * app);
+        else if (inFocus) op = Math.max(op, 0.72 * app);
+        gm.opacity = occluded ? 0 : op;
       }
+      const cm = coreMesh.current[i];
+      const cmat = coreMat.current[i];
+      if (cm) { cm.position.copy(p); cm.scale.setScalar(radius * o.core * grow * (0.92 + 0.1 * breathe)); cm.visible = visible && o.core > 0 && !occluded; }
+      if (cmat) cmat.opacity = (o.crystal ? 0.85 : 1) * app * dim;
+
       const hit = hits.current[i];
-      if (hit) hit.position.copy(target);
+      if (hit) { hit.position.copy(p); hit.visible = visible && !occluded && app > 0.6; }
     }
 
-    // 2) edges — cyan, brightened for the focus/active wiring, dimmed on hover
-    const lp = lineGeo.attributes.position.array as Float32Array;
-    const lc = lineGeo.attributes.color.array as Float32Array;
-    // knowledge-flow pulse: which path + segment is lit right now
-    const kPath = PULSE_PATHS.length ? PULSE_PATHS[Math.floor(formClock.current / KFLOW_PERIOD) % PULSE_PATHS.length] : [];
-    const kProg = (formClock.current % KFLOW_PERIOD) / KFLOW_PERIOD; // 0..1 along the path
-    const kSeg = Math.min(kPath.length - 2, Math.floor(kProg * Math.max(1, kPath.length - 1)));
-    const kA = kPath[kSeg], kB = kPath[kSeg + 1];
-    for (let s = 0; s < EDGES.length; s++) {
-      const [a, b] = EDGES[s];
-      const pa = npos.current[a], pb = npos.current[b];
-      lp[s * 6] = pa.x; lp[s * 6 + 1] = pa.y; lp[s * 6 + 2] = pa.z;
-      lp[s * 6 + 3] = pb.x; lp[s * 6 + 4] = pb.y; lp[s * 6 + 5] = pb.z;
-      let alpha = 0.14 + pulseEnv * 0.06;
-      const touchesActive = a === activeIdx || b === activeIdx;
-      if (hoverActive) alpha *= touchesActive ? 3.0 : 0.12; // hover isolates the wiring
-      else if (touchesActive) alpha = Math.max(alpha, 0.16 + cardEnv * 0.28);
-      if ((a === kA && b === kB) || (a === kB && b === kA)) alpha = Math.max(alpha, 0.5); // knowledge pulse edge
-      alpha *= form;
-      const g = Math.min(1, alpha);
-      lc[s * 6] = CYAN.r * g; lc[s * 6 + 1] = CYAN.g * g; lc[s * 6 + 2] = CYAN.b * g;
-      lc[s * 6 + 3] = CYAN.r * g; lc[s * 6 + 4] = CYAN.g * g; lc[s * 6 + 5] = CYAN.b * g;
+    // 2) connection curves (hover only, grow outward, occlude behind Venus)
+    const cp = connGeo.attributes.position.array as Float32Array;
+    let seg = 0;
+    if (hoverActive && connGrow.current > 0.02) {
+      const rel = (RELATED[hovered!] ?? []).slice(0, MAX_CONN);
+      _a.copy(npos.current[hovered!]);
+      const gT = THREE.MathUtils.smoothstep(connGrow.current, 0, 1);
+      for (const r of rel) {
+        _b.copy(npos.current[r]);
+        _m.copy(_a).add(_b).multiplyScalar(0.5).addScaledVector(basis.toCam, _a.distanceTo(_b) * 0.18); // bulge toward camera
+        for (let s = 0; s < SEG; s++) {
+          const t0 = (s / SEG) * gT, t1 = ((s + 1) / SEG) * gT;
+          bez(_a, _m, _b, t0, _p); cp[seg * 6] = _p.x; cp[seg * 6 + 1] = _p.y; cp[seg * 6 + 2] = _p.z;
+          bez(_a, _m, _b, t1, _p); cp[seg * 6 + 3] = _p.x; cp[seg * 6 + 4] = _p.y; cp[seg * 6 + 5] = _p.z;
+          seg++;
+        }
+      }
     }
-    lineGeo.attributes.position.needsUpdate = true;
-    lineGeo.attributes.color.needsUpdate = true;
+    connGeo.attributes.position.needsUpdate = true;
+    connGeo.setDrawRange(0, seg * 2);
+    connMat.opacity = 0.55 * connGrow.current * (0.7 + 0.3 * Math.sin(t * 4));
 
-    // 3) signals drift along edges (subtle current); a few ride the pulse edge
-    const sp2 = sigGeo.attributes.position.array as Float32Array;
-    const sc2 = sigGeo.attributes.color.array as Float32Array;
-    for (let k = 0; k < N_SIG; k++) {
-      const useKflow = k < 3 && kA != null && kB != null;
-      const eA = useKflow ? kA : EDGES[(k * 7) % EDGES.length][0];
-      const eB = useKflow ? kB : EDGES[(k * 7) % EDGES.length][1];
-      const pa = npos.current[eA], pb = npos.current[eB];
-      const phase = ((t * 0.42) + k / N_SIG) % 1;
-      _start.copy(pa).lerp(pb, phase);
-      sp2[k * 3] = _start.x; sp2[k * 3 + 1] = _start.y; sp2[k * 3 + 2] = _start.z;
-      const touchesActive = eA === activeIdx || eB === activeIdx;
-      let glow = Math.sin(phase * Math.PI) * 0.5 * form;
-      if (useKflow) glow *= 1.8;
-      if (hoverActive) glow *= touchesActive ? 1.4 : 0.1;
-      const c = useKflow ? WHITE : CYAN;
-      sc2[k * 3] = c.r * glow; sc2[k * 3 + 1] = c.g * glow; sc2[k * 3 + 2] = c.b * glow;
-    }
-    sigGeo.attributes.position.needsUpdate = true;
-    sigGeo.attributes.color.needsUpdate = true;
+    // 3) orbit paths — faint elliptical lines, brighter for the active category
+    CATEGORY_ORDER.forEach((c, ci) => {
+      const rm = ringMat.current[ci];
+      if (!rm) return;
+      const isActive = activeCat === c;
+      rm.opacity = (isActive ? 0.55 : 0.16 * (hoverActive ? 0.5 : 1)) * app;
+    });
 
-    // 4) Venus atmospheric pulse ring (subtle, expands + fades from the planet)
-    if (pulseSp.current && pulseMat.current) {
-      const g = pulseEnv;
-      pulseSp.current.position.copy(center);
-      pulseSp.current.scale.setScalar(radius * (2.3 + g * 1.6));
-      pulseMat.current.opacity = g * 0.1 * form;
+    // 4) energy pulses running the rings
+    const pp = pulseGeo.attributes.position.array as Float32Array;
+    const pc = pulseGeo.attributes.color.array as Float32Array;
+    for (let k = 0; k < N_PULSE; k++) {
+      const pu = pulses[k]; const pl = basis.planes[pu.cat]; const o = ORBITS[pu.cat];
+      const a = pu.phase + t * pu.speed * o.dir;
+      _p.copy(center).addScaledVector(pl.u, Math.cos(a) * o.radius * radius).addScaledVector(pl.v, Math.sin(a) * o.radius * radius);
+      _perp.copy(_p).sub(center); const along = _perp.dot(basis.toCam); _b.copy(_perp).addScaledVector(basis.toCam, -along);
+      const occ = along < 0 && _b.length() < radius * 1.02;
+      pp[k * 3] = _p.x; pp[k * 3 + 1] = _p.y; pp[k * 3 + 2] = _p.z;
+      const gl = (occ ? 0 : 0.9) * app;
+      _c.set(o.color);
+      pc[k * 3] = _c.r * gl; pc[k * 3 + 1] = _c.g * gl; pc[k * 3 + 2] = _c.b * gl;
     }
-    if (haloSp.current && haloMat.current) {
-      haloSp.current.position.copy(center);
-      haloSp.current.scale.setScalar(radius * 3.0);
-      haloMat.current.opacity = (0.05 + pulseEnv * 0.05) * form;
-    }
+    pulseGeo.attributes.position.needsUpdate = true;
+    pulseGeo.attributes.color.needsUpdate = true;
 
-    // 5) present the active node's card at its screen position
-    const ap = npos.current[activeIdx];
-    _ndc.copy(ap).project(camera);
-    venusBridge.index = activeIdx;
-    venusBridge.color = colorOfSkill(SKILLS[activeIdx]);
-    venusBridge.px = (_ndc.x * 0.5 + 0.5) * size.width;
-    venusBridge.py = (-_ndc.y * 0.5 + 0.5) * size.height;
-    venusBridge.env = cardEnv;
-    venusBridge.active = _ndc.z < 1 && cardEnv > 0.02 && f > 0.6 && form > 0.6;
-    formed.current = form >= 1;
+    // 5) hover card
+    if (hoverActive && nvis.current[hovered!]) {
+      _ndc.copy(npos.current[hovered!]).project(camera);
+      venusBridge.index = hovered!;
+      venusBridge.color = colorOfSkill(SKILLS[hovered!]);
+      venusBridge.px = (_ndc.x * 0.5 + 0.5) * size.width;
+      venusBridge.py = (-_ndc.y * 0.5 + 0.5) * size.height;
+      venusBridge.env = hm;
+      venusBridge.active = _ndc.z < 1;
+    } else {
+      venusBridge.env = hm;
+      venusBridge.active = hoverActive;
+    }
   });
 
-  const hitR = radius * 0.24;
   const onOver = (i: number) => (e: ThreeEvent<PointerEvent>) => {
     if (venusFocus() < 0.4) return;
     e.stopPropagation();
@@ -292,51 +291,72 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
     if (useVenusUI.getState().hovered === i) useVenusUI.getState().setHovered(null);
     document.body.style.cursor = '';
   };
-  const onClick = (i: number) => (e: ThreeEvent<MouseEvent>) => {
-    if (venusFocus() < 0.4) return;
-    e.stopPropagation();
-    useVenusUI.getState().setSelected(i);
-  };
+  const hitR = radius * 0.2;
 
   return (
     <group>
-      {/* Venus atmospheric pulse: a soft halo + an expanding ring of light */}
-      <sprite ref={(el) => { haloSp.current = el; }} visible={false} scale={[radius * 3, radius * 3, 1]}>
-        <spriteMaterial ref={(m) => { haloMat.current = m; }} map={haloTex} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </sprite>
-      <sprite ref={(el) => { pulseSp.current = el; }} visible={false} scale={[radius * 2.4, radius * 2.4, 1]}>
-        <spriteMaterial ref={(m) => { pulseMat.current = m; }} map={haloTex} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </sprite>
-
-      {/* edges + travelling signals (depth-tested so Venus occludes the far side) */}
-      <lineSegments ref={(el) => { lineRef.current = el; }} geometry={lineGeo} material={lineMat} visible={false} frustumCulled={false} />
-      <points ref={(el) => { sigRef.current = el; }} geometry={sigGeo} material={sigMat} visible={false} frustumCulled={false} />
-
-      {/* skill nodes + invisible hit targets */}
-      {SKILLS.map((s, i) => (
-        <group key={s.name}>
-          <sprite ref={(el) => { nodeSp.current[i] = el; }} visible={false} scale={[radius * 0.12, radius * 0.12, 1]}>
-            <spriteMaterial
-              ref={(m) => { nodeMat.current[i] = m; if (m) m.color.set(colorOfSkill(s)); }}
-              map={nodeTex}
-              transparent
-              opacity={0.3}
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-            />
-          </sprite>
-          <mesh
-            ref={(el) => { hits.current[i] = el; }}
-            visible={false}
-            onPointerOver={onOver(i)}
-            onPointerOut={onOut(i)}
-            onClick={onClick(i)}
-          >
-            <sphereGeometry args={[hitR, 10, 10]} />
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-          </mesh>
-        </group>
+      {/* orbit paths — crisp elliptical lines */}
+      {CATEGORY_ORDER.map((c, ci) => (
+        <lineLoop key={c} ref={(el) => { ringRef.current[ci] = el; }} geometry={ringGeo[ci]} visible={false} frustumCulled={false}>
+          <lineBasicMaterial
+            ref={(m) => { ringMat.current[ci] = m; if (m) m.color.set(ORBITS[c].color); }}
+            transparent
+            opacity={0}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </lineLoop>
       ))}
+
+      {/* dynamic connection curves + energy pulses */}
+      <lineSegments ref={(el) => { connRef.current = el; }} geometry={connGeo} material={connMat} visible={false} frustumCulled={false} />
+      <points ref={(el) => { pulseRef.current = el; }} geometry={pulseGeo} material={pulseMat} visible={false} frustumCulled={false} />
+
+      {/* skill bodies: glow sprite + solid core + hit target */}
+      {SKILLS.map((s, i) => {
+        const o = ORBITS[s.category];
+        const coreColor = new THREE.Color(o.color).lerp(new THREE.Color('#ffffff'), s.category === 'lang' ? 0.6 : 0.25);
+        return (
+          <group key={s.name}>
+            <sprite ref={(el) => { glowSp.current[i] = el; }} visible={false} scale={[radius * o.glow, radius * o.glow, 1]}>
+              <spriteMaterial
+                ref={(m) => { glowMat.current[i] = m; if (m) m.color.set(o.color); }}
+                map={glowTex}
+                transparent
+                opacity={0.3}
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+              />
+            </sprite>
+            {o.core > 0 && (
+              <mesh ref={(el) => { coreMesh.current[i] = el; }} visible={false}>
+                {o.crystal ? <octahedronGeometry args={[radius * o.core, 0]} /> : <sphereGeometry args={[radius * o.core, 16, 16]} />}
+                <meshBasicMaterial
+                  ref={(m) => { coreMat.current[i] = m; if (m) m.color.copy(coreColor); }}
+                  transparent
+                  opacity={1}
+                  toneMapped={false}
+                  depthWrite={!o.crystal}
+                />
+              </mesh>
+            )}
+            <mesh ref={(el) => { hits.current[i] = el; }} visible={false} onPointerOver={onOver(i)} onPointerOut={onOut(i)}>
+              <sphereGeometry args={[hitR, 8, 8]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+          </group>
+        );
+      })}
     </group>
+  );
+}
+
+/** Quadratic bezier sample into `out`. */
+function bez(a: THREE.Vector3, c: THREE.Vector3, b: THREE.Vector3, t: number, out: THREE.Vector3) {
+  const s = 1 - t;
+  out.set(
+    s * s * a.x + 2 * s * t * c.x + t * t * b.x,
+    s * s * a.y + 2 * s * t * c.y + t * t * b.y,
+    s * s * a.z + 2 * s * t * c.z + t * t * b.z,
   );
 }

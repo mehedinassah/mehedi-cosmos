@@ -7,7 +7,7 @@ import { CHAPTERS } from '@/world/system/systemSpec';
 import { EarthHologram } from '@/ui/descent/EarthHologram';
 import { HoverLabel, OrbitPanel } from '@/ui/descent/EarthOrbitUI';
 import { KnowledgeCard, SaturnExpand } from '@/ui/descent/SaturnOverlay';
-import { SkillCard, VenusExpand } from '@/ui/descent/VenusOverlay';
+import { SkillCard } from '@/ui/descent/VenusOverlay';
 
 /**
  * Descent chapter DOM layer — three quiet elements and an input bridge:
@@ -282,7 +282,6 @@ export function DescentOverlay() {
       <KnowledgeCard />
       <SaturnExpand />
       <SkillCard />
-      <VenusExpand />
       <ArrivalFlash />
     </>
   );

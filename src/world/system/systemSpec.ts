@@ -317,13 +317,14 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'venus', planet: 'Venus', title: 'Skill Constellation', sp: 0.2, accent: '#e99046', au: '0.72 AU',
+    id: 'venus', planet: 'Venus', title: 'Skill Galaxy', sp: 0.2, accent: '#e99046', au: '0.72 AU',
     body: [
-      'Not isolated tools.',
-      'A connected engineering ecosystem.',
-      'Every node is a capability.',
-      'Every connection is experience.',
-      'Hover any node to explore the constellation.',
+      'Engineering is more than individual tools.',
+      'Every technology strengthens another.',
+      'Languages form the foundation.',
+      'Frameworks build the experience.',
+      'Infrastructure powers the systems.',
+      'Hover each orbit to discover the technologies behind my work.',
     ],
   },
   {
