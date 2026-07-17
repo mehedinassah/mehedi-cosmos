@@ -34,13 +34,16 @@ export const CLASS_LABEL: Record<MissionClass, string> = {
   web: 'WEB',
   research: 'RESEARCH',
 };
-// Orbit tier per class: radius (Mars radii), tilt, roll, eccentricity, speed, dir.
+// Orbit tier per class: radius (Mars radii), tilt, roll, eccentricity, speed,
+// dir, craft size. Deliberately uneven — different altitudes, inclinations
+// (research is near-polar), eccentricities, speeds and directions, with real
+// breathing room from the planet.
 export const CLASS_ORBIT: Record<MissionClass, { radius: number; incl: number; roll: number; ecc: number; speed: number; dir: 1 | -1; size: number }> = {
-  web: { radius: 1.5, incl: 0.6, roll: -0.3, ecc: 0.1, speed: 0.06, dir: -1, size: 0.9 },
-  enterprise: { radius: 1.8, incl: 0.5, roll: 0.12, ecc: 0.14, speed: 0.05, dir: 1, size: 1.25 },
-  mobile: { radius: 2.1, incl: 0.44, roll: 0.34, ecc: 0.2, speed: 0.052, dir: 1, size: 0.8 },
-  ai: { radius: 2.45, incl: 0.64, roll: -0.22, ecc: 0.16, speed: 0.034, dir: -1, size: 1.05 },
-  research: { radius: 2.85, incl: 0.92, roll: 0.42, ecc: 0.3, speed: 0.038, dir: 1, size: 0.95 },
+  web: { radius: 1.6, incl: 0.62, roll: -0.3, ecc: 0.12, speed: 0.055, dir: -1, size: 0.9 },
+  enterprise: { radius: 1.88, incl: 0.46, roll: 0.14, ecc: 0.18, speed: 0.044, dir: 1, size: 1.3 },
+  mobile: { radius: 2.12, incl: 0.4, roll: 0.36, ecc: 0.24, speed: 0.06, dir: 1, size: 0.78 },
+  ai: { radius: 2.4, incl: 0.7, roll: -0.24, ecc: 0.15, speed: 0.03, dir: -1, size: 1.05 },
+  research: { radius: 2.68, incl: 1.28, roll: 0.5, ecc: 0.3, speed: 0.036, dir: 1, size: 0.98 },
 };
 
 export type Mission = {

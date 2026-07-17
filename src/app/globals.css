@@ -885,53 +885,18 @@ main { position: fixed; inset: 0; }
   font-weight: 300;
   margin-top: 4px;
 }
-.mars-log__grid {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
-  padding-top: 11px;
-  border-top: 0.8px solid rgba(255, 255, 255, 0.08);
+.mars-log__rule {
+  height: 0.8px;
+  background: rgba(255, 255, 255, 0.09);
+  margin: 12px 0;
 }
-.mars-log__k {
-  color: rgba(200, 206, 220, 0.42);
-  font-size: 8.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  margin-top: 6px;
-}
-.mars-log__k:first-child { margin-top: 0; }
-.mars-log__v {
-  color: rgba(230, 234, 244, 0.86);
-  font-size: 11.5px;
-  margin-top: 1px;
-}
-.mars-log__ring {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  flex: none;
-}
-.mars-log__pct {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(240, 242, 248, 0.9);
-  font-size: 9px;
-  font-weight: 500;
-}
-.mars-log__pct i { font-style: normal; opacity: 0.5; font-size: 7px; }
 .mars-log__tech {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 12px;
 }
 .mars-log__chip {
-  color: rgba(226, 230, 240, 0.78);
+  color: rgba(226, 230, 240, 0.8);
   font-size: 10px;
   font-weight: 300;
   padding: 2px 8px;
@@ -942,9 +907,10 @@ main { position: fixed; inset: 0; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 0.8px solid rgba(255, 255, 255, 0.08);
+}
+.mars-log__role {
+  color: rgba(230, 234, 244, 0.82);
+  font-size: 11.5px;
 }
 .mars-log__year {
   font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
@@ -957,6 +923,14 @@ main { position: fixed; inset: 0; }
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
+  margin-top: 12px;
+}
+/* holographic beam linking the drone to its projected card */
+.mars-log__link {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
 }
 @media (max-width: 720px) {
   .mars-log { display: none; }
