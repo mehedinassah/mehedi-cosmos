@@ -34,19 +34,22 @@ export const CLASS_LABEL: Record<MissionClass, string> = {
   web: 'WEB',
   research: 'RESEARCH',
 };
-// `moveDir` = the SCREEN direction the drone travels where it lingers most (its
-// visible pass): 0 = horizontal / left-right, ~pi/2 = vertical / up-down, in
-// between = diagonal. The orbit's long (screen) axis is built PERPENDICULAR to
-// moveDir so the drone dwells while moving that way. `radius` = long-axis size
-// (Mars radii), `minRatio` = short/long, `depth` = how far it dips behind Mars,
-// `up` = orbit height above Mars. Full revolution ~30s each; varied so nothing
-// syncs.
-export const CLASS_ORBIT: Record<MissionClass, { radius: number; moveDir: number; minRatio: number; depth: number; up: number; speed: number; dir: 1 | -1; size: number }> = {
-  enterprise: { radius: 1.28, moveDir: 0.0, minRatio: 0.5, depth: 0.66, up: 0.16, speed: 0.2, dir: 1, size: 1.3 }, // horizontal
-  research: { radius: 1.36, moveDir: 0.28, minRatio: 0.5, depth: 0.66, up: 0.12, speed: 0.205, dir: -1, size: 0.98 }, // diagonal down-right
-  mobile: { radius: 1.42, moveDir: 0.78, minRatio: 0.55, depth: 0.62, up: 0.24, speed: 0.243, dir: -1, size: 0.78 }, // steep diagonal
-  web: { radius: 1.48, moveDir: 1.57, minRatio: 0.5, depth: 0.64, up: 0.18, speed: 0.222, dir: -1, size: 0.9 }, // vertical
-  ai: { radius: 1.5, moveDir: 2.45, minRatio: 0.55, depth: 0.6, up: 0.22, speed: 0.188, dir: 1, size: 1.05 }, // diagonal (other way)
+// `moveDir` = the SCREEN direction the drone actually travels: 0 = horizontal
+// (left-right), pi/2 = vertical (up-down), in between = diagonal. The orbit's
+// LONG screen axis is built ALONG moveDir (a constant-speed ellipse reads by its
+// biggest excursion, so the long axis must BE the travel direction). `radius` =
+// long-axis size (Mars radii), `minRatio` = perpendicular bob / long, `depth` =
+// how far in FRONT the near pass floats and behind the far pass dips (>1 so the
+// near pass clears the sphere and never skims through it), `up` / `side` = orbit
+// hub offset above / beside Mars centre (keeps the visible arc in the open
+// upper-left, above the planet's middle). Full revolution ~30s; varied so
+// nothing syncs.
+export const CLASS_ORBIT: Record<MissionClass, { radius: number; moveDir: number; minRatio: number; depth: number; up: number; side: number; speed: number; dir: 1 | -1; size: number }> = {
+  enterprise: { radius: 1.5, moveDir: 0.0, minRatio: 0.26, depth: 1.42, up: 0.55, side: -0.2, speed: 0.2, dir: 1, size: 0.8 }, // horizontal, high across the top
+  research: { radius: 1.5, moveDir: 0.32, minRatio: 0.3, depth: 1.36, up: 0.32, side: -0.4, speed: 0.185, dir: -1, size: 0.8 }, // diagonal up-right
+  mobile: { radius: 1.4, moveDir: 2.85, minRatio: 0.32, depth: 1.3, up: 0.62, side: 0.05, speed: 0.235, dir: -1, size: 0.74 }, // horizontal (right-to-left), high
+  web: { radius: 1.4, moveDir: 1.57, minRatio: 0.34, depth: 1.34, up: 0.05, side: -0.55, speed: 0.215, dir: -1, size: 0.78 }, // vertical, on the left
+  ai: { radius: 1.5, moveDir: 2.25, minRatio: 0.3, depth: 1.42, up: 0.42, side: -0.25, speed: 0.175, dir: 1, size: 0.84 }, // diagonal up-left
 };
 
 export type Mission = {

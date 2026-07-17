@@ -148,20 +148,22 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
     const toCam = fwd.clone().multiplyScalar(-1);
-    // Each class travels a DIFFERENT screen direction where it lingers. The
-    // long (cos) axis u is PERPENDICULAR to moveDir (so the drone dwells at the
-    // ends of u while moving along moveDir); the short (sin) axis v is along
-    // moveDir plus depth (so the far half swings behind Mars). Magnitudes are
-    // baked in. Pos = hub + u cos a + v sin a.
+    // Each class travels a DIFFERENT screen direction. The long (cos) axis u is
+    // built ALONG moveDir so the drone's biggest excursion IS the travel
+    // direction (a constant-speed ellipse reads by its longest axis). The short
+    // (sin) axis v is a small perpendicular bob PLUS a big depth swing (>1 Mars
+    // radius) so the near half floats clearly in FRONT of the planet (never
+    // skims through it) and the far half dips behind. The hub is lifted up/left
+    // so the visible arc rides above Mars's middle. Pos = hub + u cos a + v sin a.
     const planes: Record<string, { u: THREE.Vector3; v: THREE.Vector3; hub: THREE.Vector3 }> = {};
     (Object.keys(CLASS_ORBIT) as MissionClass[]).forEach((c) => {
       const o = CLASS_ORBIT[c];
-      const qDir = right.clone().multiplyScalar(Math.cos(o.moveDir)).addScaledVector(up, Math.sin(o.moveDir)); // motion
-      const pDir = right.clone().multiplyScalar(-Math.sin(o.moveDir)).addScaledVector(up, Math.cos(o.moveDir)); // major, perp
+      const mDir = right.clone().multiplyScalar(Math.cos(o.moveDir)).addScaledVector(up, Math.sin(o.moveDir)); // motion / long axis
+      const pDir = right.clone().multiplyScalar(-Math.sin(o.moveDir)).addScaledVector(up, Math.cos(o.moveDir)); // perpendicular bob
       const maj = o.radius * radius;
-      const u = pDir.multiplyScalar(maj);
-      const v = qDir.multiplyScalar(o.minRatio * maj).addScaledVector(toCam, o.depth * radius);
-      const hub = center.clone().addScaledVector(up, o.up * radius);
+      const u = mDir.multiplyScalar(maj);
+      const v = pDir.multiplyScalar(o.minRatio * maj).addScaledVector(toCam, o.depth * radius);
+      const hub = center.clone().addScaledVector(up, o.up * radius).addScaledVector(right, o.side * radius);
       planes[c] = { u, v, hub };
     });
     const landing = MISSIONS.map((m) => {
@@ -318,21 +320,24 @@ export function MarsMissionControl({ center, radius }: { center: THREE.Vector3; 
     commGeo.attributes.color.needsUpdate = true;
     if (colonyMat.current) colonyMat.current.opacity = (0.14 + 0.05 * Math.sin(t * 0.7)) * app;
 
-    // card bridge — the mission log is CLICK-driven (a pinned selection that
-    // self-closes in 3s); hover only highlights the drone, it doesn't pop a card
-    const cardIdx = ui.selected;
+    // card bridge — the mission log pops on HOVER, and a click pins it (a
+    // selection that self-closes in 3s). Either way the card only shows while
+    // the drone is genuinely IN VIEW: un-occluded (dvis) AND on-screen. A drone
+    // behind or below the planet shows no card even if it's the hovered/pinned one.
+    const cardIdx = ui.hovered != null ? ui.hovered : ui.selected;
+    let show = false;
     if (cardIdx != null && dvis.current[cardIdx]) {
       _ndc.copy(dpos.current[cardIdx]).project(camera);
-      marsBridge.index = cardIdx;
-      marsBridge.color = colorOfMission(MISSIONS[cardIdx]);
-      marsBridge.px = (_ndc.x * 0.5 + 0.5) * size.width;
-      marsBridge.py = (-_ndc.y * 0.5 + 0.5) * size.height;
-      marsBridge.env += ((_ndc.z < 1 ? 1 : 0) - marsBridge.env) * Math.min(1, delta * 8);
-      marsBridge.active = _ndc.z < 1;
-    } else {
-      marsBridge.env += (0 - marsBridge.env) * Math.min(1, delta * 8);
-      marsBridge.active = cardIdx != null;
+      show = _ndc.z < 1 && Math.abs(_ndc.x) <= 1 && Math.abs(_ndc.y) <= 1;
+      if (show) {
+        marsBridge.index = cardIdx;
+        marsBridge.color = colorOfMission(MISSIONS[cardIdx]);
+        marsBridge.px = (_ndc.x * 0.5 + 0.5) * size.width;
+        marsBridge.py = (-_ndc.y * 0.5 + 0.5) * size.height;
+      }
     }
+    marsBridge.env += ((show ? 1 : 0) - marsBridge.env) * Math.min(1, delta * 8);
+    marsBridge.active = show;
   });
 
   const onOver = (i: number) => (e: ThreeEvent<PointerEvent>) => {
