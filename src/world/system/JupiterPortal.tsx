@@ -23,7 +23,9 @@ import { portalDive } from '@/state/portalDive';
  */
 
 const PERICO_URL = 'https://perico-erp.vercel.app/';
-const DIVE_DURATION = 5.5;
+// Kept under the browser's ~5s user-activation window so the new tab opens at
+// the end of the dive without being popup-blocked.
+const DIVE_DURATION = 4.5;
 
 function jupiterFocus(): number {
   const d = useDescentStore.getState();
@@ -196,8 +198,23 @@ export function JupiterPortal({ center, radius }: { center: THREE.Vector3; radiu
       portalDive.t = Math.min(1, portalDive.t + Math.min(delta, 0.05) / DIVE_DURATION);
       if (portalDive.t >= 0.985 && !navigated.current) {
         navigated.current = true;
-        if (!(typeof window !== 'undefined' && (window as { __PORTAL_NO_NAV__?: boolean }).__PORTAL_NO_NAV__)) {
-          window.location.href = PERICO_URL;
+        // __PORTAL_NO_NAV__ lets a headless capture hold the final beats.
+        const noNav = typeof window !== 'undefined' && (window as { __PORTAL_NO_NAV__?: boolean }).__PORTAL_NO_NAV__;
+        if (!noNav) {
+          // Open Perico in a NEW tab, then close the portal so THIS tab snaps
+          // back to the parked Jupiter view — returning to it looks like nothing
+          // happened. If a popup blocker swallows the new tab, fall back to
+          // same-tab navigation so the visitor still reaches the app.
+          const w = window.open(PERICO_URL, '_blank', 'noopener');
+          if (!w) {
+            window.location.href = PERICO_URL;
+            return;
+          }
+          portalDive.active = false;
+          portalDive.t = 0;
+          navigated.current = false;
+          setDiving(false);
+          setHovered(false);
         }
       }
     }
