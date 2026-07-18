@@ -203,18 +203,23 @@ export function JupiterPortal({ center, radius }: { center: THREE.Vector3; radiu
         if (!noNav) {
           // Open Perico in a NEW tab, then close the portal so THIS tab snaps
           // back to the parked Jupiter view — returning to it looks like nothing
-          // happened. If a popup blocker swallows the new tab, fall back to
-          // same-tab navigation so the visitor still reaches the app.
-          const w = window.open(PERICO_URL, '_blank', 'noopener');
-          if (!w) {
+          // happened. NOTE: do NOT pass 'noopener' here — that makes window.open
+          // always return null, which used to trip the "blocked" fallback and
+          // navigate THIS tab too. Instead sever the opener reference manually
+          // (same security, but a real return value to detect a popup block).
+          const w = window.open(PERICO_URL, '_blank');
+          if (w) {
+            try { w.opener = null; } catch {}
+            portalDive.active = false;
+            portalDive.t = 0;
+            navigated.current = false;
+            setDiving(false);
+            setHovered(false);
+          } else {
+            // truly popup-blocked → same-tab navigation so the app still opens
             window.location.href = PERICO_URL;
             return;
           }
-          portalDive.active = false;
-          portalDive.t = 0;
-          navigated.current = false;
-          setDiving(false);
-          setHovered(false);
         }
       }
     }
