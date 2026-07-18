@@ -284,17 +284,20 @@ export function CameraDirector() {
       // scene comes alive on its own — Earth spins, the whole constellation
       // orbits — with no camera automation at all.
       systemPose(sp, cam.position, cam.quaternion);
-      // Jupiter portal dive: fall THROUGH the Great Red Spot into Perico. Turn
-      // toward the vortex early, then accelerate in (ease-in) — the vortex grows
-      // to fill the frame and the scene navigates to the app when it lands.
+      // Jupiter portal dive: the storm opens, then the camera FALLS through it —
+      // it is not a zoom. For the first beat it holds dead still while the eye
+      // forms (Phase 1), then gravity takes it: quadratic freefall acceleration
+      // straight down the throat, the frame widening with the mounting speed,
+      // and the scene navigates to the app the instant it lands.
       if (portalDive.active) {
         const pt = portalDive.t;
+        const fall = pt <= 0.14 ? 0 : Math.pow((pt - 0.14) / 0.86, 2.0) * 0.995;
         _pvLook.set(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(400).add(cam.position);
-        _pvLook.lerp(portalDive.target, THREE.MathUtils.smoothstep(pt, 0.0, 0.45));
-        cam.position.lerp(portalDive.target, pt * pt * 0.98); // accelerating fall
+        _pvLook.lerp(portalDive.target, THREE.MathUtils.smoothstep(pt, 0.0, 0.2));
+        cam.position.lerp(portalDive.target, fall);
         cam.up.set(0, 1, 0);
         cam.lookAt(_pvLook);
-        cam.fov = baseFov.current + 10 * pt; // slight widen = speed
+        cam.fov = baseFov.current + 18 * fall; // widening = accelerating freefall
         cam.updateProjectionMatrix();
       }
       cam.clearViewOffset();

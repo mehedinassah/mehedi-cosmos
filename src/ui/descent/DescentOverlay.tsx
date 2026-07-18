@@ -270,9 +270,11 @@ function ArrivalFlash() {
   return <div className={`arrival-flash ${cls}`} aria-hidden="true" />;
 }
 
-/** Jupiter portal dive — a fullscreen black wash that fades in over the last of
- *  the dive so the whole frame (canvas + DOM panel) goes dark together, right
- *  before the scene lands on the live Perico app. Driven off the module ref. */
+/** Jupiter portal dive — NOT a fade to black. A brief wash of LIGHT over the
+ *  final beat of the fall: the throat fills with light in the canvas, and this
+ *  covers the DOM panels the same way, so the last frame is a bright seam that
+ *  the Perico page load resolves out of (no black, no spinner). Driven off the
+ *  module ref. */
 function PortalFade() {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -283,7 +285,7 @@ function PortalFade() {
     };
     const loop = () => {
       const el = ref.current;
-      if (el) el.style.opacity = String(portalDive.active ? sstep(portalDive.t, 0.66, 1.0) : 0);
+      if (el) el.style.opacity = String(portalDive.active ? sstep(portalDive.t, 0.9, 1.0) : 0);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -293,9 +295,35 @@ function PortalFade() {
     <div
       ref={ref}
       aria-hidden="true"
-      style={{ position: 'fixed', inset: 0, background: '#000', opacity: 0, zIndex: 9999, pointerEvents: 'none' }}
+      style={{ position: 'fixed', inset: 0, background: '#faf9f7', opacity: 0, zIndex: 9999, pointerEvents: 'none' }}
     />
   );
+}
+
+/** During the portal dive the on-screen chrome (chapter panel, nav rail) must
+ *  not bleed through the storm — it fades out fast the instant the fall begins,
+ *  well before the light seam, so the frame is purely the dive. */
+function DiveDimmable({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const sstep = (x: number, a: number, b: number) => {
+      const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+      return t * t * (3 - 2 * t);
+    };
+    const loop = () => {
+      const el = ref.current;
+      if (el) {
+        const dim = portalDive.active ? sstep(portalDive.t, 0.04, 0.22) : 0;
+        el.style.opacity = String(1 - dim);
+        el.style.pointerEvents = dim > 0.5 ? 'none' : '';
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return <div ref={ref}>{children}</div>;
 }
 
 export function DescentOverlay() {
@@ -304,8 +332,10 @@ export function DescentOverlay() {
       <DescentController />
       <TitleCard />
       <DescentCaption />
-      <PlanetMenu />
-      <ChapterPanel />
+      <DiveDimmable>
+        <PlanetMenu />
+        <ChapterPanel />
+      </DiveDimmable>
       <EarthHologram />
       <HoverLabel />
       <OrbitPanel />
