@@ -63,8 +63,10 @@ export function SystemLoopRig() {
       // percent lift while a flare erupts. Never enough to read as flicker.
       const t = state.clock.elapsedTime;
       const shimmer = 1 + 0.009 * Math.sin(t * 0.73) + 0.006 * Math.sin(t * 2.17 + 1.3)
-        + 0.03 * sunActivity.flare;
+        + 0.03 * sunActivity.flare + 0.06 * sunActivity.storm;
       lightRef.current.intensity = 2.6 * (LIGHT_FLOOR + (1 - LIGHT_FLOOR) * p) * shimmer;
+      // during a storm the light also warms very slightly toward amber
+      lightRef.current.color.setRGB(1, 0.949 - 0.05 * sunActivity.storm, 0.863 - 0.09 * sunActivity.storm);
     }
   });
 

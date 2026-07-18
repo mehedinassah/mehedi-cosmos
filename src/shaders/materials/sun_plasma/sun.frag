@@ -56,7 +56,7 @@ void main() {
   // Crisp cells: bright cores, thin dark intergranular lanes. Contrast is
   // what reads as granulation instead of cloud.
   float cells = smoothstep(0.36, 0.72, fine) * 0.55 + smoothstep(0.34, 0.74, gran) * 0.45;
-  float lanes = 1.0 - smoothstep(0.46, 0.30, min(fine, gran)) * 0.62;
+  float lanes = 1.0 - smoothstep(0.46, 0.30, min(fine, gran)) * 0.72; // deeper dark network
 
   // Emissive field: constantly varying brightness across the disc
   float emiss = 0.34 + 0.72 * cells;
@@ -64,14 +64,15 @@ void main() {
   emiss *= mix(0.9, 1.1, supr);
   emiss *= lanes;
 
-  // LARGE-SCALE brightness regions — the camera can't resolve the whole
-  // disc equally: broad hot regions and dark convection regions drift and
-  // breathe across the star. Kept SUBTLE so it modulates the granulation
-  // rather than smothering it into marble.
+  // LARGE-SCALE brightness structure — a real star is NOT uniform: like Earth's
+  // clouds, it has broad bright zones and broad dark zones unevenly scattered.
+  // Two scales of strong variation: continent-sized patches + medium blotches.
+  float patchBig = fbm(p * 0.7 + vec3(2.0, 0.0, uTime * 0.012));
+  emiss *= mix(0.68, 1.34, smoothstep(0.30, 0.72, patchBig));
   float blotch = fbm(p * 1.3 + vec3(6.1, 0.0, uTime * 0.02)); // 'patch' is reserved in GLSL
-  emiss *= mix(0.8, 1.24, smoothstep(0.28, 0.75, blotch));
-  float hotspot = smoothstep(0.76, 0.92, fbm(p * 2.4 + vec3(0.0, 8.4, uTime * 0.03)));
-  emiss += hotspot * 0.4;
+  emiss *= mix(0.66, 1.32, smoothstep(0.26, 0.78, blotch));
+  float hotspot = smoothstep(0.74, 0.92, fbm(p * 2.4 + vec3(0.0, 8.4, uTime * 0.03)));
+  emiss += hotspot * 0.6; // bright active regions punch out
 
   // Heartbeat: a near-imperceptible whole-star breath every ~10 s, riding a
   // slower envelope so the pulse itself drifts

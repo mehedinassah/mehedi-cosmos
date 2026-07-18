@@ -321,7 +321,9 @@ export function CentralStar() {
     // Slow volumetric breathing: the whole corona swells and settles on two
     // incommensurate cycles (~48s and ~90s) so its density never obviously
     // repeats. Outer shells breathe a little more than the tight inner ones.
-    const breathe = 1 + 0.07 * Math.sin(t * 0.13) + 0.05 * Math.sin(t * 0.07 + 1.0);
+    // A magnetic storm swells and brightens the whole corona while it lasts.
+    const breathe = 1 + 0.07 * Math.sin(t * 0.13) + 0.05 * Math.sin(t * 0.07 + 1.0)
+      + 0.4 * sunActivity.storm;
     for (let i = 0; i < shellMats.length; i++) {
       const m = shellMats[i];
       m.uniforms.uTime.value = t;
@@ -337,10 +339,11 @@ export function CentralStar() {
       // the camera approaches (system-chapter close-ups start at ~440u).
       const camDist = state.camera.position.length();
       const nearFade = THREE.MathUtils.smoothstep(camDist, 420, 1600);
-      const sc = body.scaleU * 8 * breathe * ignite * (0.35 + 0.65 * nearFade);
+      const storm = sunActivity.storm;
+      const sc = body.scaleU * 8 * breathe * ignite * (0.35 + 0.65 * nearFade) * (1 + 0.22 * storm);
       spriteRef.current.scale.set(sc, sc, 1);
       (spriteRef.current.material as THREE.SpriteMaterial).opacity =
-        0.75 * ignite * (0.1 + 0.9 * nearFade);
+        0.75 * ignite * (0.1 + 0.9 * nearFade) * (1 + 0.35 * storm);
     }
   });
 
