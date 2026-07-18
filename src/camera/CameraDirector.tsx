@@ -292,9 +292,13 @@ export function CameraDirector() {
       if (portalDive.active) {
         const pt = portalDive.t;
         const fall = pt <= 0.14 ? 0 : Math.pow((pt - 0.14) / 0.86, 2.0) * 0.995;
-        _pvLook.set(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(400).add(cam.position);
-        _pvLook.lerp(portalDive.target, THREE.MathUtils.smoothstep(pt, 0.0, 0.2));
+        // fall direction = parked pose -> the eye (cam.position is still the
+        // parked pose at this point in the frame)
+        _pvLook.copy(portalDive.target).sub(cam.position).normalize();
         cam.position.lerp(portalDive.target, fall);
+        // look straight down the fall so the eye stays dead-centre and the look
+        // point never collapses onto the camera as it arrives
+        _pvLook.multiplyScalar(500).add(cam.position);
         cam.up.set(0, 1, 0);
         cam.lookAt(_pvLook);
         cam.fov = baseFov.current + 18 * fall; // widening = accelerating freefall

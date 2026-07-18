@@ -10,30 +10,20 @@ import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 import { portalDive } from '@/state/portalDive';
 
 /**
- * Jupiter = the Perico ERP portal — and the planet itself opens. There is no
- * pasted-on vortex texture. Hovering wakes a warm glow over the Great Red Spot;
- * clicking begins the dive:
+ * Jupiter = the Perico ERP portal. The vortex is NOT drawn on top of Jupiter —
+ * Jupiter's own surface does the work (see SolarSystem's JUP_DEFORM: the real
+ * cloud bands swirl, wind inward and sink into a funnel). This component adds
+ * only the things the deforming surface can't be: the accretion rim of plasma
+ * around the black eye, gas + debris getting sucked INTO the hole, and the
+ * throat the camera falls down. Everything here is world-anchored to the storm,
+ * never a camera-facing billboard over the whole planet.
  *
- *   1) STORM   the eye darkens, cloud bands shear at different speeds, the
- *              atmosphere collapses inward (camera holds still, ~0.5s).
- *   2) OPEN    bands bend into the center, a dark throat opens and DEEPENS —
- *              not brighter, deeper — the opening widening like a tornado seen
- *              from above.
- *   3) FALL    gravity takes the camera; it accelerates down the throat.
- *   4) INSIDE  the frame fills with rushing orange cloud, lightning, fog.
- *   5) TUNNEL  a vertical hurricane — debris and gas streaming UP past the fall.
- *   6) DATA    the gas becomes glowing data, cloud becomes pixels, lightning
- *              becomes circuit traces.
- *   7) ARRIVE  the throat fills with light and the scene lands on the live app.
- *
- * The storm is a single camera-facing disc (a "windshield" during the fall,
- * always filling the frame) plus a stream of debris particles. CameraDirector
- * reads portalDive to do the freefall; this component drives the visuals and
- * the navigation.
+ * Beats (one dive clock, portalDive.t): storm winds up → funnel opens and
+ * DEEPENS → freefall down the throat → gas rushes past → data → light seam.
  */
 
 const PERICO_URL = 'https://perico-erp.vercel.app/';
-const DIVE_DURATION = 5.5; // seconds from click to landing — room for all seven beats
+const DIVE_DURATION = 5.5;
 
 function jupiterFocus(): number {
   const d = useDescentStore.getState();
@@ -41,123 +31,56 @@ function jupiterFocus(): number {
   return 1 - THREE.MathUtils.smoothstep(Math.abs(d.sysSmoothed - CHAPTER_SP.jupiter), 0.02, 0.06);
 }
 
-const stormVert = /* glsl */ `
+/* ---- accretion rim: a glowing ring of plasma + arcs around the black eye ---- */
+const rimVert = /* glsl */ `
 varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
 `;
-
-// The storm: banded jovian cloud in warped polar space that bends inward, opens
-// a deepening black eye, then transforms into data. No arms, no drawn spiral —
-// the darkness is depth, built from turbulent bands and receding parallax rings.
-const stormFrag = /* glsl */ `
+const rimFrag = /* glsl */ `
 precision highp float;
-uniform float uTime;
-uniform float uT;      // dive progress 0..1
-uniform float uOpacity;
-uniform float uFlash;  // lightning
-uniform float uHover;  // 0 at rest hover, 1 during the dive (controls band contrast)
+uniform float uTime, uT, uOpacity;
 varying vec2 vUv;
-
-float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
-float noise(vec2 p){
-  vec2 i = floor(p), f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1,0)), u.x),
-             mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), u.x), u.y);
-}
-float fbm(vec2 p){
-  float v = 0.0, a = 0.5;
-  for (int i = 0; i < 5; i++){ v += a * noise(p); p *= 2.03; a *= 0.5; }
-  return v;
-}
-
 void main(){
   vec2 p = vUv * 2.0 - 1.0;
   float r = length(p);
-  float ang = atan(p.y, p.x);
-
-  // inflow: bands bend inward and the swirl tightens toward the eye as it opens
-  float inflow = smoothstep(0.04, 0.55, uT);
-  float swirl = (0.5 + 2.4 * inflow) / (r + 0.16);
-  float aw = ang + swirl - uTime * (0.35 + 1.7 * uT);
-  float rw = mix(r, pow(r, 1.0 + 1.5 * inflow), 1.0);
-
-  // banded, turbulent cloud (differential shear built into the angular term)
-  float bands = fbm(vec2(aw * 1.3, rw * 3.4 - uTime * 0.12));
-  bands += 0.5 * fbm(vec2(aw * 3.1 + 4.0, rw * 6.8 + uTime * 0.18));
-  float cloud = smoothstep(0.15, 1.1, bands);
-
-  // the throat — a dark eye that DEEPENS (nested receding rings), never brightens
-  float coreR = 0.03 + smoothstep(0.0, 0.9, uT) * 0.95;
-  float depth = smoothstep(coreR * 1.7, coreR * 0.15, r);
-  float rings = 0.5 + 0.5 * sin(rw * 11.0 - uTime * 3.2 - uT * 7.0);
-  float throat = depth * (1.0 - 0.4 * rings * (1.0 - depth));
-
-  // color: jovian bands warming to the red-spot core, then flipping to data
-  vec3 jov = mix(vec3(0.5, 0.33, 0.18), vec3(0.96, 0.82, 0.60), cloud);
-  jov = mix(jov, vec3(0.78, 0.30, 0.14), smoothstep(0.55, 0.0, r) * 0.55);
-  vec3 data = vec3(0.20, 0.92, 0.78);
-  float toData = smoothstep(0.66, 0.9, uT);
-
-  // pixelate the cloud into data cells as it transforms
-  vec2 cell = floor(vUv * 60.0) / 60.0;
-  float pix = fbm(cell * 8.0 + uTime * 0.4);
-  vec3 col = mix(jov, data * (0.4 + 0.9 * pix), toData);
-
-  // circuit traces come in with the data
-  float circ = smoothstep(0.985, 1.0, sin(aw * 9.0) * sin(rw * 15.0));
-  col += data * circ * toData * 1.4;
-
-  float lum = 0.30 + 0.95 * cloud;
-  col *= lum * (0.6 + 0.4 * uHover);
-  col = mix(col, vec3(0.0), throat); // deep black eye
-
-  // lightning: quick full-cloud flashes inside the atmosphere
-  col += vec3(1.0, 0.96, 0.88) * uFlash * cloud * (1.0 - throat) * smoothstep(0.3, 0.6, uT);
-
-  // arrival: the eye fills with light — the seam matches Perico's own warm
-  // off-white first paint (rgb 250,249,247) so the cut into the app is seamless
-  float arrive = smoothstep(0.9, 1.0, uT);
-  col = mix(col, vec3(0.980, 0.976, 0.969), arrive);
-
-  // soft round edge (invisible when the disc is oversized past the frame)
-  float alpha = uOpacity * smoothstep(1.0, 0.72, r);
-  alpha = max(alpha, throat * uOpacity);       // keep the black eye opaque
-  alpha = max(alpha, arrive * uOpacity);       // and the final light
+  float a = atan(p.y, p.x);
+  // a SOFT ring hugging the eye — transparent centre so the black eye shows,
+  // and a smooth fade to nothing by the plane edge (NO radial spikes, which is
+  // what used to fling a ray halo across the whole frame)
+  float ring = smoothstep(0.30, 0.52, r) * smoothstep(0.92, 0.58, r);
+  // gentle plasma flicker around the ring — angular ripple, never radial arcs
+  float flick = 0.72 + 0.28 * sin(a * 9.0 + uTime * 2.0) * sin(a * 3.0 - uTime * 1.3);
+  ring *= flick;
+  vec3 warm = vec3(1.0, 0.5, 0.18);
+  vec3 data = vec3(0.3, 0.95, 0.8);
+  vec3 col = mix(warm, data, smoothstep(0.66, 0.9, uT)) * ring * 0.85;
+  float alpha = ring * uOpacity * 0.8;
   if (alpha < 0.003) discard;
   gl_FragColor = vec4(col, alpha);
 }
 `;
 
-// Debris / gas streaming UP past the falling camera — the vertical-hurricane feel.
-const debrisVert = /* glsl */ `
+/* ---- gas + debris spiralling INTO the eye (sells the gravity) ---- */
+const inflowVert = /* glsl */ `
 attribute float aSeed;
 attribute float aAng;
-attribute float aRad;
-uniform float uTime;
-uniform float uT;
-uniform vec3 uCamPos;
-uniform vec3 uFwd;    // fall direction (into the throat)
-uniform vec3 uRight;
-uniform vec3 uUp;
+attribute float aRad;   // 0.3..1.7 (fraction of planet radius)
+uniform float uTime, uT, uRadius;
+uniform vec3 uEye, uAxis, uRight, uUp;  // axis points INTO the planet
 varying float vA;
 void main(){
-  float life = fract(aSeed + uTime * 0.5);
-  // starts far ahead down the throat, rushes toward and past the camera
-  float z = mix(320.0, -70.0, life);
-  float rad = aRad * (0.7 + life * 0.7);
-  vec3 wp = uCamPos + uFwd * z + uRight * cos(aAng) * rad + uUp * sin(aAng) * rad;
-  vA = sin(life * 3.14159) * smoothstep(0.28, 0.5, uT);
+  float life = fract(aSeed + uTime * 0.32);
+  float rad = mix(aRad, 0.02, life) * uRadius;      // pulled in toward the eye
+  float ang = aAng + life * 7.0;                     // winds as it falls (spiral)
+  float depthIn = life * life * uRadius * 1.6;        // sinks into the hole, accelerating
+  vec3 wp = uEye + (cos(ang) * uRight + sin(ang) * uUp) * rad + uAxis * depthIn;
+  vA = smoothstep(0.0, 0.12, life) * (1.0 - smoothstep(0.72, 1.0, life)) * smoothstep(0.12, 0.4, uT);
   vec4 mv = modelViewMatrix * vec4(wp, 1.0);
-  gl_PointSize = clamp((7.0 + aRad * 0.5) * (170.0 / -mv.z), 1.0, 30.0);
+  gl_PointSize = clamp((5.0 + aRad * 6.0) * (170.0 / -mv.z), 1.0, 26.0);
   gl_Position = projectionMatrix * mv;
 }
 `;
-
-const debrisFrag = /* glsl */ `
+const inflowFrag = /* glsl */ `
 precision highp float;
 uniform float uT;
 varying float vA;
@@ -165,10 +88,40 @@ void main(){
   vec2 d = gl_PointCoord - 0.5;
   float m = smoothstep(0.5, 0.0, length(d));
   if (m * vA < 0.01) discard;
-  vec3 warm = vec3(1.0, 0.62, 0.26);
-  vec3 data = vec3(0.30, 0.95, 0.80);
-  vec3 col = mix(warm, data, smoothstep(0.66, 0.9, uT));
-  gl_FragColor = vec4(col, m * vA * 0.9);
+  vec3 warm = vec3(1.0, 0.62, 0.28);
+  vec3 data = vec3(0.32, 0.95, 0.82);
+  gl_FragColor = vec4(mix(warm, data, smoothstep(0.66, 0.9, uT)), m * vA * 0.34);
+}
+`;
+
+/* ---- the throat: an inward tube the camera falls down (interior depth + data) ---- */
+const throatVert = /* glsl */ `
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+`;
+const throatFrag = /* glsl */ `
+precision highp float;
+uniform float uTime, uT, uOpacity;
+varying vec2 vUv;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y);
+}
+void main(){
+  // vUv.y runs down the tube; scroll it toward the camera (gas rushing past)
+  float y = vUv.y;
+  float fog = noise(vec2(vUv.x * 8.0, y * 6.0 - uTime * 1.4));
+  fog += 0.5 * noise(vec2(vUv.x * 16.0 + 3.0, y * 12.0 - uTime * 2.2));
+  fog = smoothstep(0.4, 1.2, fog);
+  // deeper down the tube is darker (kilometres of throat receding to black)
+  float depth = smoothstep(1.0, 0.1, y);
+  vec3 warm = vec3(0.9, 0.42, 0.16);
+  vec3 data = vec3(0.22, 0.9, 0.75);
+  vec3 col = mix(warm, data, smoothstep(0.66, 0.9, uT)) * fog * depth * 0.6;
+  float alpha = fog * depth * uOpacity * 0.8;
+  if (alpha < 0.003) discard;
+  gl_FragColor = vec4(col, alpha);
 }
 `;
 
@@ -178,13 +131,13 @@ export function JupiterPortal({ center, radius }: { center: THREE.Vector3; radiu
   const [diving, setDiving] = useState(false);
   const glowMat = useRef<THREE.SpriteMaterial | null>(null);
   const glowSprite = useRef<THREE.Sprite | null>(null);
-  const storm = useRef<THREE.Mesh | null>(null);
-  const stormMat = useRef<THREE.ShaderMaterial | null>(null);
-  const debrisMat = useRef<THREE.ShaderMaterial | null>(null);
+  const rim = useRef<THREE.Mesh | null>(null);
+  const rimMat = useRef<THREE.ShaderMaterial | null>(null);
+  const throat = useRef<THREE.Mesh | null>(null);
+  const throatMat = useRef<THREE.ShaderMaterial | null>(null);
+  const inflowMat = useRef<THREE.ShaderMaterial | null>(null);
   const navigated = useRef(false);
-  const opacity = useRef(0);
-  const flash = useRef(0);
-  const nextFlash = useRef(0);
+  const rimOp = useRef(0);
 
   const glowTex = useMemo(
     () =>
@@ -196,77 +149,68 @@ export function JupiterPortal({ center, radius }: { center: THREE.Vector3; radiu
     [],
   );
 
-  // Basis toward the camera at the Jupiter chapter: the storm sits on the near
-  // (Great-Red-Spot) face; the fall target is deep on the far interior so the
-  // camera truly plunges THROUGH the planet, not just up to its skin.
-  const restPoint = useMemo(() => {
+  // Deterministic storm geometry: the eye faces the parked camera; the axis
+  // runs INTO the planet (the way the camera falls); a fixed screen basis keeps
+  // the rim + gas anchored to the storm (no swim as the camera rotates).
+  const geo = useMemo(() => {
     const pos = new THREE.Vector3(), quat = new THREE.Quaternion();
     systemPose(CHAPTER_SP.jupiter, pos, quat);
     const toCam = pos.clone().sub(center).normalize();
-    portalDive.target.copy(center).addScaledVector(toCam, -radius * 1.6);
-    return center.clone().addScaledVector(toCam, radius * 1.0);
+    const eye = center.clone().addScaledVector(toCam, radius);
+    const axisIn = toCam.clone().negate(); // into the planet
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), toCam).normalize();
+    const up = new THREE.Vector3().crossVectors(toCam, right).normalize();
+    // fall TO the eye (just above the sunk surface) — not through into a weak
+    // interior. The spiralling planet + black eye fill the frame, then the seam.
+    portalDive.target.copy(center).addScaledVector(toCam, radius * 0.85);
+    // orient the rim plane to face the camera, and the throat tube down the axis
+    const rimQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), toCam);
+    const tubeQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), axisIn);
+    const throatPos = eye.clone().addScaledVector(axisIn, radius * 1.1);
+    return { toCam, eye, axisIn, right, up, rimQuat, tubeQuat, throatPos };
   }, [center, radius]);
 
-  // debris cloud: random ring position + lifetime phase around the fall axis
-  const debrisGeo = useMemo(() => {
-    const n = 1400;
-    const seed = new Float32Array(n);
-    const ang = new Float32Array(n);
-    const rad = new Float32Array(n);
+  const inflowGeo = useMemo(() => {
+    const n = 900;
+    const seed = new Float32Array(n), ang = new Float32Array(n), rad = new Float32Array(n);
     let s = 20789;
-    const rnd = () => {
-      s = (s * 1103515245 + 12345) & 0x7fffffff;
-      return s / 0x7fffffff;
-    };
-    for (let i = 0; i < n; i++) {
-      seed[i] = rnd();
-      ang[i] = rnd() * Math.PI * 2;
-      rad[i] = 6 + rnd() * radius * 0.9;
-    }
+    const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+    // keep the gas hugging the eye (<= planet radius) so bloom can't smear it
+    // into a halo of rays around the whole planet
+    for (let i = 0; i < n; i++) { seed[i] = rnd(); ang[i] = rnd() * Math.PI * 2; rad[i] = 0.12 + rnd() * 0.8; }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
     g.setAttribute('aAng', new THREE.BufferAttribute(ang, 1));
     g.setAttribute('aRad', new THREE.BufferAttribute(rad, 1));
     return g;
-  }, [radius]);
-
-  // scratch vectors reused each frame (no per-frame allocation)
-  const _fwd = useRef(new THREE.Vector3());
-  const _right = useRef(new THREE.Vector3());
-  const _up = useRef(new THREE.Vector3());
-  const _pos = useRef(new THREE.Vector3());
+  }, []);
 
   useFrame((state, delta) => {
     const on = jupiterFocus() > 0.4;
     if (!on && hovered) setHovered(false);
     const t = portalDive.active ? portalDive.t : 0;
 
-    // drive the dive clock + navigate on landing. Clamp delta so a single slow
-    // frame (shader compile, GC hitch) can never teleport the dive past its
-    // beats — the cinematic must always play through, not skip to the landing.
     if (portalDive.active) {
+      // clamp so one slow frame can't teleport the dive past its beats
       portalDive.t = Math.min(1, portalDive.t + Math.min(delta, 0.05) / DIVE_DURATION);
       if (portalDive.t >= 0.985 && !navigated.current) {
         navigated.current = true;
-        // __PORTAL_NO_NAV__ lets a headless capture hold the final beats instead
-        // of leaving the page; never set in production.
         if (!(typeof window !== 'undefined' && (window as { __PORTAL_NO_NAV__?: boolean }).__PORTAL_NO_NAV__)) {
           window.location.href = PERICO_URL;
         }
       }
-      // lightning: random flashes once we're inside the atmosphere
-      nextFlash.current -= delta;
-      if (t > 0.32 && t < 0.9 && nextFlash.current <= 0) {
-        flash.current = 1;
-        nextFlash.current = 0.18 + Math.random() * 0.5;
-      }
-      flash.current = THREE.MathUtils.damp(flash.current, 0, 9, delta);
     }
 
-    // hover glow around the planet (also lit during the dive)
-    const glowTarget = (hovered && on) || portalDive.active ? 0.55 : 0;
-    if (glowMat.current) glowMat.current.opacity = THREE.MathUtils.damp(glowMat.current.opacity, glowTarget, 6, delta);
+    // hover glow around the planet — bright on hover, but OFF during the dive:
+    // a big additive sprite behind Jupiter blooms into a sun-like ray halo, and
+    // the deforming planet + rim already carry the warmth
+    if (glowMat.current) {
+      const glowTarget = hovered && on && !portalDive.active ? 0.5 : 0;
+      glowMat.current.opacity = portalDive.active
+        ? 0
+        : THREE.MathUtils.damp(glowMat.current.opacity, glowTarget, 6, delta);
+    }
     if (glowSprite.current) {
       const b = 1 + 0.05 * Math.sin(state.clock.elapsedTime * 1.4);
       const s = radius * 3.1 * b;
@@ -274,48 +218,40 @@ export function JupiterPortal({ center, radius }: { center: THREE.Vector3; radiu
       glowSprite.current.visible = (glowMat.current?.opacity ?? 0) > 0.01;
     }
 
-    // camera basis for the windshield disc + debris stream
-    const cam = camera as THREE.PerspectiveCamera;
-    _fwd.current.set(0, 0, -1).applyQuaternion(cam.quaternion).normalize();
-    _right.current.set(1, 0, 0).applyQuaternion(cam.quaternion).normalize();
-    _up.current.set(0, 1, 0).applyQuaternion(cam.quaternion).normalize();
-
-    // the storm disc: a small round spot on the planet's face at rest, and a
-    // frame-filling windshield during the fall so the whole view IS the storm.
-    const vopTarget = portalDive.active ? 1 : hovered && on ? 0.4 : 0;
-    opacity.current = THREE.MathUtils.damp(opacity.current, vopTarget, 8, delta);
-    const sm = storm.current, smat = stormMat.current;
-    if (sm && smat) {
-      sm.visible = opacity.current > 0.01;
-      if (portalDive.active) {
-        // ride in front of the camera, sized to overfill the frame
-        const D = radius * 1.5;
-        _pos.current.copy(cam.position).addScaledVector(_fwd.current, D);
-        sm.position.copy(_pos.current);
-        const vfov = (cam.fov * Math.PI) / 180;
-        const scale = (D * Math.tan(vfov / 2)) / 0.42; // vertical half maps to r=0.42 → corners covered
-        sm.scale.set(scale, scale, 1);
-      } else {
-        sm.position.copy(restPoint);
-        sm.scale.setScalar(radius * 1.3);
-      }
-      sm.quaternion.copy(cam.quaternion); // billboard
-      smat.uniforms.uTime.value = state.clock.elapsedTime;
-      smat.uniforms.uT.value = t;
-      smat.uniforms.uOpacity.value = opacity.current;
-      smat.uniforms.uFlash.value = flash.current;
-      smat.uniforms.uHover.value = portalDive.active ? 1 : 0.35;
+    // accretion rim: fades in as the eye opens, grows a little as the funnel deepens
+    const rimTarget = portalDive.active ? THREE.MathUtils.smoothstep(t, 0.15, 0.45) : 0;
+    rimOp.current = THREE.MathUtils.damp(rimOp.current, rimTarget, 8, delta);
+    if (rim.current && rimMat.current) {
+      rim.current.visible = rimOp.current > 0.01;
+      rim.current.position.copy(geo.eye).addScaledVector(geo.toCam, radius * 0.02);
+      rim.current.quaternion.copy(geo.rimQuat);
+      // tight on the eye (the spiral centre), never a big plane that can spike out
+      const s = radius * (0.38 + 0.16 * t);
+      rim.current.scale.set(s, s, 1);
+      rimMat.current.uniforms.uTime.value = state.clock.elapsedTime;
+      rimMat.current.uniforms.uT.value = t;
+      rimMat.current.uniforms.uOpacity.value = rimOp.current;
     }
 
-    // debris stream (only meaningful during the dive)
-    if (debrisMat.current) {
-      const u = debrisMat.current.uniforms;
+    // gas spiralling into the eye
+    if (inflowMat.current) {
+      const u = inflowMat.current.uniforms;
       u.uTime.value = state.clock.elapsedTime;
       u.uT.value = t;
-      u.uCamPos.value.copy(cam.position);
-      u.uFwd.value.copy(_fwd.current);
-      u.uRight.value.copy(_right.current);
-      u.uUp.value.copy(_up.current);
+      u.uRadius.value = radius;
+      u.uEye.value.copy(geo.eye);
+      u.uAxis.value.copy(geo.axisIn);
+      u.uRight.value.copy(geo.right);
+      u.uUp.value.copy(geo.up);
+    }
+
+    // the throat the camera falls down — fades in as we reach the surface
+    if (throat.current && throatMat.current) {
+      const to = portalDive.active ? THREE.MathUtils.smoothstep(t, 0.35, 0.6) : 0;
+      throat.current.visible = to > 0.01;
+      throatMat.current.uniforms.uTime.value = state.clock.elapsedTime;
+      throatMat.current.uniforms.uT.value = t;
+      throatMat.current.uniforms.uOpacity.value = to;
     }
   });
 
@@ -347,11 +283,9 @@ export function JupiterPortal({ center, radius }: { center: THREE.Vector3; radiu
   return (
     <group>
       <group position={center}>
-        {/* soft portal glow, fades in on hover / dive */}
         <sprite ref={glowSprite} visible={false}>
           <spriteMaterial ref={glowMat} map={glowTex} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} />
         </sprite>
-        {/* click target covering the disc */}
         <mesh onPointerOver={onOver} onPointerOut={onOut} onClick={onClick}>
           <sphereGeometry args={[radius * 1.02, 24, 24]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
@@ -380,48 +314,54 @@ export function JupiterPortal({ center, radius }: { center: THREE.Vector3; radiu
         )}
       </group>
 
-      {/* the storm — a camera-facing disc: a spot on Jupiter at rest, the whole
-          world during the dive. depthTest off so it reads over everything once
-          the fall begins. */}
-      <mesh ref={storm} visible={false} frustumCulled={false} renderOrder={20}>
+      {/* accretion rim of plasma hugging the black eye */}
+      <mesh ref={rim} visible={false} frustumCulled={false} renderOrder={19}>
         <planeGeometry args={[2, 2]} />
         <shaderMaterial
-          ref={stormMat}
-          vertexShader={stormVert}
-          fragmentShader={stormFrag}
-          uniforms={{
-            uTime: { value: 0 },
-            uT: { value: 0 },
-            uOpacity: { value: 0 },
-            uFlash: { value: 0 },
-            uHover: { value: 0.35 },
-          }}
+          ref={rimMat}
+          vertexShader={rimVert}
+          fragmentShader={rimFrag}
+          uniforms={{ uTime: { value: 0 }, uT: { value: 0 }, uOpacity: { value: 0 } }}
           transparent
           depthWrite={false}
-          depthTest={false}
+          depthTest
+          blending={THREE.AdditiveBlending}
         />
       </mesh>
 
-      {/* debris / gas streaming up past the fall */}
-      <points geometry={debrisGeo} frustumCulled={false} renderOrder={21}>
+      {/* gas + debris being pulled into the hole */}
+      <points geometry={inflowGeo} frustumCulled={false} renderOrder={18}>
         <shaderMaterial
-          ref={debrisMat}
-          vertexShader={debrisVert}
-          fragmentShader={debrisFrag}
+          ref={inflowMat}
+          vertexShader={inflowVert}
+          fragmentShader={inflowFrag}
           uniforms={{
-            uTime: { value: 0 },
-            uT: { value: 0 },
-            uCamPos: { value: new THREE.Vector3() },
-            uFwd: { value: new THREE.Vector3() },
-            uRight: { value: new THREE.Vector3() },
-            uUp: { value: new THREE.Vector3() },
+            uTime: { value: 0 }, uT: { value: 0 }, uRadius: { value: radius },
+            uEye: { value: new THREE.Vector3() }, uAxis: { value: new THREE.Vector3() },
+            uRight: { value: new THREE.Vector3() }, uUp: { value: new THREE.Vector3() },
           }}
           transparent
           depthWrite={false}
-          depthTest={false}
+          depthTest
           blending={THREE.AdditiveBlending}
         />
       </points>
+
+      {/* the throat the camera falls down (interior depth + the data walls) */}
+      <mesh ref={throat} visible={false} frustumCulled={false} position={geo.throatPos} quaternion={geo.tubeQuat} renderOrder={17}>
+        <cylinderGeometry args={[radius * 0.5, radius * 0.1, radius * 2.2, 40, 1, true]} />
+        <shaderMaterial
+          ref={throatMat}
+          vertexShader={throatVert}
+          fragmentShader={throatFrag}
+          uniforms={{ uTime: { value: 0 }, uT: { value: 0 }, uOpacity: { value: 0 } }}
+          transparent
+          depthWrite={false}
+          depthTest
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
     </group>
   );
 }

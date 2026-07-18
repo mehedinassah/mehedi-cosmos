@@ -18,6 +18,7 @@ import { MarsMissionControl } from '@/world/system/MarsMissionControl';
 import { JupiterPortal } from '@/world/system/JupiterPortal';
 import { earthFocus, earthSpin } from '@/state/earthHoverStore';
 import { useDescentStore } from '@/state/descentStore';
+import { portalDive } from '@/state/portalDive';
 import {
   HEROES,
   EARTH_POS,
@@ -55,6 +56,44 @@ function loadMap(path: string): THREE.Texture {
   t.anisotropy = 8;
   return t;
 }
+
+// Perico portal: Jupiter's OWN surface deforms — no overlay. Injected into the
+// planet's MeshStandard shaders. The real cloud bands rotate around the storm,
+// wind inward like a drain, and the surface sinks into a funnel with a black
+// eye. uPortalT 0..1 drives it; uStormAxis is the storm centre in local space.
+const JUP_DEFORM = /* glsl */ `
+{
+  float t = uPortalT;
+  vec3 axis = normalize(uStormAxis);
+  vec3 dir = normalize(transformed);
+  float d = acos(clamp(dot(dir, axis), -1.0, 1.0));   // angular distance to storm
+  float w = smoothstep(1.05, 0.0, d);                 // storm influence
+  // swirl the real bands around the storm — differential (tighter toward centre)
+  float phi = 9.0 * w * w * t;
+  float c = cos(phi), s = sin(phi);
+  transformed = transformed * c + cross(axis, transformed) * s + axis * dot(axis, transformed) * (1.0 - c);
+  // wind the surface inward like water down a drain
+  float len = length(transformed);
+  vec3 nd = normalize(mix(normalize(transformed), axis, 0.42 * w * t));
+  transformed = nd * len;
+  // sink the funnel so the surface is no longer flat — real depth into the hole
+  float wc = smoothstep(0.6, 0.0, d);
+  transformed *= 1.0 - 0.66 * wc * t;
+  vPortalW = w * t;
+  vPortalEye = smoothstep(0.34, 0.04, d) * t;         // the black eye — the hole
+  vPortalDark = smoothstep(0.85, 0.05, d) * t;        // inner vortex collapses to shadow
+}
+`;
+
+const JUP_DARKEN = /* glsl */ `
+  // the storm collapses into shadow: the deeper into the vortex, the darker,
+  // going to a black eye at the centre (a hole, not a bright whirlpool)
+  diffuseColor.rgb *= 1.0 - 0.82 * vPortalDark;                    // inner vortex -> shadow
+  diffuseColor.rgb *= 1.0 - vPortalEye;                            // black eye
+`;
+
+const _toCam = new THREE.Vector3();
+const _invQ = new THREE.Quaternion();
 
 function useHeroMaterials(spec: HeroSpec) {
   return useMemo(() => {
@@ -94,6 +133,24 @@ function useHeroMaterials(spec: HeroSpec) {
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
+    if (spec.id === 'jupiter') {
+      const pu = {
+        uPortalT: { value: 0 },
+        uStormAxis: { value: new THREE.Vector3(0, 0, 1) },
+      };
+      surface.onBeforeCompile = (shader) => {
+        shader.uniforms.uPortalT = pu.uPortalT;
+        shader.uniforms.uStormAxis = pu.uStormAxis;
+        shader.vertexShader =
+          'uniform float uPortalT;\nuniform vec3 uStormAxis;\nvarying float vPortalEye;\nvarying float vPortalW;\nvarying float vPortalDark;\n' +
+          shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + JUP_DEFORM);
+        shader.fragmentShader =
+          'varying float vPortalEye;\nvarying float vPortalW;\nvarying float vPortalDark;\n' +
+          shader.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n' + JUP_DARKEN);
+      };
+      surface.customProgramCacheKey = () => 'jupiter-portal-v1';
+      surface.userData.portal = pu;
+    }
     return { surface, atmosphere, clouds };
   }, [spec]);
 }
@@ -186,8 +243,11 @@ function Hero({ spec }: { spec: HeroSpec }) {
   const { surface, atmosphere, clouds } = useHeroMaterials(spec);
   const meshRef = useRef<THREE.Mesh>(null);
   const cloudRef = useRef<THREE.Mesh>(null);
+  const atmoRef = useRef<THREE.Mesh>(null);
+  const stormSet = useRef(false);
 
   const isEarth = spec.id === 'earth';
+  const isJupiter = spec.id === 'jupiter';
   // Drag-to-spin (Earth only): pointer drag rotates the globe without moving
   // the camera. pendingDelta is applied on the next frame; inertia carries a
   // little spin after release.
@@ -242,9 +302,39 @@ function Hero({ spec }: { spec: HeroSpec }) {
       }
       if (cloudRef.current) cloudRef.current.rotation.y += surfInc + delta * 0.02;
     } else {
+      // Jupiter freezes its spin during the portal dive so the storm the camera
+      // is falling into stays put; every other giant keeps turning.
+      const portaling = isJupiter && portalDive.active;
       const spin = spec.radius >= 20 ? 0.02 : 0.008;
-      if (meshRef.current) meshRef.current.rotation.y += delta * spin;
+      if (meshRef.current && !portaling) meshRef.current.rotation.y += delta * spin;
       if (cloudRef.current) cloudRef.current.rotation.y += delta * 0.012;
+
+      if (isJupiter) {
+        const pu = surface.userData.portal as
+          | { uPortalT: { value: number }; uStormAxis: { value: THREE.Vector3 } }
+          | undefined;
+        if (pu) {
+          if (portalDive.active) {
+            // capture the storm centre (the camera-facing point) once, in the
+            // planet's LOCAL frame, so the funnel forms where we dive in
+            if (!stormSet.current && meshRef.current) {
+              _toCam.copy(state.camera.position).sub(spec.position).normalize();
+              _invQ.copy(meshRef.current.quaternion).invert();
+              pu.uStormAxis.value.copy(_toCam).applyQuaternion(_invQ);
+              stormSet.current = true;
+            }
+            // deform grows in early (storm forms) and is full by the time the
+            // camera reaches the surface
+            pu.uPortalT.value = THREE.MathUtils.smoothstep(portalDive.t, 0.02, 0.5);
+          } else {
+            stormSet.current = false;
+            pu.uPortalT.value = 0;
+          }
+        }
+        // the round atmosphere shell would float over the funnel — hide it once
+        // the surface starts collapsing
+        if (atmoRef.current) atmoRef.current.visible = !(portalDive.active && portalDive.t > 0.04);
+      }
     }
     atmosphere.uniforms.uCameraPos.value.copy(state.camera.position);
   });
@@ -264,8 +354,9 @@ function Hero({ spec }: { spec: HeroSpec }) {
     if (!dragging.current) document.body.style.cursor = '';
   };
 
-  // The giants fill real screen space on their pass — they need the density
-  const segs = spec.radius >= 20 ? 96 : 64;
+  // The giants fill real screen space on their pass — they need the density.
+  // Jupiter gets much finer tessellation so the portal funnel bends smoothly.
+  const segs = isJupiter ? 220 : spec.radius >= 20 ? 96 : 64;
   return (
     <group position={spec.position}>
       <mesh
@@ -283,7 +374,7 @@ function Hero({ spec }: { spec: HeroSpec }) {
           <primitive object={clouds} attach="material" />
         </mesh>
       )}
-      <mesh scale={1.07}>
+      <mesh ref={atmoRef} scale={1.07}>
         <sphereGeometry args={[spec.radius, 48, 48]} />
         <primitive object={atmosphere} attach="material" />
       </mesh>
