@@ -23,7 +23,7 @@ import { CHAPTER_SP } from '@/world/system/systemSpec';
  * a DOM rAF loop) so React never churns at 60fps.
  */
 
-export type Category = 'lang' | 'frontend' | 'backend' | 'database' | 'ai' | 'tools';
+export type Category = 'lang' | 'frontend' | 'backend' | 'database' | 'tools';
 export type Shape = 'star' | 'planet' | 'moon' | 'crystal' | 'orb' | 'satellite';
 
 export type OrbitSpec = {
@@ -52,9 +52,8 @@ export const ORBITS: Record<Category, OrbitSpec> = {
   backend: { radius: 0.64, ecc: 0.16, incl: 0.44, roll: 0.6, speed: 0.032, dir: 1, color: '#cfd6de', glow: 0.135, core: 0.055, shape: 'moon', label: 'BACKEND' },
   database: { radius: 0.78, ecc: 0.3, incl: 0.72, roll: -0.34, speed: 0.026, dir: -1, color: '#5fd39a', glow: 0.145, core: 0.056, shape: 'crystal', label: 'DATABASE' },
   tools: { radius: 0.92, ecc: 0.34, incl: 0.94, roll: 0.9, speed: 0.03, dir: -1, color: '#cbb489', glow: 0.115, core: 0.045, shape: 'satellite', label: 'DEVOPS & TOOLS' },
-  ai: { radius: 1.04, ecc: 0.2, incl: 0.6, roll: -0.7, speed: 0.02, dir: 1, color: '#b48cff', glow: 0.24, core: 0.0, shape: 'orb', label: 'ARTIFICIAL INTELLIGENCE' },
 };
-export const CATEGORY_ORDER: Category[] = ['lang', 'frontend', 'backend', 'database', 'tools', 'ai'];
+export const CATEGORY_ORDER: Category[] = ['lang', 'frontend', 'backend', 'database', 'tools'];
 
 export type Skill = {
   name: string;
@@ -69,7 +68,7 @@ export type Skill = {
 export const SKILLS: Skill[] = [
   // Languages — the foundation
   { name: 'Java', category: 'lang', role: 'Language · JVM', bullets: ['OOP at scale', 'Spring Boot services', 'Android'], usedIn: 'Enterprise ERP', years: '2021 – Present', related: ['Spring Boot', 'Kotlin'] },
-  { name: 'Python', category: 'lang', role: 'Language · AI', bullets: ['ML and tooling', 'Automation', 'OCR pipeline'], usedIn: 'Smart OCR Thesis', related: ['PyTorch', 'OpenCV', 'Machine Learning'] },
+  { name: 'Python', category: 'lang', role: 'Language · Backend', bullets: ['Backend services', 'Automation', 'Tooling'], usedIn: 'Smart OCR Thesis', related: ['Docker', 'Git'] },
   { name: 'Kotlin', category: 'lang', role: 'Language · Mobile', bullets: ['Modern Android', 'Coroutines', 'MVVM'], related: ['Java', 'Flutter'] },
   { name: 'TypeScript', category: 'lang', role: 'Language · Web', bullets: ['Typed end to end', 'React', 'Node'], years: '2022 – Present', related: ['React', 'Next.js', 'Node.js'] },
 
@@ -89,11 +88,6 @@ export const SKILLS: Skill[] = [
   { name: 'Prisma', category: 'database', role: 'ORM', bullets: ['Type-safe queries', 'Migrations', 'Schema modelling'], related: ['PostgreSQL', 'Next.js'] },
   { name: 'MySQL', category: 'database', role: 'Relational Database', bullets: ['Schema design', 'Joins', 'Indexing'], related: ['PostgreSQL'] },
 
-  // AI — the intelligence
-  { name: 'Machine Learning', category: 'ai', role: 'Intelligence', bullets: ['Supervised learning', 'Model training', 'Evaluation'], usedIn: 'Thesis', related: ['PyTorch', 'OpenCV', 'Python'] },
-  { name: 'PyTorch', category: 'ai', role: 'Deep Learning', bullets: ['Neural networks', 'Training loops', 'Thesis pipeline'], usedIn: 'Smart OCR Thesis', related: ['Machine Learning', 'OpenCV', 'Python'] },
-  { name: 'OpenCV', category: 'ai', role: 'Computer Vision', bullets: ['Preprocessing', 'Segmentation', 'Feature extraction'], usedIn: 'Smart OCR', related: ['Machine Learning', 'Python'] },
-
   // DevOps & Tools — the support
   { name: 'Docker', category: 'tools', role: 'Containers', bullets: ['Compose', 'Images', 'Reproducible envs'], related: ['Node.js', 'Git', 'Linux', 'Spring Boot'] },
   { name: 'Git', category: 'tools', role: 'Version Control', bullets: ['Branching', 'Reviews', 'History'], related: ['Docker', 'Node.js'] },
@@ -112,7 +106,6 @@ export const RELATED: number[][] = SKILLS.map((s) => s.related.map(_idx).filter(
 const PULSE_PATH_NAMES: string[][] = [
   ['React', 'Next.js', 'TypeScript', 'Tailwind CSS', 'React'],
   ['PostgreSQL', 'Prisma', 'MySQL', 'PostgreSQL'],
-  ['Python', 'PyTorch', 'Machine Learning', 'OpenCV', 'Python'],
   ['Node.js', 'Express', 'PostgreSQL', 'Docker', 'Node.js'],
   ['Java', 'Spring Boot', 'PostgreSQL', 'Docker'],
 ];

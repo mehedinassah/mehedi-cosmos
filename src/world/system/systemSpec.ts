@@ -324,7 +324,6 @@ export const CHAPTERS: Chapter[] = [
       'Frontend: React · Next.js · Flutter · Tailwind',
       'Backend: Spring Boot · Node.js · Express',
       'Database: PostgreSQL · Prisma · MySQL',
-      'AI: PyTorch · OpenCV · Machine Learning',
       'DevOps: Docker · Git · Linux',
       'Hover any skill to see what it connects to.',
     ],

@@ -85,7 +85,7 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
     const seen = {} as Record<Category, number>;
     CATEGORY_ORDER.forEach((c) => { counts[c] = 0; seen[c] = 0; });
     SKILLS.forEach((s) => { counts[s.category]++; });
-    const catOff: Record<Category, number> = { lang: 0.3, frontend: 1.1, backend: 2.0, database: 0.7, ai: 1.7, tools: 2.6 };
+    const catOff: Record<Category, number> = { lang: 0.3, frontend: 1.1, backend: 2.0, database: 0.7, tools: 2.6 };
     return SKILLS.map((s, i) => {
       const k = seen[s.category]++;
       const phase = (k / counts[s.category]) * Math.PI * 2 + catOff[s.category];
@@ -145,11 +145,11 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
   }, []);
   const signals = useMemo(() => Array.from({ length: N_SIG }, (_, i) => ({ path: i % Math.max(1, PULSE_PATHS.length), prog: i * 0.6, speed: 0.32 + (i % 3) * 0.06 })), []);
 
-  const spin = useRef<Record<Category, number>>({ lang: 0, frontend: 0, backend: 0, database: 0, ai: 0, tools: 0 });
+  const spin = useRef<Record<Category, number>>({ lang: 0, frontend: 0, backend: 0, database: 0, tools: 0 });
   const appear = useRef(0);
   const hoverMix = useRef(0);
   const connGrow = useRef(0);
-  const catMix = useRef<Record<Category, number>>({ lang: 0, frontend: 0, backend: 0, database: 0, ai: 0, tools: 0 });
+  const catMix = useRef<Record<Category, number>>({ lang: 0, frontend: 0, backend: 0, database: 0, tools: 0 });
   const npos = useRef<THREE.Vector3[]>(SKILLS.map(() => new THREE.Vector3()));
   const nvis = useRef<number[]>(SKILLS.map(() => 1));
   const _p = useMemo(() => new THREE.Vector3(), []);
