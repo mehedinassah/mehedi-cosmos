@@ -11,6 +11,9 @@ import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, OUTER_RADIUS } from '@/worl
 import { buildDescentCurve, GALAXY_REST_LOOK } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS, SUN_SP, nowS } from '@/state/descentStore';
 import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
+import { portalDive } from '@/state/portalDive';
+
+const _pvLook = new THREE.Vector3();
 
 /** Premium travel easing: slow acceleration, momentum, soft deceleration. */
 function easeInOutCubic(x: number): number {
@@ -281,6 +284,19 @@ export function CameraDirector() {
       // scene comes alive on its own — Earth spins, the whole constellation
       // orbits — with no camera automation at all.
       systemPose(sp, cam.position, cam.quaternion);
+      // Jupiter portal dive: fall THROUGH the Great Red Spot into Perico. Turn
+      // toward the vortex early, then accelerate in (ease-in) — the vortex grows
+      // to fill the frame and the scene navigates to the app when it lands.
+      if (portalDive.active) {
+        const pt = portalDive.t;
+        _pvLook.set(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(400).add(cam.position);
+        _pvLook.lerp(portalDive.target, THREE.MathUtils.smoothstep(pt, 0.0, 0.45));
+        cam.position.lerp(portalDive.target, pt * pt * 0.98); // accelerating fall
+        cam.up.set(0, 1, 0);
+        cam.lookAt(_pvLook);
+        cam.fov = baseFov.current + 10 * pt; // slight widen = speed
+        cam.updateProjectionMatrix();
+      }
       cam.clearViewOffset();
       return;
     }

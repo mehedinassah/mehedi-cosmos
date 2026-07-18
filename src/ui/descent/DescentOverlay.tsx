@@ -9,6 +9,7 @@ import { HoverLabel, OrbitPanel } from '@/ui/descent/EarthOrbitUI';
 import { KnowledgeCard, SaturnExpand } from '@/ui/descent/SaturnOverlay';
 import { SkillCard } from '@/ui/descent/VenusOverlay';
 import { MissionLog } from '@/ui/descent/MarsOverlay';
+import { portalDive } from '@/state/portalDive';
 
 /**
  * Descent chapter DOM layer — three quiet elements and an input bridge:
@@ -269,6 +270,34 @@ function ArrivalFlash() {
   return <div className={`arrival-flash ${cls}`} aria-hidden="true" />;
 }
 
+/** Jupiter portal dive — a fullscreen black wash that fades in over the last of
+ *  the dive so the whole frame (canvas + DOM panel) goes dark together, right
+ *  before the scene lands on the live Perico app. Driven off the module ref. */
+function PortalFade() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const sstep = (x: number, a: number, b: number) => {
+      const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+      return t * t * (3 - 2 * t);
+    };
+    const loop = () => {
+      const el = ref.current;
+      if (el) el.style.opacity = String(portalDive.active ? sstep(portalDive.t, 0.66, 1.0) : 0);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return (
+    <div
+      ref={ref}
+      aria-hidden="true"
+      style={{ position: 'fixed', inset: 0, background: '#000', opacity: 0, zIndex: 9999, pointerEvents: 'none' }}
+    />
+  );
+}
+
 export function DescentOverlay() {
   return (
     <>
@@ -285,6 +314,7 @@ export function DescentOverlay() {
       <SkillCard />
       <MissionLog />
       <ArrivalFlash />
+      <PortalFade />
     </>
   );
 }
