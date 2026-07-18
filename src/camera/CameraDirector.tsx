@@ -15,6 +15,15 @@ import { portalDive } from '@/state/portalDive';
 
 const _pvLook = new THREE.Vector3();
 
+// Reused per-frame scratch so the idle / orbit / parallax hot paths allocate
+// ZERO vectors each frame (fresh `new THREE.Vector3()` every frame was steady
+// GC pressure that showed up as micro-stutter while resting on the galaxy).
+const _sA = new THREE.Vector3();
+const _sB = new THREE.Vector3();
+const _sC = new THREE.Vector3();
+const _sUp = new THREE.Vector3(0, 1, 0);
+const _introStart = new THREE.Vector3(-7000, -2400, 16000);
+
 /** Premium travel easing: slow acceleration, momentum, soft deceleration. */
 function easeInOutCubic(x: number): number {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
@@ -314,8 +323,8 @@ export function CameraDirector() {
         // Starts farther out and slightly off-axis, eases to the resting vantage.
         const p = Math.min(t / 12, 1);
         const ease = 1 - Math.pow(1 - p, 3);
-        const startPos = GALAXY_CAM_POS.clone().add(new THREE.Vector3(-7000, -2400, 16000));
-        cam.position.lerpVectors(startPos, GALAXY_CAM_POS, ease);
+        _sA.copy(GALAXY_CAM_POS).add(_introStart);
+        cam.position.lerpVectors(_sA, GALAXY_CAM_POS, ease);
         lookTarget.current.copy(GALAXY_REST_LOOK);
         break;
       }
@@ -387,12 +396,12 @@ export function CameraDirector() {
           orbitAngle.current += delta * 0.008;
           idleDrift.current = Math.min(idleDrift.current + delta * 0.0018, 0.14);
         }
-        const offset = GALAXY_CAM_POS.clone()
+        _sA.copy(GALAXY_CAM_POS)
           .sub(center)
-          .applyAxisAngle(new THREE.Vector3(0, 1, 0), orbitAngle.current)
+          .applyAxisAngle(_sUp, orbitAngle.current)
           .multiplyScalar(1 - idleDrift.current);
-        const target = center.clone().add(offset);
-        cam.position.lerp(target, 1 - Math.exp(-1.5 * delta));
+        _sB.copy(center).add(_sA);
+        cam.position.lerp(_sB, 1 - Math.exp(-1.5 * delta));
         lookTarget.current.copy(GALAXY_REST_LOOK);
         break;
       }
@@ -404,16 +413,16 @@ export function CameraDirector() {
         const dist = body.camera.revealFraming.distanceU;
         if (!reducedMotion) orbitAngle.current += delta * 0.03; // slow drift orbit
         const elev = THREE.MathUtils.degToRad(body.camera.revealFraming.elevationDeg);
-        const target = new THREE.Vector3(
+        _sA.set(
           center.x + Math.cos(orbitAngle.current) * dist * Math.cos(elev),
           center.y + dist * Math.sin(elev),
           center.z + Math.sin(orbitAngle.current) * dist * Math.cos(elev),
         );
-        cam.position.lerp(target, 1 - Math.exp(-2.5 * delta)); // damped follow
+        cam.position.lerp(_sA, 1 - Math.exp(-2.5 * delta)); // damped follow
         // Rule-of-thirds framing: shift the gaze so the body sits off-center
-        const fwd = center.clone().sub(cam.position).normalize();
-        const right = new THREE.Vector3().crossVectors(fwd, cam.up).normalize();
-        lookTarget.current.copy(center).addScaledVector(right, dist * 0.14).addScaledVector(cam.up, dist * 0.05);
+        _sB.copy(center).sub(cam.position).normalize();
+        _sC.crossVectors(_sB, cam.up).normalize();
+        lookTarget.current.copy(center).addScaledVector(_sC, dist * 0.14).addScaledVector(cam.up, dist * 0.05);
         break;
       }
     }
@@ -424,13 +433,13 @@ export function CameraDirector() {
     // rate — that differential motion is what sells the scale.
     if (!reducedMotion && (j.phase === 'INTRO' || (j.phase === 'IDLE' && dp < 0.02))) {
       pointerSmooth.current.lerp(state.pointer, 1 - Math.exp(-2.2 * delta));
-      const fwd = lookTarget.current.clone().sub(cam.position).normalize();
-      const right = new THREE.Vector3().crossVectors(fwd, cam.up).normalize();
-      const upv = new THREE.Vector3().crossVectors(right, fwd);
+      _sA.copy(lookTarget.current).sub(cam.position).normalize(); // fwd
+      _sB.crossVectors(_sA, cam.up).normalize();                  // right
+      _sC.crossVectors(_sB, _sA);                                 // up
       parallaxApplied.current
         .set(0, 0, 0)
-        .addScaledVector(right, pointerSmooth.current.x * 1400)
-        .addScaledVector(upv, pointerSmooth.current.y * 700);
+        .addScaledVector(_sB, pointerSmooth.current.x * 1400)
+        .addScaledVector(_sC, pointerSmooth.current.y * 700);
       cam.position.add(parallaxApplied.current);
     }
 

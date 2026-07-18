@@ -17,7 +17,23 @@ import { HeatShimmer } from '@/engine/HeatShimmer';
  */
 export function CinematicEffects() {
   const postEnabled = useQualityStore((s) => s.postEnabled);
+  // When the governor is fighting to hold framerate it flags postLite; we then
+  // keep only the passes that define the look (bloom + colour grade + vignette)
+  // and drop the costlier distortion/grain passes. Toggles rarely, so the one
+  // composer remount is a non-issue.
+  const postLite = useQualityStore((s) => s.postLite);
   if (!postEnabled) return null;
+
+  if (postLite) {
+    return (
+      <EffectComposer multisampling={0}>
+        <Bloom intensity={0.4} luminanceThreshold={0.92} luminanceSmoothing={0.24} mipmapBlur radius={0.6} />
+        <HueSaturation hue={0} saturation={0.06} />
+        <BrightnessContrast brightness={-0.03} contrast={0.11} />
+        <Vignette eskil={false} offset={0.24} darkness={0.68} />
+      </EffectComposer>
+    );
+  }
 
   return (
     <EffectComposer multisampling={0}>

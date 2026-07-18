@@ -11,6 +11,7 @@ import { DescentField } from '@/world/galaxy/DescentField';
 import { SystemLoopRig } from '@/world/system/SystemLoopRig';
 import { CameraDirector } from '@/camera/CameraDirector';
 import { CinematicEffects } from '@/engine/CinematicEffects';
+import { AdaptiveQuality } from '@/engine/AdaptiveQuality';
 import { probeCapabilities, prefersReducedMotion } from '@/engine/capabilities';
 import { useQualityStore } from '@/state/qualityStore';
 import { useDescentStore } from '@/state/descentStore';
@@ -41,8 +42,9 @@ const PRELOAD_TEXTURES = [
 ];
 
 export function UniverseCanvas() {
-  const dprClamp = useQualityStore((s) => s.dprClamp);
-  const resolutionScale = useQualityStore((s) => s.resolutionScale);
+  // Live, adaptively-tuned pixel ratio (see AdaptiveQuality). Capped well below
+  // raw retina DPR — the biggest single per-frame GPU saving.
+  const perfDpr = useQualityStore((s) => s.perfDpr);
   // Chapter gate: galaxy + descent until the dive lands, then the system.
   // The swap happens under the destination star's flare + arrival flash.
   // During the LOOP home, the first half still shows the receding system;
@@ -62,6 +64,7 @@ export function UniverseCanvas() {
   useEffect(() => {
     const { tier } = probeCapabilities();
     useQualityStore.getState().setTier(tier);
+    useQualityStore.getState().initPerf(window.devicePixelRatio || 1);
     useQualityStore.getState().setReducedMotion(prefersReducedMotion());
     // Warm every journey texture during the galaxy intro (idle time), so
     // the arrival in the system never shows an untextured first frame.
@@ -81,7 +84,7 @@ export function UniverseCanvas() {
         toneMapping: THREE.ACESFilmicToneMapping,
         outputColorSpace: THREE.SRGBColorSpace,
       }}
-      dpr={Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, dprClamp) * resolutionScale}
+      dpr={perfDpr}
       camera={{ fov: 50, near: 1, far: 120000, position: [0, 120, 1400] }}
       onCreated={({ gl }) => {
         gl.setClearColor('#010104');
@@ -104,6 +107,7 @@ export function UniverseCanvas() {
           it in on arrival, and shrinks + dims it to nothing on the loop out. */}
       <SystemLoopRig />
       <CinematicEffects />
+      <AdaptiveQuality />
     </Canvas>
   );
 }
