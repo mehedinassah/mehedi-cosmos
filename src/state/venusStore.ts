@@ -42,13 +42,17 @@ export type OrbitSpec = {
 
 // Inner -> outer, but spaced unevenly: Languages hug the atmosphere; Tools ride
 // an irregular, steeply tilted orbit; AI sits highest and slowest.
+// Camera-FACING rings (see VenusConstellation): `incl`/`roll` roll the ellipse
+// in the screen plane, `ecc` flattens it — but no ring ever tilts into depth, so
+// no skill ever passes behind Venus or off-screen. Radii are small (they sit in
+// the open space beside Venus) and uneven so the rings interweave, not concentric.
 export const ORBITS: Record<Category, OrbitSpec> = {
-  lang: { radius: 1.22, ecc: 0.08, incl: 0.50, roll: 0.12, speed: 0.055, dir: 1, color: '#bcd4ff', glow: 0.1, core: 0.028, shape: 'star', label: 'LANGUAGES' },
-  frontend: { radius: 1.5, ecc: 0.2, incl: 0.66, roll: -0.26, speed: 0.04, dir: -1, color: '#e8913f', glow: 0.14, core: 0.056, shape: 'planet', label: 'FRONTEND' },
-  backend: { radius: 1.74, ecc: 0.12, incl: 0.44, roll: 0.3, speed: 0.03, dir: 1, color: '#cfd6de', glow: 0.115, core: 0.05, shape: 'moon', label: 'BACKEND' },
-  database: { radius: 1.98, ecc: 0.3, incl: 0.72, roll: -0.16, speed: 0.022, dir: -1, color: '#5fd39a', glow: 0.125, core: 0.052, shape: 'crystal', label: 'DATABASE' },
-  tools: { radius: 2.26, ecc: 0.36, incl: 0.94, roll: 0.52, speed: 0.033, dir: -1, color: '#cbb489', glow: 0.095, core: 0.04, shape: 'satellite', label: 'DEVOPS & TOOLS' },
-  ai: { radius: 2.58, ecc: 0.16, incl: 0.6, roll: -0.36, speed: 0.015, dir: 1, color: '#b48cff', glow: 0.22, core: 0.0, shape: 'orb', label: 'ARTIFICIAL INTELLIGENCE' },
+  lang: { radius: 0.34, ecc: 0.12, incl: 0.50, roll: 0.12, speed: 0.05, dir: 1, color: '#bcd4ff', glow: 0.14, core: 0.032, shape: 'star', label: 'LANGUAGES' },
+  frontend: { radius: 0.5, ecc: 0.22, incl: 0.66, roll: -0.5, speed: 0.04, dir: -1, color: '#e8913f', glow: 0.16, core: 0.06, shape: 'planet', label: 'FRONTEND' },
+  backend: { radius: 0.64, ecc: 0.16, incl: 0.44, roll: 0.6, speed: 0.032, dir: 1, color: '#cfd6de', glow: 0.135, core: 0.055, shape: 'moon', label: 'BACKEND' },
+  database: { radius: 0.78, ecc: 0.3, incl: 0.72, roll: -0.34, speed: 0.026, dir: -1, color: '#5fd39a', glow: 0.145, core: 0.056, shape: 'crystal', label: 'DATABASE' },
+  tools: { radius: 0.92, ecc: 0.34, incl: 0.94, roll: 0.9, speed: 0.03, dir: -1, color: '#cbb489', glow: 0.115, core: 0.045, shape: 'satellite', label: 'DEVOPS & TOOLS' },
+  ai: { radius: 1.04, ecc: 0.2, incl: 0.6, roll: -0.7, speed: 0.02, dir: 1, color: '#b48cff', glow: 0.24, core: 0.0, shape: 'orb', label: 'ARTIFICIAL INTELLIGENCE' },
 };
 export const CATEGORY_ORDER: Category[] = ['lang', 'frontend', 'backend', 'database', 'tools', 'ai'];
 
@@ -70,11 +74,10 @@ export const SKILLS: Skill[] = [
   { name: 'TypeScript', category: 'lang', role: 'Language · Web', bullets: ['Typed end to end', 'React', 'Node'], years: '2022 – Present', related: ['React', 'Next.js', 'Node.js'] },
 
   // Frontend — the experience
-  { name: 'React', category: 'frontend', role: 'Frontend Framework', bullets: ['Component architecture', 'Hooks', 'State management'], usedIn: 'Portfolio & ERP', years: '2023 – Present', related: ['Next.js', 'TypeScript', 'Tailwind CSS', 'Framer Motion'] },
+  { name: 'React', category: 'frontend', role: 'Frontend Framework', bullets: ['Component architecture', 'Hooks', 'State management'], usedIn: 'Portfolio & ERP', years: '2023 – Present', related: ['Next.js', 'TypeScript', 'Tailwind CSS'] },
   { name: 'Next.js', category: 'frontend', role: 'Fullstack React', bullets: ['App Router', 'Server rendering', 'APIs'], usedIn: 'Portfolio', years: '2023 – Present', related: ['React', 'TypeScript', 'Node.js', 'Prisma'] },
   { name: 'Flutter', category: 'frontend', role: 'Cross-platform Mobile', bullets: ['Dart', 'One codebase', 'Native feel'], related: ['Kotlin', 'Java'] },
   { name: 'Tailwind CSS', category: 'frontend', role: 'Styling', bullets: ['Utility-first', 'Design systems', 'Responsive'], related: ['React', 'Next.js'] },
-  { name: 'Framer Motion', category: 'frontend', role: 'Animation', bullets: ['Gestures', 'Transitions', 'Micro-interactions'], related: ['React', 'Next.js'] },
 
   // Backend — the power
   { name: 'Spring Boot', category: 'backend', role: 'Backend Development', bullets: ['REST APIs', 'Authentication', 'JWT'], usedIn: 'Enterprise ERP', years: '2024 – Present', related: ['Java', 'PostgreSQL', 'Docker'] },
@@ -82,22 +85,18 @@ export const SKILLS: Skill[] = [
   { name: 'Express', category: 'backend', role: 'Web Framework', bullets: ['Routing', 'Middleware', 'REST'], related: ['Node.js', 'PostgreSQL'] },
 
   // Database — the memory
-  { name: 'PostgreSQL', category: 'database', role: 'Relational Database', bullets: ['Query optimization', 'Prisma ORM', 'Multi-tenant design'], usedIn: 'ERP', related: ['Prisma', 'Supabase', 'MySQL', 'Node.js'] },
-  { name: 'Prisma', category: 'database', role: 'ORM', bullets: ['Type-safe queries', 'Migrations', 'Schema modelling'], related: ['PostgreSQL', 'Supabase', 'Next.js'] },
-  { name: 'Supabase', category: 'database', role: 'Backend Platform', bullets: ['Auth', 'Realtime', 'Storage'], related: ['PostgreSQL', 'Prisma'] },
+  { name: 'PostgreSQL', category: 'database', role: 'Relational Database', bullets: ['Query optimization', 'Prisma ORM', 'Multi-tenant design'], usedIn: 'ERP', related: ['Prisma', 'MySQL', 'Node.js'] },
+  { name: 'Prisma', category: 'database', role: 'ORM', bullets: ['Type-safe queries', 'Migrations', 'Schema modelling'], related: ['PostgreSQL', 'Next.js'] },
   { name: 'MySQL', category: 'database', role: 'Relational Database', bullets: ['Schema design', 'Joins', 'Indexing'], related: ['PostgreSQL'] },
 
   // AI — the intelligence
-  { name: 'Machine Learning', category: 'ai', role: 'Intelligence', bullets: ['Supervised learning', 'Model training', 'Evaluation'], usedIn: 'Thesis', related: ['PyTorch', 'Pattern Recognition', 'Image Processing', 'OpenCV', 'Python'] },
-  { name: 'PyTorch', category: 'ai', role: 'Deep Learning', bullets: ['Neural networks', 'Training loops', 'Thesis pipeline'], usedIn: 'Smart OCR Thesis', related: ['Machine Learning', 'Pattern Recognition', 'Image Processing', 'OpenCV', 'Python'] },
-  { name: 'OpenCV', category: 'ai', role: 'Computer Vision', bullets: ['Preprocessing', 'Segmentation', 'Feature extraction'], usedIn: 'Smart OCR', related: ['Image Processing', 'Pattern Recognition', 'Machine Learning', 'Python'] },
-  { name: 'Pattern Recognition', category: 'ai', role: 'Intelligence', bullets: ['Classification', 'Clustering', 'Features'], related: ['Machine Learning', 'PyTorch', 'Image Processing'] },
-  { name: 'Image Processing', category: 'ai', role: 'Vision', bullets: ['Filtering', 'Restoration', 'OCR'], usedIn: 'Smart OCR', related: ['OpenCV', 'Machine Learning', 'PyTorch', 'Pattern Recognition'] },
+  { name: 'Machine Learning', category: 'ai', role: 'Intelligence', bullets: ['Supervised learning', 'Model training', 'Evaluation'], usedIn: 'Thesis', related: ['PyTorch', 'OpenCV', 'Python'] },
+  { name: 'PyTorch', category: 'ai', role: 'Deep Learning', bullets: ['Neural networks', 'Training loops', 'Thesis pipeline'], usedIn: 'Smart OCR Thesis', related: ['Machine Learning', 'OpenCV', 'Python'] },
+  { name: 'OpenCV', category: 'ai', role: 'Computer Vision', bullets: ['Preprocessing', 'Segmentation', 'Feature extraction'], usedIn: 'Smart OCR', related: ['Machine Learning', 'Python'] },
 
   // DevOps & Tools — the support
   { name: 'Docker', category: 'tools', role: 'Containers', bullets: ['Compose', 'Images', 'Reproducible envs'], related: ['Node.js', 'Git', 'Linux', 'Spring Boot'] },
-  { name: 'Git', category: 'tools', role: 'Version Control', bullets: ['Branching', 'Reviews', 'History'], related: ['GitHub', 'Docker', 'Node.js'] },
-  { name: 'GitHub', category: 'tools', role: 'Collaboration', bullets: ['Pull requests', 'Actions', 'Hosting'], related: ['Git'] },
+  { name: 'Git', category: 'tools', role: 'Version Control', bullets: ['Branching', 'Reviews', 'History'], related: ['Docker', 'Node.js'] },
   { name: 'Linux', category: 'tools', role: 'Operating System', bullets: ['Shell', 'Servers', 'Tooling'], related: ['Docker'] },
 ];
 
@@ -112,7 +111,7 @@ export const RELATED: number[][] = SKILLS.map((s) => s.related.map(_idx).filter(
 // any hover (React -> Next.js -> TypeScript -> Tailwind -> React, ...).
 const PULSE_PATH_NAMES: string[][] = [
   ['React', 'Next.js', 'TypeScript', 'Tailwind CSS', 'React'],
-  ['PostgreSQL', 'Prisma', 'Supabase', 'PostgreSQL'],
+  ['PostgreSQL', 'Prisma', 'MySQL', 'PostgreSQL'],
   ['Python', 'PyTorch', 'Machine Learning', 'OpenCV', 'Python'],
   ['Node.js', 'Express', 'PostgreSQL', 'Docker', 'Node.js'],
   ['Java', 'Spring Boot', 'PostgreSQL', 'Docker'],

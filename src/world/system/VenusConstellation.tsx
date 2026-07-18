@@ -54,7 +54,11 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
     [],
   );
 
-  // Parked camera basis + per-orbit plane basis (elliptical, tilted, rolled).
+  // Parked camera basis + per-orbit plane basis. The rings are CAMERA-FACING:
+  // both axes live in the screen plane (no depth tilt), so no skill ever passes
+  // behind Venus. The whole constellation is offset into the open space beside
+  // the planet (left + a touch up) and pushed in FRONT of the disc, so every
+  // node stays on-screen, unoccluded, and hoverable at all times.
   const basis = useMemo(() => {
     const pos = new THREE.Vector3(), quat = new THREE.Quaternion();
     systemPose(CHAPTER_SP.venus, pos, quat);
@@ -62,15 +66,19 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
     const toCam = fwd.clone().multiplyScalar(-1);
+    const hub = center.clone()
+      .addScaledVector(right, -0.78 * radius) // straddles the open space + Venus's left face, clear of the panel
+      .addScaledVector(up, 0.12 * radius)
+      .addScaledVector(toCam, 1.3 * radius); // in front of the disc
     const planes = {} as Record<Category, { u: THREE.Vector3; v: THREE.Vector3; b: number }>;
     for (const c of CATEGORY_ORDER) {
       const o = ORBITS[c];
       const u = right.clone().applyAxisAngle(toCam, o.roll);
-      const v = up.clone().multiplyScalar(Math.cos(o.incl)).addScaledVector(fwd, Math.sin(o.incl)).applyAxisAngle(toCam, o.roll);
+      const v = up.clone().applyAxisAngle(toCam, o.roll); // screen-plane only — never behind
       planes[c] = { u, v, b: 1 - o.ecc };
     }
-    return { right, up, fwd, toCam, planes };
-  }, []);
+    return { right, up, fwd, toCam, hub, planes };
+  }, [center, radius]);
 
   const nodes = useMemo(() => {
     const counts = {} as Record<Category, number>;
@@ -87,7 +95,7 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
 
   const orbitPos = (cat: Category, a: number, out: THREE.Vector3) => {
     const pl = basis.planes[cat]; const R = ORBITS[cat].radius * radius;
-    return out.copy(center).addScaledVector(pl.u, Math.cos(a) * R).addScaledVector(pl.v, Math.sin(a) * R * pl.b);
+    return out.copy(basis.hub).addScaledVector(pl.u, Math.cos(a) * R).addScaledVector(pl.v, Math.sin(a) * R * pl.b);
   };
 
   // Dust (jittered) + clean line geometry per orbit.
@@ -100,10 +108,10 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
     const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     for (let i = 0; i < RING_PTS; i++) {
       const a = (i / RING_PTS) * Math.PI * 2;
-      v.copy(center).addScaledVector(pl.u, Math.cos(a) * R).addScaledVector(pl.v, Math.sin(a) * R * pl.b);
+      v.copy(basis.hub).addScaledVector(pl.u, Math.cos(a) * R).addScaledVector(pl.v, Math.sin(a) * R * pl.b);
       line[i * 3] = v.x; line[i * 3 + 1] = v.y; line[i * 3 + 2] = v.z;
       const j = 1 + (rng() - 0.5) * 0.06;
-      v.copy(center).addScaledVector(pl.u, Math.cos(a) * R * j).addScaledVector(pl.v, Math.sin(a) * R * pl.b * j);
+      v.copy(basis.hub).addScaledVector(pl.u, Math.cos(a) * R * j).addScaledVector(pl.v, Math.sin(a) * R * pl.b * j);
       dust[i * 3] = v.x; dust[i * 3 + 1] = v.y; dust[i * 3 + 2] = v.z;
     }
     const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(dust, 3));
@@ -145,21 +153,16 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
   const npos = useRef<THREE.Vector3[]>(SKILLS.map(() => new THREE.Vector3()));
   const nvis = useRef<number[]>(SKILLS.map(() => 1));
   const _p = useMemo(() => new THREE.Vector3(), []);
-  const _perp = useMemo(() => new THREE.Vector3(), []);
   const _ndc = useMemo(() => new THREE.Vector3(), []);
   const _a = useMemo(() => new THREE.Vector3(), []);
   const _b = useMemo(() => new THREE.Vector3(), []);
   const _m = useMemo(() => new THREE.Vector3(), []);
   const _c = useMemo(() => new THREE.Color(), []);
 
-  // Soft atmosphere factor: 1 clear, hazed over the disk, 0 behind the planet.
-  const atmo = (p: THREE.Vector3) => {
-    _perp.copy(p).sub(center);
-    const along = _perp.dot(basis.toCam);
-    const perp = _perp.addScaledVector(basis.toCam, -along).length();
-    if (along < 0) return THREE.MathUtils.smoothstep(perp, radius * 0.99, radius * 1.22);
-    return 0.5 + 0.5 * THREE.MathUtils.smoothstep(perp, radius * 0.72, radius * 1.12);
-  };
+  // The constellation now sits beside and IN FRONT of Venus, so nothing is ever
+  // occluded — every node is fully lit and hoverable. (Kept as a hook so the
+  // node/signal code reads a single clarity factor.)
+  const atmo = (_p: THREE.Vector3) => 1;
 
   useFrame((state, delta) => {
     const f = venusFocus();
