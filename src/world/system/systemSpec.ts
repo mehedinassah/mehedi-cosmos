@@ -355,8 +355,12 @@ export const CHAPTERS: Chapter[] = [
       'The flagship build: a complete business ERP.',
       'Inventory, orders, and operations in one system.',
       'Java, Spring Boot, React, PostgreSQL.',
+      'Click Jupiter to enter the live app.',
     ],
-    links: [{ label: 'GitHub', href: 'https://github.com/mehedinassah' }],
+    links: [
+      { label: 'Open Perico ERP', href: 'https://perico-erp.vercel.app/' },
+      { label: 'GitHub', href: 'https://github.com/mehedinassah' },
+    ],
   },
   {
     id: 'saturn', planet: 'Saturn', title: 'Knowledge Archive', sp: 0.67, accent: '#cdb384', au: '9.54 AU',

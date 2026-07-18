@@ -15,6 +15,7 @@ import { EarthImpact } from '@/world/system/EarthImpact';
 import { SaturnKnowledge } from '@/world/system/SaturnKnowledge';
 import { VenusConstellation } from '@/world/system/VenusConstellation';
 import { MarsMissionControl } from '@/world/system/MarsMissionControl';
+import { JupiterPortal } from '@/world/system/JupiterPortal';
 import { earthFocus, earthSpin } from '@/state/earthHoverStore';
 import { useDescentStore } from '@/state/descentStore';
 import {
@@ -750,6 +751,7 @@ export function SolarSystem() {
   const venus = HEROES.find((h) => h.id === 'venus')!;
   const earth = HEROES.find((h) => h.id === 'earth')!;
   const mars = HEROES.find((h) => h.id === 'mars')!;
+  const jupiter = HEROES.find((h) => h.id === 'jupiter')!;
   const saturn = HEROES.find((h) => h.id === 'saturn')!;
   return (
     <group name="solar-system">
@@ -770,6 +772,8 @@ export function SolarSystem() {
       {/* Mars becomes Mission Control: project drones orbit, landing sites
           light up, mission logs unfold. Fades in at the Projects stop. */}
       <MarsMissionControl center={mars.position} radius={mars.radius} />
+      {/* Jupiter is the Perico ERP portal: hover awakens it, click opens the app */}
+      <JupiterPortal center={jupiter.position} radius={jupiter.radius} />
       {/* Saturn's rings become knowledge streams at the Education stop */}
       <SaturnKnowledge center={saturn.position} radius={saturn.radius} />
       <AsteroidBelt />
