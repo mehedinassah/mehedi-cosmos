@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { assembleShader } from '@/shaders/assemble';
@@ -313,65 +313,138 @@ function GalaxyDisc() {
  *    resolve as soft glows at the hero camera distance (~46k units), not
  *    1-px dots: that hard-particle look is what read as "procedural".
  * ---------------------------------------------------------------- */
+/* The ~24k galaxy stars are the single most expensive thing at load: a
+ * rejection-sampling loop (up to targetCount*40 noise evals) that used to run
+ * SYNCHRONOUSLY in a useMemo on first render, blocking the first paint. It is
+ * now generated OFF the first render, in short chunks across idle callbacks, so
+ * the hero paints instantly and the arm stars fill in during the formation
+ * intro (which is a particles->galaxy reveal anyway, so it reads as intended).
+ * The count also scales with the quality tier now. */
+type StarGen = {
+  targetCount: number;
+  maxAttempts: number;
+  pos: Float32Array;
+  size: Float32Array;
+  seed: Float32Array;
+  order: Float32Array;
+  color: Float32Array;
+  rng: () => number;
+  i: number;
+  attempts: number;
+};
+
+function makeStarGen(targetCount: number): StarGen {
+  return {
+    targetCount,
+    maxAttempts: targetCount * 40,
+    pos: new Float32Array(targetCount * 3),
+    size: new Float32Array(targetCount),
+    seed: new Float32Array(targetCount),
+    order: new Float32Array(targetCount),
+    color: new Float32Array(targetCount * 3),
+    rng: mulberry32(777),
+    i: 0,
+    attempts: 0,
+  };
+}
+
+function starGenDone(g: StarGen): boolean {
+  return g.i >= g.targetCount || g.attempts >= g.maxAttempts;
+}
+
+// One slice: run at most `attemptBudget` samples so no slice blocks more than a
+// couple ms. Called repeatedly across idle callbacks until starGenDone.
+function fillStarGen(g: StarGen, attemptBudget: number): void {
+  const { pos, size, seed, order, color, rng } = g;
+  let used = 0;
+  while (g.i < g.targetCount && g.attempts < g.maxAttempts && used < attemptBudget) {
+    g.attempts++;
+    used++;
+    const r = Math.pow(rng(), 0.55) * OUTER_RADIUS;
+    const theta = rng() * Math.PI * 2;
+    const x = Math.cos(theta) * r;
+    const z = Math.sin(theta) * r;
+    const rn = r / OUTER_RADIUS;
+
+    let density = armDensity(x, z);
+    // Large-scale patchiness: real star fields are uneven — some arm stretches
+    // teem, others are nearly vacant. Stars only, not the disc glow, so the
+    // patchiness reads as resolution, not holes in the light.
+    const clump = smoothstep(0.3, 0.78, fbm(x * 0.00042 + 53, 23, z * 0.00042 + 53));
+    density *= 0.2 + 1.6 * clump;
+    density *= 1 + beaconBoost(x, z) * 1.1; // richer stellar neighborhood on the destination arm
+    if (rng() > density * 0.9 + 0.03) continue;
+
+    // Gaussian-ish vertical spread, flaring thicker toward the core
+    const thickness = (1 - rn) * 1100 + 80;
+    const y = ((rng() + rng() + rng() - 1.5) / 1.5) * thickness * 0.5;
+    const i = g.i;
+    pos.set([x, y, z], i * 3);
+
+    let s = 200 + rng() * rng() * 620;
+    if (rng() < 0.02) s = 1300 + rng() * 1200; // rare luminous giants
+    if (rn < 0.14) s += 220; // dense bright core population
+    size[i] = s;
+    seed[i] = rng();
+    order[i] = rng() * 0.4;
+
+    const t = rng();
+    const warmBias = 1 - rn;
+    if (t < 0.42 + warmBias * 0.3) color.set([1.0, 0.9, 0.75], i * 3);
+    else if (t < 0.75) color.set([0.62, 0.75, 1.0], i * 3);
+    else if (t < 0.88) color.set([1.0, 0.62, 0.4], i * 3);
+    else if (t < 0.96) color.set([0.85, 0.9, 1.0], i * 3);
+    else color.set([1.0, 0.55, 0.68], i * 3);
+    g.i++;
+  }
+}
+
+function finishStarGen(g: StarGen): THREE.BufferGeometry {
+  const geo = new THREE.BufferGeometry();
+  const i = g.i;
+  geo.setAttribute('position', new THREE.BufferAttribute(g.pos.subarray(0, i * 3), 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(g.size.subarray(0, i), 1));
+  geo.setAttribute('aTwinkleSeed', new THREE.BufferAttribute(g.seed.subarray(0, i), 1));
+  geo.setAttribute('aIgniteOrder', new THREE.BufferAttribute(g.order.subarray(0, i), 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(g.color.subarray(0, i * 3), 3));
+  return geo;
+}
+
 function GalaxyStars() {
   const matRef = useRef<THREE.ShaderMaterial>(null);
-  const geometry = useMemo(() => {
-    const targetCount = 24000;
-    const pos = new Float32Array(targetCount * 3);
-    const size = new Float32Array(targetCount);
-    const seed = new Float32Array(targetCount);
-    const order = new Float32Array(targetCount);
-    const color = new Float32Array(targetCount * 3);
-    const rng = mulberry32(777);
+  const particleScale = useQualityStore((s) => s.particleScale);
+  const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
 
-    let i = 0;
-    let attempts = 0;
-    while (i < targetCount && attempts < targetCount * 40) {
-      attempts++;
-      const r = Math.pow(rng(), 0.55) * OUTER_RADIUS;
-      const theta = rng() * Math.PI * 2;
-      const x = Math.cos(theta) * r;
-      const z = Math.sin(theta) * r;
-      const rn = r / OUTER_RADIUS;
-
-      let density = armDensity(x, z);
-      // Large-scale patchiness: real star fields are uneven — some arm
-      // stretches teem, others are nearly vacant. Stars only, not the disc
-      // glow, so the patchiness reads as resolution, not holes in the light.
-      const clump = smoothstep(0.3, 0.78, fbm(x * 0.00042 + 53, 23, z * 0.00042 + 53));
-      density *= 0.2 + 1.6 * clump;
-      density *= 1 + beaconBoost(x, z) * 1.1; // richer stellar neighborhood on the destination arm
-      if (rng() > density * 0.9 + 0.03) continue;
-
-      // Gaussian-ish vertical spread, flaring thicker toward the core
-      const thickness = (1 - rn) * 1100 + 80;
-      const y = ((rng() + rng() + rng() - 1.5) / 1.5) * thickness * 0.5;
-      pos.set([x, y, z], i * 3);
-
-      let s = 200 + rng() * rng() * 620;
-      if (rng() < 0.02) s = 1300 + rng() * 1200; // rare luminous giants
-      if (rn < 0.14) s += 220; // dense bright core population
-      size[i] = s;
-      seed[i] = rng();
-      order[i] = rng() * 0.4;
-
-      const t = rng();
-      const warmBias = 1 - rn;
-      if (t < 0.42 + warmBias * 0.3) color.set([1.0, 0.9, 0.75], i * 3);
-      else if (t < 0.75) color.set([0.62, 0.75, 1.0], i * 3);
-      else if (t < 0.88) color.set([1.0, 0.62, 0.4], i * 3);
-      else if (t < 0.96) color.set([0.85, 0.9, 1.0], i * 3);
-      else color.set([1.0, 0.55, 0.68], i * 3);
-      i++;
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, i * 3), 3));
-    g.setAttribute('aSize', new THREE.BufferAttribute(size.subarray(0, i), 1));
-    g.setAttribute('aTwinkleSeed', new THREE.BufferAttribute(seed.subarray(0, i), 1));
-    g.setAttribute('aIgniteOrder', new THREE.BufferAttribute(order.subarray(0, i), 1));
-    g.setAttribute('aColor', new THREE.BufferAttribute(color.subarray(0, i * 3), 3));
-    return g;
-  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    let handle = 0;
+    // Always a rich hero (>= 6k) even on weak tiers; up to 24k on desktop.
+    const targetCount = Math.max(6000, Math.floor(24000 * particleScale));
+    const gen = makeStarGen(targetCount);
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const schedule = (fn: () => void): number =>
+      win.requestIdleCallback
+        ? win.requestIdleCallback(fn, { timeout: 120 })
+        : (setTimeout(fn, 0) as unknown as number);
+    const step = () => {
+      if (cancelled) return;
+      fillStarGen(gen, 160000); // ~a few ms per slice; spread across idle time
+      if (starGenDone(gen)) {
+        if (!cancelled) setGeometry(finishStarGen(gen));
+      } else {
+        handle = schedule(step);
+      }
+    };
+    handle = schedule(step);
+    return () => {
+      cancelled = true;
+      win.cancelIdleCallback?.(handle);
+      window.clearTimeout(handle);
+    };
+  }, [particleScale]);
 
   const material = useMemo(
     () =>
@@ -392,6 +465,10 @@ function GalaxyStars() {
   useRevealDriver((v) => {
     if (matRef.current) matRef.current.uniforms.uFormation.value = v;
   }, 0.6, 0.2);
+
+  // Until the first chunked slice-set completes, the disc glow + deep space +
+  // starfield already carry the frame; the stars fade in via the reveal driver.
+  if (!geometry) return null;
 
   return (
     <points position={GALAXY_CENTER} rotation={GALAXY_TILT} geometry={geometry} frustumCulled={false}>
