@@ -4,24 +4,21 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { sunActivity } from './sunActivity';
+import { sunCursor } from './sunCursor';
 
 /**
- * Magnetic activity — not "draw some loops" but "simulate an active star". The
- * surface carries N_REG active regions scattered around the belts; each region
- * owns a bundle of prominences and a fountain of micro-jets. Everything is one
- * GPU particle system: ~40k tiny plasma points whose motion is computed entirely
- * in the vertex shader from static per-particle attributes + time, so the CPU
- * only updates N_REG activity floats per frame (cheap) while the GPU animates
- * every particle.
+ * Prominences + ionized gas — restrained, photoreal. NOT a constant storm: a
+ * director keeps at most TWO active regions lit at a time, so only one or two
+ * subtle magnetic loops exist at once. Each emerges from an active region,
+ * arcs along its field line, holds for a few seconds, then fades — and a
+ * DIFFERENT region lights up next, so loops disappear and reappear elsewhere.
+ * Alongside them a faint, very slow drift of ionized-gas particles leaves the
+ * limb and dissolves into space (glowing gas, never sparks).
  *
- * Each prominence is a VOLUME of particles, dense and bright at the footpoints,
- * thinning to a wispy dim tip that dissolves into the corona; magnetic
- * turbulence (3D noise, stronger toward the tip and late in life) makes it
- * writhe and branch instead of tracing a clean arc. Prominences emerge, grow,
- * twist, break apart and fade on staggered clocks, then their region re-seeds.
- * Micro-jets flicker out of the limb constantly; rarely a whole region STORMS —
- * a huge eruption that also brightens the corona and warms the scene light.
- * The opaque photosphere occludes the far side via the depth test.
+ * Everything is GPU-animated: static per-particle attributes + time in the
+ * vertex shader, so the CPU only updates N_REG activity floats per frame. The
+ * cursor perturbs the field — loops bend toward it and gas drifts toward it —
+ * then settles back when it leaves.
  */
 
 function mulberry32(a: number) {
@@ -34,10 +31,10 @@ function mulberry32(a: number) {
   };
 }
 
-const N_REG = 32; // active regions
-const PROMS_PER = 3; // prominences per region — fewer + denser reads as real arches
-const N = 60000; // plasma particles (GPU-animated)
-const JET_FRAC = 0.18; // share that are micro-jets/sparks
+const N_REG = 12; // candidate active regions (8-15); at most 2 lit at once
+const N = 16000; // light particle budget
+const GAS_FRAC = 0.45; // rest are prominence-arch particles
+const MAX_ACTIVE = 2;
 
 const vert = /* glsl */ `
 precision highp float;
@@ -46,12 +43,14 @@ uniform float uR;
 uniform float uScale;
 uniform float uIgnite;
 uniform float uRegAct[${N_REG}];
+uniform vec3 uCursorDir;
+uniform float uCursorStr;
 
 attribute vec3 aT;
 attribute vec3 aB;
 attribute float aRegion;
 attribute vec4 aArc;   // phi, sep, height, phase
-attribute vec4 aVar;   // along0, branch, seed, kind
+attribute vec4 aVar;   // along0, branch, seed, kind (0 arch, 1 gas)
 attribute float aSize;
 
 varying vec3 vColor;
@@ -67,61 +66,57 @@ float vnoise(vec3 x){
 vec3 vnoise3(vec3 p){ return vec3(vnoise(p), vnoise(p + 31.4), vnoise(p + 57.1)) * 2.0 - 1.0; }
 
 void main() {
-  int ri = int(aRegion + 0.5);
-  float act = uRegAct[ri];
-  vec3 c = normalize(position);
   float phi = aArc.x, sep = aArc.y, height = aArc.z, phase = aArc.w;
   float along0 = aVar.x, branch = aVar.y, seed = aVar.z, kind = aVar.w;
-
-  vec3 tang = aT * cos(phi) + aB * sin(phi);
-  vec3 kink = -aT * sin(phi) + aB * cos(phi);
-
   vec3 pos; float alpha; float size;
 
   if (kind < 0.5) {
-    // ---- prominence arch: a volume of plasma along a writhing field line ----
-    float lifeRate = 0.026 + 0.02 * fract(seed * 7.0);
-    float life = fract(uTime * lifeRate + phase);
-    float grow = smoothstep(0.0, 0.16, life);
-    float collapse = 1.0 - smoothstep(0.62, 1.0, life);
-    float env = grow * collapse;
-
+    // ---- prominence arch (only visible while its region is lit) ----
+    int ri = int(aRegion + 0.5);
+    float act = uRegAct[ri];
+    if (act < 0.001) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vColor = vec3(0.0); return; }
+    vec3 c = normalize(position);
+    vec3 tang = aT * cos(phi) + aB * sin(phi);
+    vec3 kink = -aT * sin(phi) + aB * cos(phi);
     vec3 f1 = normalize(c - tang * sep);
     vec3 f2 = normalize(c + tang * sep);
-    float s = along0;                       // fixed -> stable base-dense/tip-thin gradient
+    float s = along0;
     float arch = sin(3.14159265 * s);
     vec3 dir = normalize(mix(f1, f2, s));
-    float h = height * uR * mix(0.18, 1.0, grow) * (0.75 + 0.7 * act); // grows w/ life + activity
+    float h = height * uR * (0.35 + 0.65 * act);
     float radial = uR * 1.004 + h * arch;
     pos = dir * radial;
-    // twist/turbulence: gentle at the feet, wilder at the tip; the arch holds
-    // its writhing shape through growth, then breaks apart late in life
-    float breakUp = 1.0 + 2.6 * smoothstep(0.6, 1.0, life);
-    float tw = 0.22 + 1.3 * arch;
-    pos += vnoise3(pos * 0.045 + uTime * 0.18 + seed) * uR * 0.042 * tw * breakUp;
-    pos += kink * branch * uR * (0.15 + 0.95 * s);   // branching lateral spread
-    // brightness: bright dense base, dim wispy tip that dissolves as it collapses
-    float fb = mix(1.35, 0.22, arch);
-    float wisp = 1.0 - smoothstep(0.6, 1.0, s) * smoothstep(0.5, 1.0, life);
-    float stream = 0.5 + 0.5 * sin((s * 6.0 - uTime * 1.2) * 6.2831 + seed * 10.0);
-    float flick = 0.65 + 0.35 * vnoise(pos * 0.18 + uTime * 2.0);
-    alpha = env * act * uIgnite * fb * wisp * stream * flick;
-    size = aSize * mix(1.5, 0.4, arch);
+    // gentle field-line writhe, stronger toward the tip (no perfect curve)
+    float tw = 0.2 + 1.1 * arch;
+    pos += vnoise3(pos * 0.045 + uTime * 0.14 + seed) * uR * 0.03 * tw;
+    pos += kink * branch * uR * (0.15 + 0.8 * s);
+    // cursor bends the loop a few degrees toward the perturbation
+    float near = smoothstep(0.4, 0.98, dot(normalize(pos), uCursorDir));
+    pos += (uCursorDir - dir * dot(uCursorDir, dir)) * uCursorStr * near * arch * uR * 0.09;
+    // bright dense base, dim wispy tip that dissolves into corona
+    float fb = mix(1.25, 0.2, arch);
+    float stream = 0.55 + 0.45 * sin((s * 5.0 - uTime * 1.0) * 6.2831 + seed * 10.0);
+    float flick = 0.7 + 0.3 * vnoise(pos * 0.16 + uTime * 1.6);
+    alpha = act * uIgnite * fb * stream * flick * 0.55; // subtle
+    size = aSize * mix(1.4, 0.45, arch);
   } else {
-    // ---- micro-jet / spark: shoots out of the limb, brief, fades ----
-    float jr = 0.5 + fract(seed * 13.0) * 1.4;
-    float jl = fract(uTime * jr + phase);
-    vec3 dir = normalize(c + tang * sep * 0.5 + kink * branch * 0.5);
-    float r = uR * 1.01 + jl * uR * (0.12 + 0.5 * fract(seed * 5.0)) * (0.5 + act);
-    pos = dir * r + vnoise3(pos * 0.06 + uTime * 0.4 + seed) * uR * 0.02;
-    float flick = 0.6 + 0.4 * vnoise(pos * 0.3 + uTime * 3.0);
-    alpha = (1.0 - jl) * (1.0 - jl) * act * uIgnite * flick;
-    size = aSize * (0.5 + 0.6 * (1.0 - jl));
+    // ---- ionized gas: faint, very slow outward drift, dissolves into space ----
+    vec3 dir = normalize(position);
+    float sp = 0.02 + 0.03 * fract(seed * 3.0);
+    float life = fract(uTime * sp + phase);
+    float r = uR * 1.02 + life * uR * 1.15;
+    // drift toward the cursor perturbation near it
+    float near = smoothstep(0.2, 1.0, dot(dir, uCursorDir));
+    dir = normalize(dir + uCursorDir * uCursorStr * near * 0.18);
+    pos = dir * r + vnoise3(dir * 3.0 + uTime * 0.05 + seed) * uR * 0.04;
+    float fade = sin(life * 3.14159265);
+    alpha = fade * fade * uIgnite * 0.12; // faint glowing gas, not sparks
+    size = aSize * (0.7 + 0.5 * life);
   }
 
   vColor = color * max(alpha, 0.0);
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-  gl_PointSize = clamp(size * uScale / -mv.z, 1.0, 42.0);
+  gl_PointSize = clamp(size * uScale / -mv.z, 1.0, 40.0);
   gl_Position = projectionMatrix * mv;
 }
 `;
@@ -133,31 +128,27 @@ void main() {
   vec2 d = gl_PointCoord - 0.5;
   float a = smoothstep(0.5, 0.0, length(d));
   a *= a;
-  if (a < 0.004) discard;
-  gl_FragColor = vec4(vColor, a); // additive (SrcAlpha,One) -> adds vColor*a
+  if (a < 0.003) discard;
+  gl_FragColor = vec4(vColor, a);
 }
 `;
 
-type RegionState = { base: number; pulse: number; storm: number; stormPeak: number; stormEnv: number };
+type Slot = { region: number; t: number; dur: number };
 
 export function Prominences({ radius, ignite }: { radius: number; ignite: number }) {
   const groupRef = useRef<THREE.Group>(null);
 
-  const { geometry, material, regions, sched } = useMemo(() => {
+  const { geometry, material, sched } = useMemo(() => {
     const rng = mulberry32(4472);
-    // active regions scattered around the belts (a few stray higher-latitude)
     const dirs: THREE.Vector3[] = [];
     const Ts: THREE.Vector3[] = [];
     const Bs: THREE.Vector3[] = [];
-    // per-region prominence params
-    const promPhi: number[][] = [];
-    const promSep: number[][] = [];
-    const promH: number[][] = [];
-    const promPhase: number[][] = [];
-    const promBranch: number[][] = [];
+    const promPhi: number[] = [];
+    const promSep: number[] = [];
+    const promH: number[] = [];
+    const promBranch: number[] = [];
     for (let r = 0; r < N_REG; r++) {
-      const belt = rng() < 0.82;
-      const lat = (belt ? 0.12 + Math.pow(rng(), 0.7) * 0.55 : rng() * 1.15) * (rng() < 0.5 ? -1 : 1);
+      const lat = (0.14 + Math.pow(rng(), 0.7) * 0.5) * (rng() < 0.5 ? -1 : 1);
       const lon = rng() * Math.PI * 2;
       const c = new THREE.Vector3(
         Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon),
@@ -167,17 +158,10 @@ export function Prominences({ radius, ignite }: { radius: number; ignite: number
       T.normalize();
       const B = new THREE.Vector3().crossVectors(c, T).normalize();
       dirs.push(c); Ts.push(T); Bs.push(B);
-      const axis = rng() * Math.PI * 2;
-      const phis: number[] = [], seps: number[] = [], hs: number[] = [], phs: number[] = [], brs: number[] = [];
-      for (let p = 0; p < PROMS_PER; p++) {
-        phis.push(axis + (rng() - 0.5) * 1.1);
-        seps.push(0.04 + rng() * 0.16);
-        const big = rng() < 0.42;
-        hs.push(big ? 0.38 + rng() * 0.6 : 0.07 + rng() * 0.2);
-        phs.push(rng());
-        brs.push(0.04 + rng() * 0.12);
-      }
-      promPhi.push(phis); promSep.push(seps); promH.push(hs); promPhase.push(phs); promBranch.push(brs);
+      promPhi.push(rng() * Math.PI * 2);
+      promSep.push(0.05 + rng() * 0.14);
+      promH.push(0.22 + rng() * 0.42);
+      promBranch.push(0.05 + rng() * 0.1);
     }
 
     const position = new Float32Array(N * 3);
@@ -190,43 +174,36 @@ export function Prominences({ radius, ignite }: { radius: number; ignite: number
     const color = new Float32Array(N * 3);
 
     for (let i = 0; i < N; i++) {
-      const r = i % N_REG;
-      aRegion[i] = r;
-      position[i * 3] = dirs[r].x; position[i * 3 + 1] = dirs[r].y; position[i * 3 + 2] = dirs[r].z;
-      aT[i * 3] = Ts[r].x; aT[i * 3 + 1] = Ts[r].y; aT[i * 3 + 2] = Ts[r].z;
-      aB[i * 3] = Bs[r].x; aB[i * 3 + 1] = Bs[r].y; aB[i * 3 + 2] = Bs[r].z;
-      const isJet = rng() < JET_FRAC;
       const seed = rng() * 100;
-      if (!isJet) {
-        const p = Math.floor(rng() * PROMS_PER);
-        // cosine spacing -> particles cluster at the FEET (dense base), thin at apex
-        const along0 = (1 - Math.cos(Math.PI * rng())) * 0.5;
-        aArc[i * 4] = promPhi[r][p] + (rng() - 0.5) * 0.14; // a few braided strands
-        aArc[i * 4 + 1] = promSep[r][p];
-        aArc[i * 4 + 2] = promH[r][p] * (0.8 + rng() * 0.35);
-        aArc[i * 4 + 3] = promPhase[r][p]; // shared -> the prominence lives as one
+      const isGas = rng() < GAS_FRAC;
+      if (!isGas) {
+        const r = i % N_REG;
+        aRegion[i] = r;
+        position[i * 3] = dirs[r].x; position[i * 3 + 1] = dirs[r].y; position[i * 3 + 2] = dirs[r].z;
+        aT[i * 3] = Ts[r].x; aT[i * 3 + 1] = Ts[r].y; aT[i * 3 + 2] = Ts[r].z;
+        aB[i * 3] = Bs[r].x; aB[i * 3 + 1] = Bs[r].y; aB[i * 3 + 2] = Bs[r].z;
+        const along0 = (1 - Math.cos(Math.PI * rng())) * 0.5; // dense at feet
+        aArc[i * 4] = promPhi[r] + (rng() - 0.5) * 0.16;
+        aArc[i * 4 + 1] = promSep[r];
+        aArc[i * 4 + 2] = promH[r] * (0.85 + rng() * 0.3);
+        aArc[i * 4 + 3] = 0;
         aVar[i * 4] = along0;
-        aVar[i * 4 + 1] = (rng() - 0.5) * promBranch[r][p] * 2;
+        aVar[i * 4 + 1] = (rng() - 0.5) * promBranch[r] * 2;
         aVar[i * 4 + 2] = seed;
-        aVar[i * 4 + 3] = 0; // arch
-        aSize[i] = radius * (0.012 + rng() * 0.02);
+        aVar[i * 4 + 3] = 0;
+        aSize[i] = radius * (0.012 + rng() * 0.018);
         const hot = rng();
-        color[i * 3] = 1.0;
-        color[i * 3 + 1] = 0.4 + hot * 0.22;
-        color[i * 3 + 2] = 0.18 + hot * 0.16;
+        color[i * 3] = 1.0; color[i * 3 + 1] = 0.62 + hot * 0.24; color[i * 3 + 2] = 0.34 + hot * 0.2;
       } else {
-        aArc[i * 4] = rng() * Math.PI * 2;
-        aArc[i * 4 + 1] = 0.02 + rng() * 0.1;
-        aArc[i * 4 + 2] = 0;
-        aArc[i * 4 + 3] = rng();
-        aVar[i * 4] = 0;
-        aVar[i * 4 + 1] = (rng() - 0.5) * 0.6;
+        // gas: random outward direction anywhere on the star
+        const u = rng() * 2 - 1, a = rng() * Math.PI * 2, rr = Math.sqrt(1 - u * u);
+        aRegion[i] = 0;
+        position[i * 3] = rr * Math.cos(a); position[i * 3 + 1] = u; position[i * 3 + 2] = rr * Math.sin(a);
+        aArc[i * 4 + 3] = rng(); // phase
         aVar[i * 4 + 2] = seed;
-        aVar[i * 4 + 3] = 1; // jet
-        aSize[i] = radius * (0.008 + rng() * 0.014);
-        color[i * 3] = 1.0;
-        color[i * 3 + 1] = 0.6 + rng() * 0.25;
-        color[i * 3 + 2] = 0.32 + rng() * 0.22;
+        aVar[i * 4 + 3] = 1; // gas
+        aSize[i] = radius * (0.02 + rng() * 0.03);
+        color[i * 3] = 1.0; color[i * 3 + 1] = 0.66 + rng() * 0.16; color[i * 3 + 2] = 0.42 + rng() * 0.16;
       }
     }
 
@@ -250,6 +227,8 @@ export function Prominences({ radius, ignite }: { radius: number; ignite: number
         uScale: { value: 640 },
         uIgnite: { value: 0 },
         uRegAct: { value: new Array(N_REG).fill(0) },
+        uCursorDir: { value: new THREE.Vector3(1, 0, 0) },
+        uCursorStr: { value: 0 },
       },
       vertexColors: true,
       transparent: true,
@@ -258,16 +237,12 @@ export function Prominences({ radius, ignite }: { radius: number; ignite: number
       blending: THREE.AdditiveBlending,
     });
 
-    // per-region activity state + a scheduler for micro-eruptions and storms
-    const regions: RegionState[] = Array.from({ length: N_REG }, () => ({
-      base: 0.22 + rng() * 0.33,
-      pulse: 0,
-      storm: 0,
-      stormPeak: 0,
-      stormEnv: 0,
-    }));
-    const sched = { nextMicro: 0.6, nextStorm: 40 + rng() * 30, stormRegion: -1, rng };
-    return { geometry, material, regions, sched };
+    const sched = {
+      slots: [] as Slot[],
+      nextSpawn: 3,
+      rng,
+    };
+    return { geometry, material, sched };
   }, [radius]);
 
   useFrame((state, delta) => {
@@ -276,53 +251,37 @@ export function Prominences({ radius, ignite }: { radius: number; ignite: number
     const ign = sunActivity.ignite || ignite;
     g.visible = ign > 0.03;
     if (!g.visible) { sunActivity.storm = 0; return; }
-    g.rotation.y += delta * 0.011; // whole activity field drifts with rotation
 
     const t = state.clock.elapsedTime;
     const u = material.uniforms;
     u.uTime.value = t;
     u.uIgnite.value = ign;
+    u.uCursorDir.value.copy(sunCursor.dir);
+    u.uCursorStr.value = sunCursor.str;
 
-    // ---- scheduler: frequent micro-eruptions, rare full storms ----
-    sched.nextMicro -= delta;
-    if (sched.nextMicro <= 0) {
-      // a few regions flicker up at once (dozens of tiny events over time)
-      const bumps = 1 + Math.floor(sched.rng() * 3);
-      for (let k = 0; k < bumps; k++) {
-        const r = Math.floor(sched.rng() * N_REG);
-        regions[r].pulse = Math.min(1.2, regions[r].pulse + 0.5 + sched.rng() * 0.7);
-      }
-      sched.nextMicro = 0.4 + sched.rng() * 1.3;
-    }
-    sched.nextStorm -= delta;
-    if (sched.nextStorm <= 0 && sched.stormRegion < 0) {
-      sched.stormRegion = Math.floor(sched.rng() * N_REG);
-      regions[sched.stormRegion].stormPeak = 2.2 + sched.rng() * 0.8;
-      regions[sched.stormRegion].storm = 0.0001;
-      sched.nextStorm = 45 + sched.rng() * 45; // one every ~45-90s
+    // director: keep at most MAX_ACTIVE prominences lit; spawn on a new region
+    sched.nextSpawn -= delta;
+    if (sched.nextSpawn <= 0 && sched.slots.length < MAX_ACTIVE) {
+      const used = new Set(sched.slots.map((s) => s.region));
+      let r = Math.floor(sched.rng() * N_REG);
+      for (let k = 0; k < N_REG && used.has(r); k++) r = (r + 1) % N_REG;
+      sched.slots.push({ region: r, t: 0, dur: 6 + sched.rng() * 7 }); // lives 6-13s
+      sched.nextSpawn = 4 + sched.rng() * 7;
     }
 
     const arr = u.uRegAct.value as number[];
-    let globalStorm = 0;
-    for (let r = 0; r < N_REG; r++) {
-      const R = regions[r];
-      R.pulse = Math.max(0, R.pulse - delta * 0.8); // micro pulses decay
-      // storm envelope: rise fast, hold, decay slowly over ~14s
-      if (R.storm > 0) {
-        R.storm += delta;
-        const st = R.storm;
-        const env = Math.min(st / 1.5, 1) * (1 - THREE.MathUtils.smoothstep(st, 5, 14));
-        R.stormEnv = env * R.stormPeak;
-        if (st > 14) { R.storm = 0; R.stormEnv = 0; if (sched.stormRegion === r) sched.stormRegion = -1; }
-        globalStorm = Math.max(globalStorm, env);
-      } else {
-        R.stormEnv = 0;
-      }
-      // slow breathing baseline so even quiet regions shimmer
-      const breath = 1 + 0.35 * Math.sin(t * 0.3 + r * 1.7);
-      arr[r] = R.base * breath + R.pulse + (R.stormEnv || 0);
+    for (let r = 0; r < N_REG; r++) arr[r] = 0;
+    for (let i = sched.slots.length - 1; i >= 0; i--) {
+      const s = sched.slots[i];
+      s.t += delta;
+      const life = s.t / s.dur;
+      if (life >= 1) { sched.slots.splice(i, 1); continue; }
+      // emerge, hold, fade — subtle
+      const env = THREE.MathUtils.smoothstep(life, 0, 0.22)
+        * (1 - THREE.MathUtils.smoothstep(life, 0.68, 1.0));
+      arr[s.region] = Math.max(arr[s.region], env);
     }
-    sunActivity.storm = globalStorm; // corona + light react to the storm
+    sunActivity.storm = 0; // storms retired: the star stays restrained
   });
 
   return (

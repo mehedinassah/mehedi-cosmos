@@ -27,11 +27,11 @@ export function CinematicEffects() {
       {/* Threshold sits high enough that the sun close-up (system chapter)
           reads as plasma with a corona, not a full-frame white wash */}
       <Bloom
-        intensity={0.62}
-        luminanceThreshold={0.86}
-        luminanceSmoothing={0.26}
+        intensity={0.43}
+        luminanceThreshold={0.9}
+        luminanceSmoothing={0.24}
         mipmapBlur
-        radius={0.74}
+        radius={0.7}
       />
       <ChromaticAberration offset={[0.0005, 0.0005]} radialModulation modulationOffset={0.6} />
       {/* Nudge back toward richer color and deeper, higher-contrast blacks —

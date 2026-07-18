@@ -14,6 +14,7 @@ import { useSunRefStore } from '@/state/sunRefStore';
 import { bodyById } from '@/content/universe';
 import { Prominences } from './Prominences';
 import { sunActivity } from './sunActivity';
+import { sunCursor } from './sunCursor';
 import { systemPresence } from '@/world/system/SystemLoopRig';
 
 function coronaHaloTexture(): THREE.CanvasTexture {
@@ -70,6 +71,8 @@ function useShellMaterial(params: {
           uBase: { value: params.base },
           uMuHi: { value: params.muHi ?? 1.0 },
           uBreathe: { value: 1 },
+          uCursorDir: { value: new THREE.Vector3(1, 0, 0) },
+          uCursorStr: { value: 0 },
         },
         transparent: true,
         depthWrite: false,
@@ -83,6 +86,9 @@ function useShellMaterial(params: {
 
 /* ---------------- plasma ejecta + flares ---------------- */
 
+const _ORIGIN = new THREE.Vector3();
+const _cv = new THREE.Vector3();
+const _ctarget = new THREE.Vector3(1, 0, 0);
 const EJECTA_COUNT = 240;
 
 function PlasmaEjecta({ radius }: { radius: number }) {
@@ -177,7 +183,7 @@ function PlasmaEjecta({ radius }: { radius: number }) {
       d.flareT += delta;
       if (d.flareT > 3.2) {
         d.flareT = -1;
-        d.nextFlare = 30 + Math.random() * 30; // one understated flare every 30-60s
+        d.nextFlare = 20 + Math.random() * 20; // one understated flare every 20-40s
       }
     }
     // flare glow sprite: grow fast, fade slow, at the eruption site
@@ -201,9 +207,10 @@ function PlasmaEjecta({ radius }: { radius: number }) {
     // ---- the continuous drizzle ----
     for (let i = 0; i < EJECTA_COUNT; i++) {
       if (d.life[i] <= 0) {
-        // steady respawn keeps most of the pool alive: the limb constantly
-        // spits tiny sparks; ~1 in 30 becomes a fast solar-wind stream
-        if (Math.random() < delta * 0.5) spawn(i, undefined, 1, Math.random() < 0.033);
+        // Very sparse respawn — the slow ionized-gas drift now carries the
+        // continuous limb activity, so the ejecta pool is mostly reserved for
+        // flare bursts and the occasional escaping solar-wind stream.
+        if (Math.random() < delta * 0.12) spawn(i, undefined, 1, Math.random() < 0.05);
         else { colAttr.setXYZ(i, 0, 0, 0); continue; }
       }
       d.life[i] -= delta;
@@ -253,6 +260,7 @@ export function CentralStar() {
   const tier = useQualityStore((s) => s.tier);
   const setSunMesh = useSunRefStore((s) => s.setMesh);
   const body = bodyById.get('sun')!;
+  const sunSphere = useRef(new THREE.Sphere(new THREE.Vector3(), body.scaleU));
 
   const material = useMemo(() => {
     const octaves = tier >= 3 ? 5 : tier === 2 ? 4 : 3;
@@ -318,10 +326,32 @@ export function CentralStar() {
     matRef.current!.uniforms.uIgnite.value = ignite;
     sunActivity.ignite = ignite; // shared with Prominences + the system light
 
+    // --- cursor-driven magnetic perturbation (does NOT rotate the star) ---
+    // Find the direction on the sphere nearest the cursor ray; strength is 1
+    // over the disc, fading away from it, and damps so it settles when the
+    // cursor leaves. The star only reacts while it's actually ignited/close.
+    const rc = state.raycaster;
+    rc.setFromCamera(state.pointer, state.camera);
+    const R = body.scaleU;
+    const hit = rc.ray.intersectSphere(sunSphere.current, _cv);
+    let tStr: number;
+    if (hit) {
+      _ctarget.copy(_cv).normalize();
+      tStr = 1;
+    } else {
+      rc.ray.closestPointToPoint(_ORIGIN, _cv);
+      const d = _cv.length();
+      tStr = 1 - THREE.MathUtils.smoothstep(d, R * 1.0, R * 2.4);
+      if (d > 1e-3) _ctarget.copy(_cv).normalize();
+    }
+    tStr *= THREE.MathUtils.smoothstep(ignite, 0.4, 0.9); // only near an ignited star
+    const k = Math.min(1, delta * 4);
+    sunCursor.str += (tStr - sunCursor.str) * k;
+    sunCursor.dir.lerp(_ctarget, k * sunCursor.str + k * 0.05).normalize();
+
     // Slow volumetric breathing: the whole corona swells and settles on two
     // incommensurate cycles (~48s and ~90s) so its density never obviously
     // repeats. Outer shells breathe a little more than the tight inner ones.
-    // A magnetic storm swells and brightens the whole corona while it lasts.
     const breathe = 1 + 0.07 * Math.sin(t * 0.13) + 0.05 * Math.sin(t * 0.07 + 1.0)
       + 0.4 * sunActivity.storm;
     for (let i = 0; i < shellMats.length; i++) {
@@ -330,6 +360,8 @@ export function CentralStar() {
       m.uniforms.uCameraPos.value.copy(state.camera.position);
       m.uniforms.uIgnite.value = ignite;
       m.uniforms.uBreathe.value = 1 + (breathe - 1) * (0.35 + 0.65 * (i / (shellMats.length - 1)));
+      m.uniforms.uCursorDir.value.copy(sunCursor.dir);
+      m.uniforms.uCursorStr.value = sunCursor.str;
     }
 
     if (spriteRef.current) {

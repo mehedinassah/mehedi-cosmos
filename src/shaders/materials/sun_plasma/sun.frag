@@ -23,7 +23,7 @@ varying vec2 vUv;
 // Rotate around Y by a latitude-dependent angle (differential rotation).
 vec3 diffRotate(vec3 p, float t) {
   float lat = p.y; // p is normalized: y = sin(latitude)
-  float w = 0.014 - 0.008 * lat * lat; // equator fast, poles slow
+  float w = 0.008 - 0.005 * lat * lat; // almost imperceptible; the plasma makes the motion
   float a = t * w;
   float c = cos(a), s = sin(a);
   return vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
@@ -99,13 +99,15 @@ void main() {
   // The white threshold sits LOW so the disc center and hot regions clip
   // toward white — most renders are too orange.
   float e = clamp(emiss, 0.0, 1.7);
+  // Realistic G-star gradient, NOT saturated orange: dark amber network ->
+  // golden-yellow photosphere -> near-white (#FFF8E7) hottest cells.
   vec3 col =
     mix(
       mix(
-        mix(vec3(0.55, 0.12, 0.03),            // coolest: deep red lanes
-            vec3(1.0, 0.42, 0.10), smoothstep(0.0, 0.42, e)),   // orange
-        vec3(1.0, 0.80, 0.38), smoothstep(0.42, 0.72, e)),      // gold
-      vec3(1.0, 0.99, 0.94), smoothstep(0.72, 1.2, e));         // near-white
+        mix(vec3(0.70, 0.34, 0.13),            // coolest: dark amber lanes (not red)
+            vec3(1.0, 0.64, 0.26), smoothstep(0.0, 0.42, e)),   // amber-orange
+        vec3(1.0, 0.85, 0.48), smoothstep(0.42, 0.72, e)),      // golden yellow
+      vec3(1.0, 0.973, 0.906), smoothstep(0.72, 1.2, e));       // #FFF8E7 near-white
   col *= 0.5 + 0.95 * e;
 
   // ---- limb darkening + limb reddening ----
@@ -123,8 +125,9 @@ void main() {
   float coronaEdge = smoothstep(0.16, 0.02, mu) * edgeNoise;
   col += vec3(1.0, 0.84, 0.58) * coronaEdge * 0.65;
 
-  // HDR push: only the hottest cells cross the bloom threshold
-  col *= 1.0 + 0.55 * smoothstep(1.05, 1.5, e) ;
+  // HDR push: with bloom reduced, the glow comes from raw intensity — the
+  // hottest cells punch well above 1.0 so they read as blindingly bright.
+  col *= 1.0 + 1.0 * smoothstep(1.0, 1.5, e);
 
   col *= uIgnite;
   gl_FragColor = vec4(col, 1.0);

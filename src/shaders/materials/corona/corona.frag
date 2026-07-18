@@ -9,6 +9,8 @@ uniform float uSpeed;    // evolution speed
 uniform float uRimPow;   // rim falloff exponent
 uniform float uBase;     // base glow under the wisps (0 = pure streamers)
 uniform float uBreathe;  // slow volumetric density breathing (~1 +- a few %)
+uniform vec3 uCursorDir; // cursor magnetic perturbation direction (world)
+uniform float uCursorStr;// perturbation strength 0..1
 uniform float uMuHi;     // 1 = paint all the way over the disc (thin shells);
                          // <1 = wisps live in an annulus and VANISH in front
                          // of the disc (large shells read as a dome otherwise)
@@ -68,5 +70,9 @@ void main() {
 
   vec3 col = mix(uCol1, uCol2, streamers);
   float alpha = (uBase + 1.1 * streamers) * rim * uAlpha * uIgnite * uBreathe;
+  // cursor magnetic perturbation: the corona ripples very slightly where the
+  // cursor is closest, then settles when it leaves
+  float cur = smoothstep(0.5, 1.0, dot(sp, uCursorDir)) * uCursorStr;
+  alpha *= 1.0 + cur * (0.22 + 0.18 * sin(uTime * 5.0 + dot(sp, uCursorDir) * 22.0));
   gl_FragColor = vec4(col, alpha);
 }
