@@ -14,6 +14,7 @@ import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 import { EarthImpact } from '@/world/system/EarthImpact';
 import { SaturnKnowledge } from '@/world/system/SaturnKnowledge';
 import { VenusConstellation } from '@/world/system/VenusConstellation';
+import { UranusConstellation } from '@/world/system/UranusConstellation';
 import { MarsMissionControl } from '@/world/system/MarsMissionControl';
 import { JupiterPortal } from '@/world/system/JupiterPortal';
 import { earthFocus, earthSpin } from '@/state/earthHoverStore';
@@ -844,6 +845,7 @@ export function SolarSystem() {
   const mars = HEROES.find((h) => h.id === 'mars')!;
   const jupiter = HEROES.find((h) => h.id === 'jupiter')!;
   const saturn = HEROES.find((h) => h.id === 'saturn')!;
+  const uranus = HEROES.find((h) => h.id === 'uranus')!;
   return (
     <group name="solar-system">
       {HEROES.map((h) => (
@@ -867,6 +869,9 @@ export function SolarSystem() {
       <JupiterPortal center={jupiter.position} radius={jupiter.radius} />
       {/* Saturn's rings become knowledge streams at the Education stop */}
       <SaturnKnowledge center={saturn.position} radius={saturn.radius} />
+      {/* Uranus is "Beyond Code": six interests drift as line-icon satellites in
+          a soft aurora — the calm, humanising chapter. Fades in at the Uranus stop */}
+      <UranusConstellation center={uranus.position} radius={uranus.radius} />
       <AsteroidBelt />
       <KuiperBelt />
       <ZodiacalDust />

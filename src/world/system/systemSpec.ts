@@ -217,7 +217,7 @@ function railTangent(u: number, out: THREE.Vector3): THREE.Vector3 {
 // silhouette (rings extend Saturn's to ~2.3 radii).
 const VIEW_K: Record<string, number> = {
   mercury: 5.0, venus: 5.2, earth: 4.3, mars: 5.2,
-  jupiter: 4.2, saturn: 7.0, uranus: 4.7, neptune: 4.7, pluto: 5.8,
+  jupiter: 4.2, saturn: 7.0, uranus: 5.2, neptune: 4.7, pluto: 5.8,
 };
 const STANDOFF = 6.0; // fallback planet radii
 // Pull the hero framing 40% closer (apparent size is 1/distance): each world
@@ -227,7 +227,10 @@ const FRAME_YAW = 0.36; // rad, toward the right of travel
 // Earth is the hero of its chapter: pushed further right so the globe dominates
 // and its atmosphere runs off the frame edge, leaving the left open for the
 // mission log and the on-demand holograms.
-const FRAME_YAW_BY: Record<string, number> = { earth: 0.5 };
+// Uranus ("Beyond Code") is framed more toward centre than the other worlds:
+// its six interest satellites orbit all the way around it, so the whole sphere
+// needs to sit in open space — not run off the right edge like Earth's globe.
+const FRAME_YAW_BY: Record<string, number> = { earth: 0.5, uranus: 0.34 };
 
 const _tan = new THREE.Vector3();
 const _fdir = new THREE.Vector3();
@@ -319,13 +322,14 @@ export const CHAPTERS: Chapter[] = [
   {
     id: 'venus', planet: 'Venus', title: 'Tech Stack', sp: 0.2, accent: '#e99046', au: '0.72 AU',
     body: [
-      'The tools I build with, grouped by layer.',
-      'Languages: Java · Python · TypeScript · Kotlin',
-      'Frontend: React · Next.js · Flutter · Tailwind',
+      'Full-stack engineer — Java / Spring on the backend, React / Next.js on the front.',
+      'Core: Spring Boot · Java · React · Next.js · TypeScript · PostgreSQL',
+      'Languages: Java · TypeScript · Python · Kotlin',
+      'Frontend: React · Next.js · Tailwind · Flutter',
       'Backend: Spring Boot · Node.js · Express',
       'Database: PostgreSQL · Prisma · MySQL',
       'DevOps: Docker · Git · Linux',
-      'Hover any skill to see what it connects to.',
+      'Hover any orbiting skill to see where I’ve shipped it.',
     ],
   },
   {
@@ -373,13 +377,15 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
   {
-    id: 'uranus', planet: 'Uranus', title: 'The Personal Side', sp: 0.78, accent: '#8dcdd8', au: '19.18 AU',
+    id: 'uranus', planet: 'Uranus', title: 'Beyond Code', sp: 0.78, accent: '#8dcdd8', au: '19.18 AU',
     body: [
-      'Music on, world off',
-      'Football on weekends',
-      'Gaming and movies after midnight',
+      'The person behind the projects.',
+      'Football — Argentina · FC Barcelona',
+      'Movies & Series — psychological thrillers, sci-fi',
+      'Anime — One Piece',
+      'Gaming — open-world & RPG',
+      'Music — Bangla · Hindi · English',
       'Tea, always',
-      'Photography when the light is right',
     ],
   },
   {

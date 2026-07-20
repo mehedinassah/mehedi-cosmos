@@ -8,6 +8,7 @@ import { EarthHologram } from '@/ui/descent/EarthHologram';
 import { HoverLabel, OrbitPanel } from '@/ui/descent/EarthOrbitUI';
 import { KnowledgeCard, SaturnExpand } from '@/ui/descent/SaturnOverlay';
 import { SkillCard } from '@/ui/descent/VenusOverlay';
+import { UranusCard } from '@/ui/descent/UranusOverlay';
 import { MissionLog } from '@/ui/descent/MarsOverlay';
 import { portalDive } from '@/state/portalDive';
 
@@ -342,6 +343,7 @@ export function DescentOverlay() {
       <KnowledgeCard />
       <SaturnExpand />
       <SkillCard />
+      <UranusCard />
       <MissionLog />
       <ArrivalFlash />
       <PortalFade />
