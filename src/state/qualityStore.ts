@@ -36,22 +36,27 @@ const TIER_PRESETS: Record<GpuTier, Omit<QualityState, 'tier' | 'setTier' | 'red
   3: { resolutionScale: 1.0, dprClamp: 2, particleScale: 1.0, volumetricSteps: 64, postEnabled: true },
 };
 
-// The DPR ceiling per tier. Beyond ~1.5 the extra pixels cost a lot and buy
-// almost nothing visible for this scene, so even top tiers are capped there.
+// The DPR ceiling per tier. Capable tiers render at the display's native
+// ratio (up to 2.0) so the galaxy stays razor-sharp on retina — that is the
+// hero quality, and we never cut it blindly. The adaptive governor
+// (AdaptiveQuality) is the safety net: it lowers perfDpr toward `min` ONLY when
+// a machine genuinely can't hold frame rate, so the cost is shed invisibly
+// instead of up front. (Past 2.0 the extra pixels buy nothing here, so that is
+// the hard ceiling.)
 const DPR_RANGE: Record<GpuTier, { min: number; max: number }> = {
   0: { min: 0.6, max: 1.0 },
-  1: { min: 0.75, max: 1.25 },
-  2: { min: 1.0, max: 1.5 },
-  3: { min: 1.0, max: 1.5 },
+  1: { min: 0.75, max: 1.35 },
+  2: { min: 1.0, max: 1.75 },
+  3: { min: 1.0, max: 2.0 },
 };
 
 export const useQualityStore = create<QualityState>((set, get) => ({
   tier: 2,
   ...TIER_PRESETS[2],
   reducedMotion: false,
-  perfDpr: 1.25,
+  perfDpr: 1.5,
   perfMinDpr: 1.0,
-  perfMaxDpr: 1.5,
+  perfMaxDpr: 1.75,
   postLite: false,
   setTier: (tier) => set({ tier, ...TIER_PRESETS[tier] }),
   setReducedMotion: (reducedMotion) => set({ reducedMotion }),
