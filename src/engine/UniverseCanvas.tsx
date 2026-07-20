@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Starfield } from '@/world/ambient/Starfield';
@@ -15,6 +15,7 @@ import { AdaptiveQuality } from '@/engine/AdaptiveQuality';
 import { probeCapabilities, prefersReducedMotion } from '@/engine/capabilities';
 import { useQualityStore } from '@/state/qualityStore';
 import { useDescentStore } from '@/state/descentStore';
+import { loadSignals } from '@/state/loadSignals';
 
 /**
  * The single persistent Canvas — blueprint §3.1. The page never changes;
@@ -51,6 +52,22 @@ export function UniverseCanvas() {
   // the second half shows the galaxy re-emerging (the swap is masked by the
   // near-empty deep space between them).
   const stage = useDescentStore((s) => s.stage);
+  // The solar system + Sun are the heaviest shaders in the app and are invisible
+  // during the galaxy view, so we DON'T compile them at load (that wall of
+  // compilation was the "stuck for a few seconds" freeze). They mount once the
+  // preloader has revealed the galaxy, then compile quietly during the galaxy
+  // rest — long before the visitor ever scrolls down to them.
+  const [mountSystem, setMountSystem] = useState(false);
+  useEffect(() => {
+    if (mountSystem) return;
+    let raf = 0;
+    const check = () => {
+      if (loadSignals.revealed) setMountSystem(true);
+      else raf = requestAnimationFrame(check);
+    };
+    raf = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(raf);
+  }, [mountSystem]);
   // ONE persistent universe. The galaxy is ALWAYS mounted — built once at
   // load and never rebuilt — so nothing ever loads mid-journey (mounting its
   // 24k+ procedural stars during the loop froze a frame and read as
@@ -100,12 +117,13 @@ export function UniverseCanvas() {
           the empty crossing read as real speed. Cheap + self-gating. */}
       <LoopWarpField />
       {showDescentField && <DescentField />}
-      {/* The solar system is ALWAYS mounted so the Sun's heavy procedural
-          shaders compile once during the intro load, never mid-journey — the
-          old on-arrival mount stalled a frame ("Sun takes a moment to load").
-          SystemLoopRig keeps it an invisible dark speck until arrival, blooms
-          it in on arrival, and shrinks + dims it to nothing on the loop out. */}
-      <SystemLoopRig />
+      {/* The solar system + Sun (the heaviest shaders) mount only AFTER the
+          preloader reveals the galaxy — not at load, where compiling them added
+          seconds to the freeze. They then compile during the galaxy rest, long
+          before the visitor scrolls to them (still well ahead of arrival, so no
+          on-arrival stall). SystemLoopRig keeps them an invisible dark speck
+          until arrival, blooms them in on arrival, dims them out on the loop. */}
+      {mountSystem && <SystemLoopRig />}
       <CinematicEffects />
       <AdaptiveQuality />
     </Canvas>

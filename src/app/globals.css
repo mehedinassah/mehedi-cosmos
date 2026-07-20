@@ -238,9 +238,11 @@ main { position: fixed; inset: 0; }
   16% { opacity: 0.55; }
   100% { transform: scale(3.8); opacity: 0; }
 }
+/* opacity + transform only, so the loader keeps animating even while the main
+   thread is busy compiling shaders (letter-spacing would freeze during jank) */
 @keyframes pl-name-in {
-  from { opacity: 0; letter-spacing: 0.62em; }
-  to { opacity: 0.5; letter-spacing: 0.42em; }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 0.5; transform: translateY(0); }
 }
 
 /* IGNITION — the seed flares to fill the frame while the black fades, revealing

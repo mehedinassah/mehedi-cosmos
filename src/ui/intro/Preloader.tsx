@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { loadSignals } from '@/state/loadSignals';
-import { useUiStore } from '@/state/uiStore';
 
 /**
  * Ignition preloader (concept 1). From the very first server-rendered pixel it
@@ -23,13 +22,11 @@ export function Preloader() {
     let raf = 0;
     const start = performance.now();
     const loop = () => {
-      // Ignite exactly when the galaxy actually STARTS blooming, so the flare
-      // cross-fades into the core coming up underneath (not a beat before it,
-      // which would flash to bare starfield first). The galaxy blooms once the
-      // intro hits FORMATION *and* the star field is built.
-      const phase = useUiStore.getState().introPhase;
-      const forming = phase === 'FORMATION' || phase === 'IDENTITY' || phase === 'HANDOFF' || phase === 'DONE';
-      const ready = loadSignals.firstFrame && loadSignals.galaxyReady && forming;
+      // Reveal only once the galaxy has actually bloomed to (nearly) full. The
+      // bloom value advances only as REAL frames render, so it can't cross this
+      // threshold until the compile stall has cleared and the finished galaxy is
+      // genuinely on screen behind the black — no half-drawn reveal.
+      const ready = loadSignals.firstFrame && loadSignals.galaxyReady && loadSignals.galaxyBloom > 0.9;
       if (ready || performance.now() - start > 9000) setPhase('ignite');
       else raf = requestAnimationFrame(loop);
     };
@@ -37,10 +34,15 @@ export function Preloader() {
     return () => cancelAnimationFrame(raf);
   }, [phase]);
 
-  // After the ignition flare + fade, remove the overlay entirely.
+  // After the ignition flare + fade, remove the overlay and — now that the
+  // galaxy is fully on screen — release the heavy solar system + Sun to mount
+  // and compile in the background (well before the visitor scrolls to them).
   useEffect(() => {
     if (phase !== 'ignite') return;
-    const id = window.setTimeout(() => setPhase('done'), 1700);
+    const id = window.setTimeout(() => {
+      loadSignals.revealed = true;
+      setPhase('done');
+    }, 1700);
     return () => window.clearTimeout(id);
   }, [phase]);
 

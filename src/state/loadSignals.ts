@@ -12,4 +12,12 @@
 export const loadSignals = {
   firstFrame: false,
   galaxyReady: false,
+  // 0..1 — how far the galaxy has actually bloomed IN (advances only as real
+  // frames render, so it can't reach ~1 until the compile stall has cleared and
+  // the galaxy is genuinely on screen). The preloader reveals on this, so it
+  // never uncovers a half-drawn frame.
+  galaxyBloom: 0,
+  // flips true when the preloader finishes revealing — the cue to mount the
+  // heavy solar system + Sun in the background, once the galaxy is already up.
+  revealed: false,
 };

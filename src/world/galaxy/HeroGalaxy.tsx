@@ -8,7 +8,6 @@ import galaxyVert from '@/shaders/materials/galaxy_disc/galaxy.vert';
 import galaxyFrag from '@/shaders/materials/galaxy_disc/galaxy.frag';
 import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
-import { useUiStore } from '@/state/uiStore';
 import { useQualityStore } from '@/state/qualityStore';
 import { loadSignals } from '@/state/loadSignals';
 import { useDescentStore, nowS } from '@/state/descentStore';
@@ -231,19 +230,17 @@ function beaconBoost(x: number, z: number): number {
 
 function useRevealDriver(
   apply: (value: number) => void,
-  speed = 0.6,
-  particleValue = 0.15,
+  speed = 1.4,
 ) {
   const v = useRef(0);
   useFrame((_, delta) => {
-    const phase = useUiStore.getState().introPhase;
-    let target = phase === 'DARKNESS' ? 0 : phase === 'PARTICLE' ? particleValue : 1;
-    // Hold the galaxy fully hidden until the star field is ready — the
-    // ever-present deep-space starfield carries that beat, so the viewer never
-    // sees a half-built galaxy; then the whole thing blooms in from nothing as
-    // one smooth, coordinated formation.
-    if (!loadSignals.galaxyReady) target = 0;
+    // The whole galaxy forms behind the preloader: it stays hidden until the
+    // star field is built, then blooms to full as fast as real frames allow.
+    // Because the preloader only lifts once this is essentially complete, the
+    // viewer never sees a half-drawn galaxy or the compile stall.
+    const target = loadSignals.galaxyReady ? 1 : 0;
     v.current = THREE.MathUtils.damp(v.current, target, speed, delta);
+    if (v.current > loadSignals.galaxyBloom) loadSignals.galaxyBloom = v.current;
     // Journey presence gates every galaxy layer: full in the galaxy chapter,
     // zero inside the solar system, fading across the transitions.
     apply(v.current * galaxyPresence.value);
@@ -473,7 +470,7 @@ function GalaxyStars() {
   });
   useRevealDriver((v) => {
     if (matRef.current) matRef.current.uniforms.uFormation.value = v;
-  }, 0.6, 0.2);
+  });
 
   // Until the first chunked slice-set completes, the disc glow + deep space +
   // starfield already carry the frame; the stars fade in via the reveal driver.
@@ -578,7 +575,7 @@ function GalaxyHaze() {
   });
   useRevealDriver((v) => {
     if (matRef.current) matRef.current.uniforms.uFormation.value = v;
-  }, 0.5, 0.05);
+  });
 
   return (
     <points position={GALAXY_CENTER} rotation={GALAXY_TILT} geometry={geometry} frustumCulled={false}>
@@ -652,10 +649,9 @@ function CoreGlow() {
   // Reveal on intro, then a slow, staggered luminosity breath per shell so the
   // volumetric glow around the core evolves gently — never a pulse or flash.
   useFrame((state, delta) => {
-    const phase = useUiStore.getState().introPhase;
-    let target = phase === 'DARKNESS' ? 0 : phase === 'PARTICLE' ? 0.05 : 1;
-    if (!loadSignals.galaxyReady) target = 0; // bloom the core WITH the disc + stars
-    vRef.current = THREE.MathUtils.damp(vRef.current, target, 0.5, delta);
+    // bloom the core WITH the rest of the galaxy, behind the preloader
+    const target = loadSignals.galaxyReady ? 1 : 0;
+    vRef.current = THREE.MathUtils.damp(vRef.current, target, 1.4, delta);
     const t = state.clock.elapsedTime;
     for (let i = 0; i < CORE_LAYERS.length; i++) {
       const m = matRefs.current[i];
@@ -755,7 +751,7 @@ function GalaxyForeground() {
   });
   useRevealDriver((v) => {
     if (matRef.current) matRef.current.uniforms.uFormation.value = v;
-  }, 0.7, 0.02);
+  });
 
   return (
     <points geometry={geometry} frustumCulled={false}>
@@ -863,7 +859,7 @@ function GalaxyEnvironment() {
   useRevealDriver((v) => {
     veilMat.uniforms.uFormation.value = v;
     smudgeMat.uniforms.uFormation.value = v;
-  }, 0.45, 0.03);
+  });
 
   return (
     <group name="galaxy-environment">
@@ -1031,7 +1027,7 @@ function GalaxyDeepField() {
   });
   useRevealDriver((v) => {
     for (const m of mats) m.uniforms.uFormation.value = v;
-  }, 0.45, 0.04);
+  });
 
   return (
     <group name="galaxy-deep-field">
@@ -1140,15 +1136,12 @@ function CoreLight() {
   useFrame((state, delta) => {
     const l = lightRef.current;
     if (!l) return;
-    const phase = useUiStore.getState().introPhase;
     // The core light follows galaxyPresence: full while the galaxy is the hero,
     // faded to nothing inside the solar system so the Sun at the origin is the
-    // only light source there. Tied to presence (not a hard ARRIVED gate) so it
-    // also eases down across the descent and back up on the loop climb.
-    const alive = loadSignals.galaxyReady && !(phase === 'DARKNESS' || phase === 'PARTICLE');
+    // only light source there. Comes up with the galaxy behind the preloader.
     const breath = 1 + 0.07 * Math.sin(state.clock.elapsedTime * 0.12);
-    const target = alive ? 1.4 * breath * galaxyPresence.value : 0;
-    l.intensity = THREE.MathUtils.damp(l.intensity, target, 0.8, delta);
+    const target = loadSignals.galaxyReady ? 1.4 * breath * galaxyPresence.value : 0;
+    l.intensity = THREE.MathUtils.damp(l.intensity, target, 1.4, delta);
   });
   return <pointLight ref={lightRef} position={GALAXY_CENTER} color="#ffdcab" intensity={0} decay={0.4} distance={0} />;
 }
