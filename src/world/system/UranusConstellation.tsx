@@ -6,7 +6,6 @@ import * as THREE from 'three';
 import {
   INTERESTS, uranusBridge, uranusFocus, useUranusUI, type IconKind,
 } from '@/state/uranusStore';
-import { CHAPTER_SP, systemPose } from '@/world/system/systemSpec';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 
 /**
@@ -179,19 +178,27 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
   );
   const iconTex = useMemo(() => INTERESTS.map((it) => makeIconTexture(it.kind)), []);
 
-  // Parked camera basis. The ring is CAMERA-FACING (both axes in the screen
-  // plane) so no satellite ever passes behind Uranus, and the hub is pushed a
-  // touch toward the camera so every icon stays in front, lit, and hoverable.
-  const basis = useMemo(() => {
-    const pos = new THREE.Vector3(), quat = new THREE.Quaternion();
-    systemPose(CHAPTER_SP.uranus, pos, quat);
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-    const toCam = fwd.clone().multiplyScalar(-1);
-    const hub = center.clone().addScaledVector(toCam, 1.15 * radius);
-    return { right, up, fwd, toCam, hub };
-  }, [center, radius]);
+  // Camera-facing basis, recomputed from the LIVE camera every frame. Using the
+  // real camera (not a fixed rail pose) means the ring faces the camera however
+  // it is actually aimed — crucially including the portrait re-aim that centres
+  // the planet — so the satellites always ring the planet instead of drifting off
+  // to one side. right/up are the camera's own screen axes; the hub sits just in
+  // front of the planet toward the camera so every icon stays lit and tappable.
+  const basis = useRef({
+    right: new THREE.Vector3(1, 0, 0),
+    up: new THREE.Vector3(0, 1, 0),
+    toCam: new THREE.Vector3(0, 0, 1),
+    hub: center.clone(),
+  });
+  const iceAxis = useRef(new THREE.Vector3(0, 0, 1));
+  const updateBasis = () => {
+    const b = basis.current;
+    b.right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+    b.up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+    b.toCam.copy(camera.position).sub(center).normalize();
+    b.hub.copy(center).addScaledVector(b.toCam, 1.15 * radius);
+    iceAxis.current.copy(b.toCam).applyAxisAngle(b.right, 0.5).normalize();
+  };
 
   // A wide, flat perspective ring hugging the planet — reads as a natural orbit
   // seen at a shallow tilt (icons sweep across the top and bottom, clearing the
@@ -199,23 +206,18 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
   const Rx = radius * 1.34; // horizontal amplitude (just clears the limb)
   const Ry = radius * 0.66; // vertical amplitude (foreshortened -> flat ring)
 
-  const orbitPos = (a: number, out: THREE.Vector3) =>
-    out.copy(basis.hub).addScaledVector(basis.right, Math.cos(a) * Rx).addScaledVector(basis.up, Math.sin(a) * Ry);
+  const orbitPos = (a: number, out: THREE.Vector3) => {
+    const b = basis.current;
+    return out.copy(b.hub).addScaledVector(b.right, Math.cos(a) * Rx).addScaledVector(b.up, Math.sin(a) * Ry);
+  };
 
-  // faint orbit ring (dust-thin, always subtle)
+  // faint orbit ring — an empty buffer, rebuilt each frame against the live basis
+  const RING_PTS = 128;
   const ringGeo = useMemo(() => {
-    const PTS = 128;
-    const arr = new Float32Array(PTS * 3);
-    const v = new THREE.Vector3();
-    for (let i = 0; i < PTS; i++) {
-      orbitPos((i / PTS) * Math.PI * 2, v);
-      arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z;
-    }
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RING_PTS * 3), 3));
     return g;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [basis, Rx, Ry]);
+  }, []);
 
   // ice motes: a slow 3D shell of tiny particles around the planet. Positions
   // are LOCAL (relative to the planet), so the <points> sits at `center` and can
@@ -249,7 +251,6 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
   const hoverMix = useRef(0);
   const grow = useRef<number[]>(INTERESTS.map(() => 0));
   const npos = useRef<THREE.Vector3[]>(INTERESTS.map(() => new THREE.Vector3()));
-  const iceAxis = useMemo(() => basis.toCam.clone().applyAxisAngle(basis.right, 0.5).normalize(), [basis]);
   const _p = useMemo(() => new THREE.Vector3(), []);
   const _ndc = useMemo(() => new THREE.Vector3(), []);
   const _a = useMemo(() => new THREE.Vector3(), []);
@@ -272,6 +273,8 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
       appear.current = 0;
       return;
     }
+
+    updateBasis(); // face the live camera (desktop rail pose or portrait re-aim)
 
     const t = state.clock.elapsedTime;
     appear.current = Math.min(1, appear.current + delta * 0.7);
@@ -317,7 +320,15 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
       if (hit) { hit.position.copy(p); hit.visible = app > 0.5; }
     }
 
-    // 2) faint orbit ring
+    // 2) faint orbit ring — rebuilt against the live basis so it tracks the aim
+    {
+      const rp = ringGeo.attributes.position.array as Float32Array;
+      for (let i = 0; i < RING_PTS; i++) {
+        orbitPos((i / RING_PTS) * Math.PI * 2, _p);
+        rp[i * 3] = _p.x; rp[i * 3 + 1] = _p.y; rp[i * 3 + 2] = _p.z;
+      }
+      ringGeo.attributes.position.needsUpdate = true;
+    }
     if (ringMat.current) ringMat.current.opacity = 0.06 * app;
 
     // 3) aurora veil (top of the planet) — slow horizontal drift + breath
@@ -327,8 +338,8 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
       const br = 0.5 + 0.5 * Math.sin(t * (0.14 + k * 0.05) + k);
       if (s) {
         _p.copy(center)
-          .addScaledVector(basis.up, radius * (0.92 + k * 0.14))
-          .addScaledVector(basis.right, Math.sin(t * 0.1 + k) * radius * 0.16);
+          .addScaledVector(basis.current.up, radius * (0.92 + k * 0.14))
+          .addScaledVector(basis.current.right, Math.sin(t * 0.1 + k) * radius * 0.16);
         s.position.copy(_p);
       }
       if (m) m.opacity = (0.04 + 0.05 * br) * app;
@@ -338,7 +349,7 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
     if (rimMat.current) rimMat.current.opacity = (0.07 + 0.04 * Math.sin(t * 0.2)) * app;
 
     // 5) ice motes: slow drift about a tilted axis through the planet centre
-    if (iceRef.current) iceRef.current.rotateOnWorldAxis(iceAxis, delta * 0.02);
+    if (iceRef.current) iceRef.current.rotateOnWorldAxis(iceAxis.current, delta * 0.02);
     if (iceMat.current) iceMat.current.opacity = 0.4 * app;
 
     // 6) swirl around the hovered satellite
@@ -348,7 +359,7 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
       const rr = radius * 0.5;
       for (let k = 0; k < N_SWIRL; k++) {
         const a = (k / N_SWIRL) * Math.PI * 2 + t * 1.4;
-        _p.copy(_a).addScaledVector(basis.right, Math.cos(a) * rr).addScaledVector(basis.up, Math.sin(a) * rr * 0.85);
+        _p.copy(_a).addScaledVector(basis.current.right, Math.cos(a) * rr).addScaledVector(basis.current.up, Math.sin(a) * rr * 0.85);
         sw[k * 3] = _p.x; sw[k * 3 + 1] = _p.y; sw[k * 3 + 2] = _p.z;
       }
     } else {

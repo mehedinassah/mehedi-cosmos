@@ -58,7 +58,7 @@ const DPR_RANGE: Record<GpuTier, { min: number; max: number }> = {
   // tier: no post, reduced particles, fewer volumetric steps. Start at native
   // (up to 2x) and let the governor ease DOWN toward 1.0 only if a specific
   // device can't hold frame rate — sharp by default, smooth as the fallback.
-  1: { min: 1.0, max: 2.0 },
+  1: { min: 1.25, max: 2.5 },
   2: { min: 1.25, max: 1.75 },
   3: { min: 1.5, max: 2.0 },
 };
