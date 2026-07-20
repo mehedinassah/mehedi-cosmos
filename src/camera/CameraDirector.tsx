@@ -10,7 +10,7 @@ import { bodyWorldPosition } from '@/world/ambient/ImpostorField';
 import { GALAXY_CAM_POS, GALAXY_LOOK, GALAXY_CENTER, OUTER_RADIUS } from '@/world/galaxy/HeroGalaxy';
 import { buildDescentCurve, GALAXY_REST_LOOK } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS, SUN_SP, nowS } from '@/state/descentStore';
-import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
+import { systemPose, chapterIndexAt, HEROES, CHAPTERS } from '@/world/system/systemSpec';
 import { portalDive } from '@/state/portalDive';
 import { loadSignals } from '@/state/loadSignals';
 
@@ -24,6 +24,7 @@ const _sB = new THREE.Vector3();
 const _sC = new THREE.Vector3();
 const _sUp = new THREE.Vector3(0, 1, 0);
 const _introStart = new THREE.Vector3(-7000, -2400, 16000);
+const _portraitLook = new THREE.Vector3();
 
 /** Premium travel easing: slow acceleration, momentum, soft deceleration. */
 function easeInOutCubic(x: number): number {
@@ -307,6 +308,22 @@ export function CameraDirector() {
       // scene comes alive on its own — Earth spins, the whole constellation
       // orbits — with no camera automation at all.
       systemPose(sp, cam.position, cam.quaternion);
+      // Portrait re-frame: on desktop the worlds sit off to the side (room for
+      // the side panel). On a tall phone that pushes them half off-frame, so we
+      // re-aim the camera at the chapter's body — centred horizontally and lifted
+      // into the upper frame, leaving the bottom for the (bottom-anchored) panel.
+      // Position is untouched; only the aim changes, so the on-rail feel holds.
+      if (aspectR < 1 && !portalDive.active) {
+        const cid = CHAPTERS[chapterIndexAt(sp)]?.id;
+        _portraitLook.set(0, 0, 0); // the Sun sits at the origin
+        if (cid && cid !== 'sun') {
+          const hero = HEROES.find((h) => h.id === cid);
+          if (hero) _portraitLook.copy(hero.position);
+        }
+        _portraitLook.y -= cam.position.distanceTo(_portraitLook) * 0.14; // raise the body
+        cam.up.set(0, 1, 0);
+        cam.lookAt(_portraitLook);
+      }
       // Jupiter portal dive: the storm opens, then the camera FALLS through it —
       // it is not a zoom. For the first beat it holds dead still while the eye
       // forms (Phase 1), then gravity takes it: quadratic freefall acceleration
