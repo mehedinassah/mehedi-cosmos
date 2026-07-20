@@ -12,6 +12,7 @@ import { buildDescentCurve, GALAXY_REST_LOOK } from '@/camera/descentPath';
 import { useDescentStore, DESCENT_CAPTIONS, SUN_SP, nowS } from '@/state/descentStore';
 import { systemPose, chapterIndexAt } from '@/world/system/systemSpec';
 import { portalDive } from '@/state/portalDive';
+import { loadSignals } from '@/state/loadSignals';
 
 const _pvLook = new THREE.Vector3();
 
@@ -120,6 +121,7 @@ export function CameraDirector() {
   const gl = useThree((s) => s.gl);
 
   useFrame((state, delta) => {
+    loadSignals.firstFrame = true; // the render loop is alive (preloader handoff)
     const j = useJourneyStore.getState();
     const reducedMotion = useQualityStore.getState().reducedMotion;
     const t = state.clock.elapsedTime;

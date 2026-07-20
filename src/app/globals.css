@@ -140,6 +140,126 @@ main { position: fixed; inset: 0; }
   50% { opacity: 1; }
 }
 
+/* ---- Ignition preloader: a single point of light gathering into the galaxy
+   core. Paints from the first server-rendered pixel (before WebGL loads); the
+   JS only decides WHEN to ignite. Background matches the canvas clear color so
+   the fade-out is seamless. ---- */
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 44px;
+  background: #010104;
+  opacity: 1;
+  pointer-events: none;
+  /* long enough that the warm flare lingers WHILE the galaxy blooms up under it
+     (both start on the same trigger), so the light hands off to the core */
+  transition: opacity 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.preloader__field {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  display: grid;
+  place-items: center;
+}
+/* the seed of light — a tiny bright core that later flares into the galaxy */
+.preloader__point {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6e6 0%, #ffdca6 40%, rgba(255, 168, 90, 0.55) 66%, rgba(255, 120, 60, 0) 100%);
+  box-shadow: 0 0 34px 10px rgba(255, 190, 120, 0.55), 0 0 110px 36px rgba(255, 150, 80, 0.2);
+  transition: transform 1.4s cubic-bezier(0.7, 0, 0.84, 0), box-shadow 1.4s ease, opacity 1.6s ease;
+  will-change: transform;
+}
+/* soft breathing halo behind the seed (kept off the point so its transform is
+   free for the ignition flare) */
+.preloader__halo {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 200, 140, 0.28) 0%, rgba(255, 160, 90, 0.08) 45%, rgba(255, 120, 60, 0) 72%);
+  animation: pl-breathe 2.8s ease-in-out infinite;
+  transition: opacity 0.5s ease;
+}
+/* a hairline of energy rotating around the seed — "gathering" */
+.preloader__ring {
+  position: absolute;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    rgba(255, 205, 150, 0) 0deg,
+    rgba(255, 205, 150, 0) 250deg,
+    rgba(255, 210, 150, 0.5) 332deg,
+    rgba(255, 244, 220, 0.9) 358deg,
+    rgba(255, 205, 150, 0) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  animation: pl-spin 2.6s linear infinite;
+  transition: opacity 0.5s ease;
+}
+/* shockwaves easing outward */
+.preloader__wave {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 200, 140, 0.45);
+  opacity: 0;
+  animation: pl-wave 3.6s ease-out infinite;
+  transition: opacity 0.4s ease;
+}
+.preloader__wave--b { animation-delay: 1.8s; }
+.preloader__name {
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: rgba(224, 231, 250, 0);
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.6);
+  animation: pl-name-in 1.6s ease 0.7s forwards;
+}
+
+@keyframes pl-breathe {
+  0%, 100% { transform: scale(0.82); opacity: 0.7; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
+@keyframes pl-spin { to { transform: rotate(360deg); } }
+@keyframes pl-wave {
+  0% { transform: scale(0.5); opacity: 0; }
+  16% { opacity: 0.55; }
+  100% { transform: scale(3.8); opacity: 0; }
+}
+@keyframes pl-name-in {
+  from { opacity: 0; letter-spacing: 0.62em; }
+  to { opacity: 0.5; letter-spacing: 0.42em; }
+}
+
+/* IGNITION — the seed flares to fill the frame while the black fades, revealing
+   the galaxy blooming underneath: the loader's light becomes the core. */
+.preloader--ignite { opacity: 0; }
+.preloader--ignite .preloader__point {
+  transform: scale(88);
+  box-shadow: 0 0 220px 130px rgba(255, 212, 152, 0.6);
+  opacity: 0;
+}
+.preloader--ignite .preloader__halo,
+.preloader--ignite .preloader__ring,
+.preloader--ignite .preloader__wave,
+.preloader--ignite .preloader__name { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .preloader__halo, .preloader__ring, .preloader__wave { animation: none; }
+}
+
 .descent-caption {
   position: fixed;
   left: 50%;

@@ -10,6 +10,7 @@ import starVert from '@/shaders/materials/starfield/star.vert';
 import starFrag from '@/shaders/materials/starfield/star.frag';
 import { useUiStore } from '@/state/uiStore';
 import { useQualityStore } from '@/state/qualityStore';
+import { loadSignals } from '@/state/loadSignals';
 import { useDescentStore, nowS } from '@/state/descentStore';
 
 /**
@@ -228,13 +229,6 @@ function beaconBoost(x: number, z: number): number {
   return Math.exp(-dAng * dAng * 5) * Math.exp(-(((rn - 0.52) / 0.16) ** 2));
 }
 
-// The galaxy stars are generated off the first render (see GalaxyStars), so for
-// a beat after load they don't exist yet. galaxyReady flips true the moment
-// that field is built; until then EVERY galaxy layer is held at its
-// pre-formation (particle) state, so the whole galaxy blooms in together as ONE
-// coordinated formation instead of "disc glow first, then the stars pop in".
-const galaxyReady = { value: false };
-
 function useRevealDriver(
   apply: (value: number) => void,
   speed = 0.6,
@@ -248,7 +242,7 @@ function useRevealDriver(
     // ever-present deep-space starfield carries that beat, so the viewer never
     // sees a half-built galaxy; then the whole thing blooms in from nothing as
     // one smooth, coordinated formation.
-    if (!galaxyReady.value) target = 0;
+    if (!loadSignals.galaxyReady) target = 0;
     v.current = THREE.MathUtils.damp(v.current, target, speed, delta);
     // Journey presence gates every galaxy layer: full in the galaxy chapter,
     // zero inside the solar system, fading across the transitions.
@@ -447,7 +441,7 @@ function GalaxyStars() {
       if (starGenDone(gen)) {
         if (!cancelled) {
           setGeometry(finishStarGen(gen));
-          galaxyReady.value = true; // release the coordinated bloom
+          loadSignals.galaxyReady = true; // release the coordinated bloom
         }
       } else {
         handle = schedule(step);
@@ -660,7 +654,7 @@ function CoreGlow() {
   useFrame((state, delta) => {
     const phase = useUiStore.getState().introPhase;
     let target = phase === 'DARKNESS' ? 0 : phase === 'PARTICLE' ? 0.05 : 1;
-    if (!galaxyReady.value) target = 0; // bloom the core WITH the disc + stars
+    if (!loadSignals.galaxyReady) target = 0; // bloom the core WITH the disc + stars
     vRef.current = THREE.MathUtils.damp(vRef.current, target, 0.5, delta);
     const t = state.clock.elapsedTime;
     for (let i = 0; i < CORE_LAYERS.length; i++) {
@@ -1151,7 +1145,7 @@ function CoreLight() {
     // faded to nothing inside the solar system so the Sun at the origin is the
     // only light source there. Tied to presence (not a hard ARRIVED gate) so it
     // also eases down across the descent and back up on the loop climb.
-    const alive = galaxyReady.value && !(phase === 'DARKNESS' || phase === 'PARTICLE');
+    const alive = loadSignals.galaxyReady && !(phase === 'DARKNESS' || phase === 'PARTICLE');
     const breath = 1 + 0.07 * Math.sin(state.clock.elapsedTime * 0.12);
     const target = alive ? 1.4 * breath * galaxyPresence.value : 0;
     l.intensity = THREE.MathUtils.damp(l.intensity, target, 0.8, delta);
