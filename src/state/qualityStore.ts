@@ -52,7 +52,13 @@ const TIER_PRESETS: Record<GpuTier, Omit<QualityState, 'tier' | 'setTier' | 'red
 // sharp.
 const DPR_RANGE: Record<GpuTier, { min: number; max: number }> = {
   0: { min: 0.6, max: 1.0 },
-  1: { min: 0.75, max: 1.35 },
+  // Phones/tablets land on tier 1. The old 1.35 ceiling rendered a 2x-3x phone
+  // display at well under half its native resolution — the scene looked like
+  // "144p" upscaled. Modern phones can drive 2x for this (deliberately light)
+  // tier: no post, reduced particles, fewer volumetric steps. Start at native
+  // (up to 2x) and let the governor ease DOWN toward 1.0 only if a specific
+  // device can't hold frame rate — sharp by default, smooth as the fallback.
+  1: { min: 1.0, max: 2.0 },
   2: { min: 1.25, max: 1.75 },
   3: { min: 1.5, max: 2.0 },
 };
