@@ -20,9 +20,16 @@ export function probeCapabilities(): { tier: GpuTier; webgl2: boolean } {
   const weakGpu = /(mali|adreno\s[1-5]|powervr|swiftshader|llvmpipe)/.test(renderer);
 
   let tier: GpuTier;
-  if (weakGpu || mem <= 2) tier = 1;
-  else if (isMobile) tier = 1;
-  else if (dGpu && mem >= 8) tier = 3;
+  if (weakGpu || mem <= 2 || isMobile) tier = 1;
+  // Any recognised discrete GPU is a hero-quality machine. We deliberately do
+  // NOT gate this on deviceMemory: browsers cap it at 8 and Firefox omits it
+  // entirely (falls back to 4), which was silently demoting real dGPUs to
+  // tier 2 — the softer, sparser galaxy.
+  else if (dGpu) tier = 3;
+  // Renderer masked (privacy configs / no debug extension) but a capable
+  // desktop: trust it with the hero tier. The adaptive governor is the safety
+  // net — it eases quality down only if the machine genuinely can't hold fps.
+  else if (!renderer && mem >= 8) tier = 3;
   else tier = 2;
 
   gl.getExtension('WEBGL_lose_context')?.loseContext();

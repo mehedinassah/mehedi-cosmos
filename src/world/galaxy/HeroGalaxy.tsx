@@ -415,14 +415,19 @@ function finishStarGen(g: StarGen): THREE.BufferGeometry {
 
 function GalaxyStars() {
   const matRef = useRef<THREE.ShaderMaterial>(null);
-  const particleScale = useQualityStore((s) => s.particleScale);
+  const tier = useQualityStore((s) => s.tier);
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let handle = 0;
-    // Always a rich hero (>= 6k) even on weak tiers; up to 24k on desktop.
-    const targetCount = Math.max(6000, Math.floor(24000 * particleScale));
+    // The hero galaxy's density is what makes it read as a real object rather
+    // than a sparse particle field — it is the centrepiece, so any capable
+    // machine draws the FULL 24k. (These are tiny soft additive points generated
+    // off the first render, so the count is cheap to draw and free to build; it
+    // was wrong to tie it to particleScale, which quietly halved the detail on
+    // tier 2.) Only genuinely weak GPUs thin it out.
+    const targetCount = tier >= 2 ? 24000 : tier === 1 ? 9000 : 4000;
     const gen = makeStarGen(targetCount);
     const win = window as Window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
@@ -450,7 +455,7 @@ function GalaxyStars() {
       win.cancelIdleCallback?.(handle);
       window.clearTimeout(handle);
     };
-  }, [particleScale]);
+  }, [tier]);
 
   const material = useMemo(
     () =>

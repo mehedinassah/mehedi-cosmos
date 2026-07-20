@@ -43,11 +43,18 @@ const TIER_PRESETS: Record<GpuTier, Omit<QualityState, 'tier' | 'setTier' | 'red
 // a machine genuinely can't hold frame rate, so the cost is shed invisibly
 // instead of up front. (Past 2.0 the extra pixels buy nothing here, so that is
 // the hard ceiling.)
+// `min` is the softest the adaptive governor is ever allowed to render at.
+// On capable tiers we keep it at (or just below) native so the hero galaxy can
+// never be parked in a blurry low-DPR state by a transient frame dip — the
+// governor sheds cost elsewhere (post passes, particle drift) before it touches
+// hero sharpness. A tier-3 machine on a 1.5x display is therefore pinned at 1.5
+// (native), exactly the crisp look; a 2x retina can ease to 1.5 and still stay
+// sharp.
 const DPR_RANGE: Record<GpuTier, { min: number; max: number }> = {
   0: { min: 0.6, max: 1.0 },
   1: { min: 0.75, max: 1.35 },
-  2: { min: 1.0, max: 1.75 },
-  3: { min: 1.0, max: 2.0 },
+  2: { min: 1.25, max: 1.75 },
+  3: { min: 1.5, max: 2.0 },
 };
 
 export const useQualityStore = create<QualityState>((set, get) => ({
