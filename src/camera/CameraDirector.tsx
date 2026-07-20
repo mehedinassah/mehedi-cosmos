@@ -127,6 +127,18 @@ export function CameraDirector() {
     const t = state.clock.elapsedTime;
     const cam = camera as THREE.PerspectiveCamera;
 
+    // Portrait-adaptive base FOV. The entire universe is composed for a wide
+    // landscape frame; with a fixed 50° vertical FOV a tall phone screen crops
+    // the sides brutally (a narrow ~24° horizontal slice). So we WIDEN the FOV as
+    // the screen gets narrower — zooming out just enough that the composition
+    // still reads on a phone — while leaving desktop/landscape untouched at 50°.
+    // Every FOV effect below builds on baseFov.current, so they all inherit this.
+    const aspectR = size.width / Math.max(1, size.height);
+    baseFov.current = aspectR >= 1 ? 50 : Math.min(70, 50 + (1 / aspectR - 1) * 22);
+    // Track whether a speed-boost owns the FOV this frame; if not, resting states
+    // reconcile to the adaptive base at the end (so it follows device rotation).
+    let fovManaged = false;
+
     // Parallax is a per-frame overlay, never part of the base camera path:
     // remove last frame's offset before any phase logic reads the position.
     cam.position.sub(parallaxApplied.current);
@@ -314,6 +326,11 @@ export function CameraDirector() {
         cam.lookAt(_pvLook);
         cam.fov = baseFov.current + 18 * fall; // widening = accelerating freefall
         cam.updateProjectionMatrix();
+      } else if (cam.fov !== baseFov.current) {
+        // Parked at a chapter: keep the FOV at the adaptive base so the planet
+        // frames correctly on any screen (and re-adapts if the phone rotates).
+        cam.fov = baseFov.current;
+        cam.updateProjectionMatrix();
       }
       cam.clearViewOffset();
       return;
@@ -348,6 +365,7 @@ export function CameraDirector() {
           const fovBoost = Math.sin(Math.min(raw / DECEL_START, 1) * Math.PI) * 3.5;
           cam.fov = baseFov.current + fovBoost;
           cam.updateProjectionMatrix();
+          fovManaged = true;
         }
 
         if (j.destination) lookTarget.current.copy(bodyWorldPosition(bodyById.get(j.destination)!));
@@ -385,6 +403,7 @@ export function CameraDirector() {
               baseFov.current +
               4 * THREE.MathUtils.smoothstep(dp, 0.15, 0.55) * (1 - THREE.MathUtils.smoothstep(dp, 0.8, 0.98));
             cam.updateProjectionMatrix();
+            fovManaged = true;
           }
           break;
         }
@@ -453,6 +472,14 @@ export function CameraDirector() {
     currentLook.current.lerp(lookTarget.current, 1 - Math.exp(-lookRate * delta));
     cam.up.set(0, 1, 0);
     cam.lookAt(currentLook.current);
+
+    // Resting states (galaxy hero, intro) run no speed-boost, so reconcile their
+    // FOV to the adaptive base here — this is what widens the hero view on a
+    // phone and lets it re-adapt when the device rotates.
+    if (!fovManaged && cam.fov !== baseFov.current) {
+      cam.fov = baseFov.current;
+      cam.updateProjectionMatrix();
+    }
 
     // Rule of thirds: shift the frustum so the subject composes off-center
     // (setViewOffset — the subject stays correctly tracked/lit, only the

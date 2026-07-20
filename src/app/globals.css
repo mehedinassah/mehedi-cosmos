@@ -1318,3 +1318,23 @@ main { position: fixed; inset: 0; }
 @media (prefers-reduced-motion: reduce) {
   .holo-label { animation: none; }
 }
+
+/* ---- Small phones: the whole UI is composed for wide screens, so tighten the
+   hero and chapter typography to the narrow frame (nothing should wrap or run
+   off the edge) and lift the chapter panel above the home indicator. ---- */
+@media (max-width: 480px) {
+  .title-card { bottom: calc(7% + env(safe-area-inset-bottom, 0px)); }
+  .title-card h1 { font-size: 19px; letter-spacing: 0.26em; }
+  .title-card p { font-size: 10.5px; letter-spacing: 0.2em; }
+  .title-card__hint { margin-top: 22px; }
+
+  .chapter-panel {
+    left: 6%;
+    right: 6%;
+    bottom: calc(8% + env(safe-area-inset-bottom, 0px));
+  }
+  .chapter-panel__planet { font-size: 10px; letter-spacing: 0.26em; }
+  .chapter-panel__title { font-size: 21px; letter-spacing: 0.16em; margin: 12px 0 13px; }
+  .chapter-panel__line { font-size: 12.5px; line-height: 1.5; margin: 6px 0; }
+  .chapter-panel__links { margin-top: 16px; gap: 18px; }
+}
