@@ -134,7 +134,7 @@ export function CameraDirector() {
     // still reads on a phone — while leaving desktop/landscape untouched at 50°.
     // Every FOV effect below builds on baseFov.current, so they all inherit this.
     const aspectR = size.width / Math.max(1, size.height);
-    baseFov.current = aspectR >= 1 ? 50 : Math.min(70, 50 + (1 / aspectR - 1) * 22);
+    baseFov.current = aspectR >= 1 ? 50 : Math.min(82, 50 + (1 / aspectR - 1) * 32);
     // Track whether a speed-boost owns the FOV this frame; if not, resting states
     // reconcile to the adaptive base at the end (so it follows device rotation).
     let fovManaged = false;
