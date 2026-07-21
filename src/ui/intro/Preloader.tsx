@@ -192,16 +192,20 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
     let raf = 0;
     const start = performance.now();
     const wait = () => {
+      // Hold until the flash has fully whited-out (~1.15s) AND the galaxy is up,
+      // so we never begin revealing through a half-covered screen.
       const ready = loadSignals.firstFrame && loadSignals.galaxyReady;
-      const el = performance.now() - start;
-      // dwell a touch so the transition reads; hard cap so we never trap anyone
-      if ((ready && el > 900) || el > 8000) setPhase('fade');
+      if (ready && performance.now() - start > 1300) setPhase('fade');
       else raf = requestAnimationFrame(wait);
     };
     raf = requestAnimationFrame(wait);
+    // Hard cap on a timer (fires even if rAF is throttled/paused), so a stuck or
+    // never-firing signal can never trap the visitor behind the flash.
+    const capId = window.setTimeout(() => setPhase('fade'), 8500);
 
     return () => {
       window.clearTimeout(mountId);
+      window.clearTimeout(capId);
       cancelAnimationFrame(raf);
     };
   }, [phase, onEnter]);
@@ -223,9 +227,20 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
     if (phase === 'ready') setPhase('burst');
   };
 
+  const diving = phase === 'burst' || phase === 'fade';
+
   return (
-    <div className={`preloader blackhole${phase === 'fade' ? ' preloader--ignite' : ''}`}>
+    <div
+      className={
+        `preloader blackhole${diving ? ' diving' : ''}` +
+        (phase === 'fade' ? ' preloader--ignite' : '')
+      }
+    >
       <canvas ref={canvasRef} className="blackhole__canvas" aria-hidden="true" />
+      {/* Dive + flash cover — pure transform/opacity, so it keeps animating on
+          the compositor thread right through the main-thread compile freeze. */}
+      <div className="gate-dive" aria-hidden="true" />
+      <div className="gate-flash" aria-hidden="true" />
       <button
         type="button"
         className={

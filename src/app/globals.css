@@ -239,7 +239,66 @@ main { position: fixed; inset: 0; }
   pointer-events: none;
 }
 
-/* Expanse hand-off — fade the whole overlay to reveal the galaxy underneath */
+/* ── Dive + flash cover ──
+   These animate with transform/opacity only, so the compositor keeps running
+   them smoothly even while the main thread is frozen compiling the universe's
+   shaders. Started at ENTER (before the freeze), they whiteout the screen right
+   as the compile hits — the stall happens behind an unbroken motion. */
+.gate-dive {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46vmax;
+  height: 46vmax;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #ffffff 0%,
+    #fff1d8 34%,
+    rgba(255, 206, 150, 0.55) 58%,
+    rgba(255, 170, 100, 0) 74%
+  );
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.16);
+  pointer-events: none;
+  z-index: 3;
+  will-change: transform, opacity;
+}
+.blackhole.diving .gate-dive {
+  animation: gate-dive 1150ms cubic-bezier(0.62, 0, 0.8, 0.25) forwards;
+}
+@keyframes gate-dive {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.16); }
+  35%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(8.5); }
+}
+
+.gate-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, #fff7ec 0%, #ffe7c6 62%, #ffdcb0 100%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+  will-change: opacity;
+}
+.blackhole.diving .gate-flash {
+  animation: gate-flash 1150ms ease-in forwards;
+}
+@keyframes gate-flash {
+  0%   { opacity: 0; }
+  52%  { opacity: 0; }
+  100% { opacity: 0.95; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Drop the zoom (vestibular), keep the opacity flash — it still covers the
+     compile stall without any motion. */
+  .blackhole.diving .gate-dive { animation: none; opacity: 0; }
+}
+
+/* Expanse hand-off — fade the whole overlay (incl. the flash) to reveal the
+   galaxy emerging underneath. Opacity only → compositor-smooth. */
 .preloader--ignite { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {
