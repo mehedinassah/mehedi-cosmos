@@ -248,50 +248,51 @@ main { position: fixed; inset: 0; }
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 46vmax;
-  height: 46vmax;
+  width: 60vmax;
+  height: 60vmax;
   border-radius: 50%;
   background: radial-gradient(
     circle,
     #ffffff 0%,
-    #fff1d8 34%,
-    rgba(255, 206, 150, 0.55) 58%,
-    rgba(255, 170, 100, 0) 74%
+    #fff3de 32%,
+    #ffdcac 58%,
+    rgba(255, 196, 132, 0.55) 76%,
+    rgba(255, 176, 110, 0) 90%
   );
   opacity: 0;
-  transform: translate(-50%, -50%) scale(0.16);
+  transform: translate(-50%, -50%) scale(0.1);
   pointer-events: none;
   z-index: 3;
   will-change: transform, opacity;
 }
 .blackhole.diving .gate-dive {
-  /* ~2.5s accelerating fall INTO the hole — slow start, rushing finish. The
-     universe mounts + compiles behind this, so it doubles as load time. */
-  animation: gate-dive 2500ms cubic-bezier(0.66, 0, 0.9, 0.35) forwards;
+  /* ~2.5s accelerating fall INTO the hole — the bright core rushes toward you. */
+  animation: gate-dive 2500ms cubic-bezier(0.52, 0, 0.72, 0.5) forwards;
 }
 @keyframes gate-dive {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.12); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
   12%  { opacity: 1; }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(11); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(13); }
 }
 
+/* Full-screen warm wash that fills the WHOLE frame progressively across the
+   dive (not just at the end), so there's never a black void around the core —
+   you get bathed in light as you fall in, ending in a whiteout. */
 .gate-flash {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 50%, #fff7ec 0%, #ffe7c6 62%, #ffdcb0 100%);
+  background: radial-gradient(circle at 50% 50%, #fff8ef 0%, #ffeacf 55%, #ffdeb8 100%);
   opacity: 0;
   pointer-events: none;
   z-index: 5;
   will-change: opacity;
 }
 .blackhole.diving .gate-flash {
-  /* whiteout peaks at the END of the dive — the singularity moment */
-  animation: gate-flash 2500ms cubic-bezier(0.7, 0, 0.85, 0.3) forwards;
+  animation: gate-flash 2500ms cubic-bezier(0.42, 0, 0.72, 0.6) forwards;
 }
 @keyframes gate-flash {
   0%   { opacity: 0; }
-  64%  { opacity: 0; }
-  100% { opacity: 0.96; }
+  100% { opacity: 0.98; }
 }
 
 @media (prefers-reduced-motion: reduce) {
