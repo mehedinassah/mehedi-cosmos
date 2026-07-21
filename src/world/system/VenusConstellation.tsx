@@ -22,6 +22,12 @@ import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
  * the node growing, its orbit glowing, particles swirling, and a card fading in.
  */
 
+// Touch devices have no hover, so nodes are driven by tap instead (see onTap).
+const IS_TOUCH =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(pointer: coarse)').matches;
+
 const CYAN = new THREE.Color('#8fe6ee');
 const WHITE = new THREE.Color('#ffffff');
 const MAX_CONN = 6;
@@ -389,6 +395,14 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
     if (useVenusUI.getState().hovered === i) useVenusUI.getState().setHovered(null);
     document.body.style.cursor = '';
   };
+  // Touch has no hover: a tap on a node TOGGLES its selection (persisted, so the
+  // card stays), and a tap on empty space clears it (Canvas onPointerMissed).
+  const onTap = (i: number) => (e: ThreeEvent<MouseEvent>) => {
+    if (venusFocus() < 0.4) return;
+    e.stopPropagation();
+    const cur = useVenusUI.getState().hovered;
+    useVenusUI.getState().setHovered(cur === i ? null : i);
+  };
   const hitR = radius * 0.2;
 
   return (
@@ -460,7 +474,13 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
                 />
               </mesh>
             )}
-            <mesh ref={(el) => { hits.current[i] = el; }} visible={false} onPointerOver={onOver(i)} onPointerOut={onOut(i)}>
+            <mesh
+              ref={(el) => { hits.current[i] = el; }}
+              visible={false}
+              onPointerOver={IS_TOUCH ? undefined : onOver(i)}
+              onPointerOut={IS_TOUCH ? undefined : onOut(i)}
+              onClick={IS_TOUCH ? onTap(i) : undefined}
+            >
               <sphereGeometry args={[hitR, 8, 8]} />
               <meshBasicMaterial transparent opacity={0} depthWrite={false} />
             </mesh>

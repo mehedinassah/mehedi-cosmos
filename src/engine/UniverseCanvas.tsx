@@ -16,6 +16,14 @@ import { probeCapabilities, prefersReducedMotion } from '@/engine/capabilities';
 import { useQualityStore } from '@/state/qualityStore';
 import { useDescentStore } from '@/state/descentStore';
 import { loadSignals } from '@/state/loadSignals';
+import { useVenusUI } from '@/state/venusStore';
+import { useUranusUI } from '@/state/uranusStore';
+
+/** Tap on empty space dismisses any open node card (touch has no "hover out"). */
+function clearNodeSelections() {
+  useVenusUI.getState().setHovered(null);
+  useUranusUI.getState().setHovered(null);
+}
 
 /**
  * The single persistent Canvas — blueprint §3.1. The page never changes;
@@ -103,6 +111,7 @@ export function UniverseCanvas() {
       }}
       dpr={perfDpr}
       camera={{ fov: 50, near: 1, far: 120000, position: [0, 120, 1400] }}
+      onPointerMissed={clearNodeSelections}
       onCreated={({ gl }) => {
         gl.setClearColor('#010104');
         gl.toneMappingExposure = 1.18;

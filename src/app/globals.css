@@ -937,8 +937,10 @@ main { position: fixed; inset: 0; }
   border-bottom: 0.8px solid currentColor;
   will-change: transform, opacity;
 }
+/* The skill card stays available on touch (tap-to-open). On small screens keep
+   it clear of the very edges. */
 @media (max-width: 720px) {
-  .vsk-holo { display: none; }
+  .vsk-holo__card { width: min(232px, 78vw); }
 }
 
 /* ---- Mars: Mission Control. Classified mission log — NASA telemetry meets

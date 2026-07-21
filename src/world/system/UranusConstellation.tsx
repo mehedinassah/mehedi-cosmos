@@ -26,6 +26,11 @@ const N = INTERESTS.length;
 const N_SWIRL = 12;
 const N_ICE = 46;
 const WHITE = new THREE.Color('#ffffff');
+// Touch devices have no hover — nodes are tapped instead (see onTap).
+const IS_TOUCH =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(pointer: coarse)').matches;
 
 /* ---- line-icon glyphs, drawn once onto small transparent canvases ---- */
 function drawIcon(ctx: CanvasRenderingContext2D, kind: IconKind) {
@@ -398,6 +403,13 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
     if (useUranusUI.getState().hovered === i) useUranusUI.getState().setHovered(null);
     document.body.style.cursor = '';
   };
+  // Touch: tap toggles the satellite's card (persisted); tap-empty clears it.
+  const onTap = (i: number) => (e: ThreeEvent<MouseEvent>) => {
+    if (uranusFocus() < 0.4) return;
+    e.stopPropagation();
+    const cur = useUranusUI.getState().hovered;
+    useUranusUI.getState().setHovered(cur === i ? null : i);
+  };
   const hitR = radius * 0.3;
 
   return (
@@ -500,7 +512,13 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
               blending={THREE.AdditiveBlending}
             />
           </sprite>
-          <mesh ref={(el) => { hits.current[i] = el; }} visible={false} onPointerOver={onOver(i)} onPointerOut={onOut(i)}>
+          <mesh
+            ref={(el) => { hits.current[i] = el; }}
+            visible={false}
+            onPointerOver={IS_TOUCH ? undefined : onOver(i)}
+            onPointerOut={IS_TOUCH ? undefined : onOut(i)}
+            onClick={IS_TOUCH ? onTap(i) : undefined}
+          >
             <sphereGeometry args={[hitR, 8, 8]} />
             <meshBasicMaterial transparent opacity={0} depthWrite={false} />
           </mesh>
