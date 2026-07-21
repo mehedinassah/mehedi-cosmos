@@ -54,6 +54,11 @@ export function UniverseCanvas() {
   // Live, adaptively-tuned pixel ratio (see AdaptiveQuality). Capped well below
   // raw retina DPR — the biggest single per-frame GPU saving.
   const perfDpr = useQualityStore((s) => s.perfDpr);
+  // Mobile ("clean & simple") keeps the planets as calm, evenly-lit backdrops, so
+  // the night side never falls to black — desktop keeps the dramatic 0.03 ambient
+  // where post-bloom fills the dark side instead.
+  const tier = useQualityStore((s) => s.tier);
+  const ambient = tier <= 1 ? 0.42 : 0.03;
   // Chapter gate: galaxy + descent until the dive lands, then the system.
   // The swap happens under the destination star's flare + arrival flash.
   // During the LOOP home, the first half still shows the receding system;
@@ -118,7 +123,7 @@ export function UniverseCanvas() {
       }}
     >
       <CameraDirector />
-      <ambientLight intensity={0.03} />
+      <ambientLight intensity={ambient} />
       <Starfield />
       <DeepSpace />
       {showGalaxy && <HeroGalaxy />}

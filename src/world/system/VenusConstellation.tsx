@@ -405,6 +405,13 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
   };
   const hitR = radius * (IS_TOUCH ? 0.52 : 0.2); // fat-finger-friendly tap targets on touch
 
+  // Mobile ("clean & simple"): on a narrow screen the dense skill-orbit cloud is
+  // dropped entirely — it duplicates the chapter panel's skill list and only
+  // cluttered the small frame. Venus becomes a calm lit backdrop; the skills read
+  // as tidy chips in the panel. Wide screens keep the full interactive
+  // constellation (tap-driven on a touch tablet, hover on desktop).
+  if (size.width <= 720) return null;
+
   return (
     <group>
       {/* orbit dust (faint always) + clean radar ring (on hover) */}

@@ -163,18 +163,46 @@ function TypeReveal({ text, className }: { text: string; className?: string }) {
   );
 }
 
-/** Career chapter panel — the reason the journey exists. One celestial
- *  body, one chapter; quiet typography beside the world it belongs to.
- *  Each world's signature color tints its label and link underlines. */
+/** Parse a body line like "Languages: Java · TypeScript · Python" into a short
+ *  category label + its tags, for the mobile chip layout. Returns null for
+ *  intro/closer sentences (a long label, or no "Label: … / Label — …" shape). */
+function parseChipLine(line: string): { label: string; tags: string[] } | null {
+  const m = line.match(/^(.{1,16}?)\s*[:—]\s*(.+)$/);
+  if (!m) return null;
+  const tags = m[2].split(/\s*[·,]\s*/).map((t) => t.trim()).filter(Boolean);
+  if (!tags.length) return null;
+  return { label: m[1].trim(), tags };
+}
+
+/** Reactive `max-width: 720px` check (updates on rotate). */
+function useIsMobile(): boolean {
+  const [m, setM] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 720px)');
+    const on = () => setM(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return m;
+}
+
+/** Career chapter panel — the reason the journey exists. On desktop it's quiet
+ *  typography beside the world. On phones ("clean & simple") it becomes a tidy
+ *  glass card of category chips — scannable, never overlapping the 3D. */
 function ChapterPanel() {
   const idx = useDescentStore((s) => s.sysCaptionIndex);
   const arrived = useDescentStore((s) => s.stage === 'ARRIVED');
+  const isMobile = useIsMobile();
   if (!arrived || idx < 0) return null;
   const c = CHAPTERS[idx];
+  // On phones, drop the desktop-only "hover the orbiting skill" hint — there are
+  // no nodes to hover there.
+  const lines = isMobile ? c.body.filter((l) => !/orbiting|hover any/i.test(l)) : c.body;
   return (
     <aside
       key={c.id}
-      className="chapter-panel"
+      className={`chapter-panel${isMobile ? ' chapter-panel--mobile' : ''}`}
       aria-live="polite"
       style={{ '--accent': c.accent } as React.CSSProperties}
     >
@@ -186,11 +214,34 @@ function ChapterPanel() {
       <h2 className="chapter-panel__title">
         <TypeReveal text={c.title} />
       </h2>
-      {c.body.map((line) => (
-        <p key={line} className="chapter-panel__line">
-          {line}
-        </p>
-      ))}
+      {isMobile ? (
+        <div className="chapter-panel__chips">
+          {lines.map((line) => {
+            const chip = parseChipLine(line);
+            if (chip) {
+              return (
+                <div key={line} className="chip-row">
+                  <span className="chip-row__label">{chip.label}</span>
+                  <span className="chip-row__tags">
+                    {chip.tags.map((t) => (
+                      <span key={t} className="chip">{t}</span>
+                    ))}
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <p key={line} className="chapter-panel__lead">{line}</p>
+            );
+          })}
+        </div>
+      ) : (
+        lines.map((line) => (
+          <p key={line} className="chapter-panel__line">
+            {line}
+          </p>
+        ))
+      )}
       {c.links && (
         <div className="chapter-panel__links">
           {c.links.map((l) => (

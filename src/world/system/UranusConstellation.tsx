@@ -412,6 +412,12 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
   };
   const hitR = radius * (IS_TOUCH ? 0.68 : 0.3); // fat-finger-friendly tap targets on touch
 
+  // Mobile ("clean & simple"): on a narrow screen drop the orbiting
+  // satellites/rings/aurora — they crowded the frame and duplicated the panel.
+  // Uranus becomes a calm lit backdrop; the interests read as tidy chips in the
+  // panel. Wide screens keep the full "Beyond Code" constellation.
+  if (size.width <= 720) return null;
+
   return (
     <group>
       {/* atmospheric rim glow (behind the planet, so it reads as a halo) */}
