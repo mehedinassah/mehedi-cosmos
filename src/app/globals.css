@@ -1410,8 +1410,9 @@ main { position: fixed; inset: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Mobile gate — shown instead of the universe on phones. Calm, on-brand,
-   lightly funny. No WebGL behind it; this is the whole screen on mobile.
+   Mobile gate — shown instead of the universe on phones. A pure-CSS cosmos
+   (lensing black hole over a drifting starfield) behind a short note. No
+   WebGL, so it stays feather-light even on old phones.
    ───────────────────────────────────────────────────────────────────────── */
 .mobile-gate {
   position: fixed;
@@ -1422,26 +1423,155 @@ main { position: fixed; inset: 0; }
   justify-content: center;
   padding: calc(env(safe-area-inset-top) + 32px) 26px
            calc(env(safe-area-inset-bottom) + 32px);
-  background:
-    radial-gradient(120% 80% at 50% 8%, rgba(60, 78, 128, 0.22), transparent 60%),
-    radial-gradient(90% 60% at 50% 100%, rgba(120, 70, 130, 0.16), transparent 55%),
-    var(--void);
-  overflow-y: auto;
-  animation: gate-fade 600ms ease-out;
+  background: var(--void);
+  overflow: hidden;
+  animation: gate-fade 700ms ease-out;
 }
 @keyframes gate-fade { from { opacity: 0; } to { opacity: 1; } }
 
-.mobile-gate__inner {
-  max-width: 440px;
-  text-align: center;
+/* ── Cosmos layer ── */
+.mobile-gate__space {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.mobile-gate__eyebrow {
-  margin: 0 0 20px;
-  font-size: 11px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: rgba(150, 165, 200, 0.7);
+/* Starfield — two parallax layers of box-shadow dots that twinkle + drift. */
+.stars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  border-radius: 50%;
+  background: transparent;
+  will-change: transform, opacity;
+}
+.stars--far {
+  animation: star-twinkle 6s ease-in-out infinite,
+             star-drift 90s linear infinite alternate;
+  opacity: 0.7;
+}
+.stars--near {
+  width: 1.6px;
+  height: 1.6px;
+  animation: star-twinkle 4.5s ease-in-out infinite 1s,
+             star-drift 60s linear infinite alternate-reverse;
+}
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.9; }
+}
+@keyframes star-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-40px, -24px, 0); }
+}
+
+/* Black hole — centered, sized to frame the text in its dark core. */
+.bh {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  width: min(96vw, 460px);
+  height: min(96vw, 460px);
+  transform: translate(-50%, -50%);
+}
+.bh__glow {
+  position: absolute;
+  inset: -34%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgba(255, 150, 80, 0.24),
+    rgba(120, 90, 200, 0.14) 55%,
+    transparent 75%
+  );
+  filter: blur(22px);
+  animation: bh-breathe 7s ease-in-out infinite;
+}
+@keyframes bh-breathe {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.05); }
+}
+/* Accretion disk — a masked conic ring that rotates. */
+.bh__disk {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 180, 90, 0) 0deg,
+    rgba(255, 205, 130, 0.85) 70deg,
+    rgba(255, 255, 255, 0.98) 140deg,
+    rgba(255, 150, 80, 0.7) 210deg,
+    rgba(150, 110, 220, 0.35) 300deg,
+    rgba(255, 180, 90, 0) 360deg
+  );
+  -webkit-mask: radial-gradient(
+    closest-side,
+    transparent 63%,
+    #000 69%,
+    #000 82%,
+    transparent 89%
+  );
+  mask: radial-gradient(
+    closest-side,
+    transparent 63%,
+    #000 69%,
+    #000 82%,
+    transparent 89%
+  );
+  animation: bh-spin 16s linear infinite;
+}
+.bh__disk--rev {
+  opacity: 0.4;
+  filter: blur(3px);
+  animation: bh-spin 26s linear infinite reverse;
+}
+@keyframes bh-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+/* Event horizon — black core with a thin hot photon rim; backs the text. */
+.bh__core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    #000 54%,
+    rgba(0, 0, 0, 0.92) 61%,
+    rgba(255, 214, 170, 0.9) 65%,
+    rgba(255, 170, 110, 0) 71%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stars--far, .stars--near, .bh__glow, .bh__disk, .bh__disk--rev {
+    animation: none;
+  }
+}
+
+.mobile-gate__inner {
+  position: relative;
+  z-index: 2;
+  max-width: 330px;
+  text-align: center;
+}
+/* Soft dark scrim so text stays legible where lines graze the bright ring. */
+.mobile-gate__inner::before {
+  content: '';
+  position: absolute;
+  inset: -14% -18%;
+  z-index: -1;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(2, 2, 7, 0.82) 42%,
+    rgba(2, 2, 7, 0.4) 62%,
+    transparent 75%
+  );
+  filter: blur(10px);
 }
 
 .mobile-gate__title {

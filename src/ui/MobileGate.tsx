@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export type DeviceClass = 'unknown' | 'mobile' | 'desktop';
 
@@ -34,32 +34,52 @@ export function useDeviceClass(): DeviceClass {
   return device;
 }
 
+/** Build a `box-shadow` string of N randomly-placed star dots. */
+function starShadow(count: number, range: number): string {
+  const dots: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const x = Math.round(Math.random() * range);
+    const y = Math.round(Math.random() * range);
+    const a = (0.35 + Math.random() * 0.65).toFixed(2);
+    dots.push(`${x}px ${y}px rgba(255,255,255,${a})`);
+  }
+  return dots.join(', ');
+}
+
 /**
  * Full-screen "please visit on desktop" gate. Shown instead of the universe on
- * phones so viewers never see the (still unfinished) mobile experience.
+ * phones. Pure CSS/SVG cosmos behind it — a lensing black hole over a drifting
+ * starfield — so it stays light even on old phones (no WebGL).
  */
 export function MobileGate() {
+  // Random each mount; memoized so re-renders don't reshuffle the sky.
+  const farStars = useMemo(() => starShadow(90, 1600), []);
+  const nearStars = useMemo(() => starShadow(45, 1600), []);
+
   return (
     <div className="mobile-gate" role="alert">
+      <div className="mobile-gate__space" aria-hidden="true">
+        <div className="stars stars--far" style={{ boxShadow: farStars }} />
+        <div className="stars stars--near" style={{ boxShadow: nearStars }} />
+        <div className="bh">
+          <div className="bh__glow" />
+          <div className="bh__disk" />
+          <div className="bh__disk bh__disk--rev" />
+          <div className="bh__core" />
+        </div>
+      </div>
+
       <div className="mobile-gate__inner">
-        <p className="mobile-gate__eyebrow">Transmission from Mission Control</p>
-        <h1 className="mobile-gate__title">
-          This universe is a little too big for your pocket.
-        </h1>
+        <h1 className="mobile-gate__title">Well… this is awkward.</h1>
         <p className="mobile-gate__body">
-          The full experience runs on real GPU horsepower — the kind your laptop
-          hides under the keyboard. Your phone is a magnificent machine, but it
-          politely declined to render an entire solar system today.
+          I built this portfolio for desktops, not tiny screens.
         </p>
         <p className="mobile-gate__cta">
-          Open this on a <strong>laptop or desktop browser</strong> and take the
-          full ride.
+          If you want the full cinematic space journey, open it on your{' '}
+          <strong>laptop or desktop</strong>.
         </p>
-        <p className="mobile-gate__wink">
-          (A smartphone version is in the workshop. Your battery thanks you for
-          your patience.)
-        </p>
-        <p className="mobile-gate__signature">— Mehedi Hassan</p>
+        <p className="mobile-gate__wink">I&apos;m still working on the mobile version.</p>
+        <p className="mobile-gate__signature">— Mehedi</p>
       </div>
     </div>
   );
