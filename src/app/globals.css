@@ -148,118 +148,102 @@ main { position: fixed; inset: 0; }
   position: fixed;
   inset: 0;
   z-index: 100;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 44px;
-  background: #010104;
+  background: #06060b;
   opacity: 1;
   pointer-events: none;
-  /* long enough that the warm flare lingers WHILE the galaxy blooms up under it
-     (both start on the same trigger), so the light hands off to the core */
+  /* long enough that the fade lingers WHILE the galaxy blooms up underneath */
   transition: opacity 1.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.preloader__field {
-  position: relative;
-  width: 240px;
-  height: 240px;
+
+/* Spiraling black-hole starfield (2D canvas) */
+.blackhole__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* ENTER control — centered over the black hole */
+.centerHover {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 255px;
+  height: 255px;
   display: grid;
   place-items: center;
-}
-/* the seed of light — a tiny bright core that later flares into the galaxy */
-.preloader__point {
-  position: absolute;
-  width: 10px;
-  height: 10px;
+  border: 0;
+  background: transparent;
   border-radius: 50%;
-  background: radial-gradient(circle, #fff6e6 0%, #ffdca6 40%, rgba(255, 168, 90, 0.55) 66%, rgba(255, 120, 60, 0) 100%);
-  box-shadow: 0 0 34px 10px rgba(255, 190, 120, 0.55), 0 0 110px 36px rgba(255, 150, 80, 0.2);
-  transition: transform 1.4s cubic-bezier(0.7, 0, 0.84, 0), box-shadow 1.4s ease, opacity 1.6s ease;
-  will-change: transform;
+  z-index: 2;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity 500ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
-/* soft breathing halo behind the seed (kept off the point so its transform is
-   free for the ignition flare) */
-.preloader__halo {
-  position: absolute;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 200, 140, 0.28) 0%, rgba(255, 160, 90, 0.08) 45%, rgba(255, 120, 60, 0) 72%);
-  animation: pl-breathe 2.8s ease-in-out infinite;
-  transition: opacity 0.5s ease;
+.centerHover span {
+  color: #8a8a94;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 18px;
+  letter-spacing: 0.2em;
+  padding-left: 0.2em;
+  transition: color 500ms ease;
 }
-/* a hairline of energy rotating around the seed — "gathering" */
-.preloader__ring {
-  position: absolute;
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg,
-    rgba(255, 205, 150, 0) 0deg,
-    rgba(255, 205, 150, 0) 250deg,
-    rgba(255, 210, 150, 0.5) 332deg,
-    rgba(255, 244, 220, 0.9) 358deg,
-    rgba(255, 205, 150, 0) 360deg);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
-  animation: pl-spin 2.6s linear infinite;
-  transition: opacity 0.5s ease;
+.centerHover span::before,
+.centerHover span::after {
+  content: '';
+  display: inline-block;
+  height: 1px;
+  width: 16px;
+  margin-bottom: 4px;
+  vertical-align: middle;
+  background-color: #8a8a94;
+  transition: background-color 500ms ease, width 500ms ease;
 }
-/* shockwaves easing outward */
-.preloader__wave {
-  position: absolute;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 200, 140, 0.45);
+.centerHover span::before { margin-right: 12px; }
+.centerHover span::after { margin-left: 12px; }
+
+.centerHover:hover span,
+.centerHover:focus-visible span { color: #f0f0f5; }
+.centerHover:hover span::before,
+.centerHover:focus-visible span::before,
+.centerHover:hover span::after,
+.centerHover:focus-visible span::after {
+  background-color: #f0f0f5;
+  width: 26px;
+}
+
+/* Loading — ENTER not yet interactive */
+.centerHover--wait {
+  cursor: default;
+  pointer-events: none;
+}
+.centerHover--wait span { color: rgba(150, 150, 160, 0.32); }
+.centerHover--wait span::before,
+.centerHover--wait span::after { background-color: rgba(150, 150, 160, 0.32); }
+
+/* Ready — a gentle pulse invites the click */
+.centerHover:not(.centerHover--wait):not(.open) {
+  animation: enter-invite 2.6s ease-in-out infinite;
+}
+@keyframes enter-invite {
+  0%, 100% { opacity: 0.72; }
+  50%      { opacity: 1; }
+}
+
+/* Clicked — fade the control away */
+.centerHover.open {
   opacity: 0;
-  animation: pl-wave 3.6s ease-out infinite;
-  transition: opacity 0.4s ease;
-}
-.preloader__wave--b { animation-delay: 1.8s; }
-.preloader__name {
-  font-size: 11px;
-  font-weight: 300;
-  letter-spacing: 0.42em;
-  text-transform: uppercase;
-  color: rgba(224, 231, 250, 0);
-  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.6);
-  animation: pl-name-in 1.6s ease 0.7s forwards;
+  pointer-events: none;
 }
 
-@keyframes pl-breathe {
-  0%, 100% { transform: scale(0.82); opacity: 0.7; }
-  50% { transform: scale(1.18); opacity: 1; }
-}
-@keyframes pl-spin { to { transform: rotate(360deg); } }
-@keyframes pl-wave {
-  0% { transform: scale(0.5); opacity: 0; }
-  16% { opacity: 0.55; }
-  100% { transform: scale(3.8); opacity: 0; }
-}
-/* opacity + transform only, so the loader keeps animating even while the main
-   thread is busy compiling shaders (letter-spacing would freeze during jank) */
-@keyframes pl-name-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 0.5; transform: translateY(0); }
-}
-
-/* IGNITION — the seed flares to fill the frame while the black fades, revealing
-   the galaxy blooming underneath: the loader's light becomes the core. */
+/* Expanse hand-off — fade the whole overlay to reveal the galaxy underneath */
 .preloader--ignite { opacity: 0; }
-.preloader--ignite .preloader__point {
-  transform: scale(88);
-  box-shadow: 0 0 220px 130px rgba(255, 212, 152, 0.6);
-  opacity: 0;
-}
-.preloader--ignite .preloader__halo,
-.preloader--ignite .preloader__ring,
-.preloader--ignite .preloader__wave,
-.preloader--ignite .preloader__name { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .preloader__halo, .preloader__ring, .preloader__wave { animation: none; }
+  .centerHover:not(.centerHover--wait):not(.open) { animation: none; }
 }
 
 .descent-caption {
