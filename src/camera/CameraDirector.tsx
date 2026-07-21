@@ -135,7 +135,7 @@ export function CameraDirector() {
     // still reads on a phone — while leaving desktop/landscape untouched at 50°.
     // Every FOV effect below builds on baseFov.current, so they all inherit this.
     const aspectR = size.width / Math.max(1, size.height);
-    baseFov.current = aspectR >= 1 ? 50 : Math.min(82, 50 + (1 / aspectR - 1) * 32);
+    baseFov.current = aspectR >= 1 ? 50 : Math.min(84, 50 + (1 / aspectR - 1) * 34);
     // Track whether a speed-boost owns the FOV this frame; if not, resting states
     // reconcile to the adaptive base at the end (so it follows device rotation).
     let fovManaged = false;
@@ -320,7 +320,16 @@ export function CameraDirector() {
           const hero = HEROES.find((h) => h.id === cid);
           if (hero) _portraitLook.copy(hero.position);
         }
-        _portraitLook.y -= cam.position.distanceTo(_portraitLook) * 0.14; // raise the body
+        // Pull the camera BACK from the planet so it reads as a smaller, calm
+        // backdrop above the chip card. A fish-eye FOV can't shrink it enough
+        // without distorting; moving the camera away does it cleanly.
+        _sA.copy(cam.position).sub(_portraitLook); // planet -> camera
+        const dist0 = _sA.length();
+        _sA.normalize();
+        cam.position.addScaledVector(_sA, dist0 * 0.55);
+        // Lift the aim so the (now smaller) planet sits in the UPPER frame, clear
+        // of the bottom card.
+        _portraitLook.y -= cam.position.distanceTo(_portraitLook) * 0.2;
         cam.up.set(0, 1, 0);
         // lookAt derives the camera's world position from its matrix, which
         // systemPose only updated on `.position` this frame — refresh the matrix

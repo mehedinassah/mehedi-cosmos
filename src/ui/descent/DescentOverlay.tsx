@@ -196,9 +196,12 @@ function ChapterPanel() {
   const isMobile = useIsMobile();
   if (!arrived || idx < 0) return null;
   const c = CHAPTERS[idx];
-  // On phones, drop the desktop-only "hover the orbiting skill" hint — there are
-  // no nodes to hover there.
-  const lines = isMobile ? c.body.filter((l) => !/orbiting|hover any/i.test(l)) : c.body;
+  // On phones, drop (a) the desktop-only "hover the orbiting skill" hint — there
+  // are no nodes to hover there — and (b) the "Core:" highlight row, which just
+  // duplicates chips that already appear in the category rows below.
+  const lines = isMobile
+    ? c.body.filter((l) => !/orbiting|hover any/i.test(l) && !/^\s*core\s*[:—]/i.test(l))
+    : c.body;
   return (
     <aside
       key={c.id}
