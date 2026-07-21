@@ -1420,9 +1420,10 @@ main { position: fixed; inset: 0; }
   z-index: 9999;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: calc(env(safe-area-inset-top) + 32px) 26px
-           calc(env(safe-area-inset-bottom) + 32px);
+  justify-content: flex-end;
+  flex-direction: column;
+  padding: calc(env(safe-area-inset-top) + 24px) 30px
+           calc(env(safe-area-inset-bottom) + 34px);
   background: var(--void);
   overflow: hidden;
   animation: gate-fade 700ms ease-out;
@@ -1468,13 +1469,42 @@ main { position: fixed; inset: 0; }
   to   { transform: translate3d(-40px, -24px, 0); }
 }
 
-/* Black hole — centered, sized to frame the text in its dark core. */
+/* Drop-in photoreal hero (Midjourney render) — replaces the CSS black hole.
+   Slow Ken Burns push so the still feels alive. */
+.mobile-gate__hero {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 32%;
+  background-repeat: no-repeat;
+  transform-origin: center 34%;
+  animation: hero-drift 32s ease-in-out infinite alternate;
+}
+@keyframes hero-drift {
+  from { transform: scale(1.04) translateY(0); }
+  to   { transform: scale(1.12) translateY(-1.5%); }
+}
+
+/* Bottom vignette — grounds the text zone regardless of what's behind it. */
+.mobile-gate__vignette {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 34%,
+    rgba(2, 2, 7, 0.55) 58%,
+    rgba(2, 2, 7, 0.9) 78%,
+    var(--void) 94%
+  );
+}
+
+/* Black hole — sits in the upper zone; text lives in the dark space below. */
 .bh {
   position: absolute;
-  top: 46%;
+  top: 33%;
   left: 50%;
-  width: min(96vw, 460px);
-  height: min(96vw, 460px);
+  width: min(104vw, 470px);
+  height: min(104vw, 470px);
   transform: translate(-50%, -50%);
 }
 .bh__glow {
@@ -1556,62 +1586,112 @@ main { position: fixed; inset: 0; }
 .mobile-gate__inner {
   position: relative;
   z-index: 2;
-  max-width: 330px;
+  width: 100%;
+  max-width: 360px;
   text-align: center;
 }
-/* Soft dark scrim so text stays legible where lines graze the bright ring. */
-.mobile-gate__inner::before {
-  content: '';
-  position: absolute;
-  inset: -14% -18%;
-  z-index: -1;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(2, 2, 7, 0.82) 42%,
-    rgba(2, 2, 7, 0.4) 62%,
-    transparent 75%
-  );
-  filter: blur(10px);
-}
 
-.mobile-gate__title {
+/* Ringed-Saturn divider */
+.gate-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
   margin: 0 0 22px;
-  font-size: 26px;
-  line-height: 1.28;
+}
+.gate-divider__line {
+  height: 1px;
+  width: 58px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 178, 122, 0.55)
+  );
+}
+.gate-divider__line:last-child {
+  background: linear-gradient(to left, transparent, rgba(255, 178, 122, 0.55));
+}
+.gate-saturn {
+  width: 30px;
+  height: 30px;
+  color: #f5a86a;
+  flex: none;
+}
+
+/* Headline — WRONG DEVICE, / BIG UNIVERSE. */
+.gate-title {
+  margin: 0 0 20px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  line-height: 1.24;
+  text-transform: uppercase;
+}
+.gate-title,
+.gate-title__accent {
+  font-size: clamp(24px, 8.4vw, 34px);
+  letter-spacing: 0.14em;
+}
+.gate-title {
   color: var(--ink);
 }
-
-.mobile-gate__body {
-  margin: 0 0 18px;
-  font-size: 15px;
-  line-height: 1.6;
-  color: rgba(198, 206, 224, 0.72);
+.gate-title__accent {
+  display: block;
+  margin-top: 4px;
+  color: #f6a862;
+  font-weight: 700;
 }
 
-.mobile-gate__cta {
-  margin: 0 0 18px;
+.gate-body {
+  margin: 0 auto 26px;
+  max-width: 320px;
   font-size: 15px;
-  line-height: 1.6;
-  color: var(--ink);
+  line-height: 1.62;
+  color: rgba(198, 206, 224, 0.74);
 }
-.mobile-gate__cta strong {
+.gate-body strong {
   color: #ffb27a;
   font-weight: 600;
 }
 
-.mobile-gate__wink {
-  margin: 0 0 28px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: rgba(150, 160, 185, 0.55);
-  font-style: italic;
+/* phone ····· ✕ ····· laptop */
+.gate-devices {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 26px;
+  color: rgba(245, 170, 106, 0.9);
+}
+.gate-dev {
+  width: 26px;
+  height: 22px;
+  flex: none;
+}
+.gate-devices__dots {
+  width: 44px;
+  height: 2px;
+  background-image: radial-gradient(currentColor 1px, transparent 1.4px);
+  background-size: 8px 2px;
+  background-repeat: repeat-x;
+  background-position: center;
+  opacity: 0.75;
+}
+.gate-devices__x {
+  font-size: 13px;
+  color: #f6a862;
+  opacity: 0.9;
 }
 
-.mobile-gate__signature {
+.gate-soon {
+  margin: 0 0 22px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(150, 160, 185, 0.6);
+}
+
+.gate-sign {
   margin: 0;
   font-size: 13px;
-  letter-spacing: 0.04em;
-  color: rgba(180, 190, 215, 0.6);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(214, 180, 150, 0.66);
 }
