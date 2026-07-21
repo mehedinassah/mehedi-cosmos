@@ -33,7 +33,10 @@ export function Preloader() {
     const context = canvas.getContext('2d');
     if (!context) return;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Keep the preloader cheap: it shares the main thread with the WebGL shader
+    // compile it's covering for, so 1x DPR + a lean star count leave headroom
+    // to stay smooth while the universe builds underneath.
+    const dpr = 1;
     const cw = window.innerWidth;
     const ch = window.innerHeight;
     canvas.style.width = cw + 'px';
@@ -53,13 +56,15 @@ export function Preloader() {
     let stopped = false;
     const stars: Star[] = [];
 
-    function rotate(cx: number, cy: number, x: number, y: number, angle: number) {
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      return [
-        cos * (x - cx) + sin * (y - cy) + cx,
-        cos * (y - cy) - sin * (x - cx) + cy,
-      ] as const;
+    // Transform a point by canvas rotate(ang) about the center — computed in
+    // math so each star skips save/translate/rotate/restore (the big per-frame
+    // main-thread cost). Visually identical to the original transform path.
+    function tp(x: number, y: number, ang: number) {
+      const c = Math.cos(ang);
+      const s = Math.sin(ang);
+      const dx = x - centerx;
+      const dy = y - centery;
+      return [centerx + c * dx - s * dy, centery + s * dx + c * dy] as const;
     }
 
     class Star {
@@ -121,18 +126,13 @@ export function Preloader() {
           if (this.y > this.expansePos) this.y -= Math.floor(this.expansePos - this.y) / -140;
         }
 
-        context!.save();
-        context!.fillStyle = this.color;
+        const a = tp(this.prevX, this.prevY, this.prevR);
+        const b = tp(this.x, this.y, this.rotation);
         context!.strokeStyle = this.color;
         context!.beginPath();
-        const old = rotate(centerx, centery, this.prevX, this.prevY, -this.prevR);
-        context!.moveTo(old[0], old[1]);
-        context!.translate(centerx, centery);
-        context!.rotate(this.rotation);
-        context!.translate(-centerx, -centery);
-        context!.lineTo(this.x, this.y);
+        context!.moveTo(a[0], a[1]);
+        context!.lineTo(b[0], b[1]);
         context!.stroke();
-        context!.restore();
 
         this.prevR = this.rotation;
         this.prevX = this.x;
@@ -153,7 +153,7 @@ export function Preloader() {
 
     context.fillStyle = 'rgba(' + BG + ',1)';
     context.fillRect(0, 0, cw, ch);
-    for (let i = 0; i < 2000; i++) new Star();
+    for (let i = 0; i < 1200; i++) new Star();
     loop();
 
     return () => {
