@@ -403,7 +403,7 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
     const cur = useVenusUI.getState().hovered;
     useVenusUI.getState().setHovered(cur === i ? null : i);
   };
-  const hitR = radius * 0.2;
+  const hitR = radius * (IS_TOUCH ? 0.52 : 0.2); // fat-finger-friendly tap targets on touch
 
   return (
     <group>

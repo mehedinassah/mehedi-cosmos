@@ -20,11 +20,15 @@ export function CinematicEffects() {
   // When the governor is fighting to hold framerate it flags postLite; we then
   // keep only the passes that define the look (bloom + colour grade + vignette)
   // and drop the costlier distortion/grain passes. Toggles rarely, so the one
-  // composer remount is a non-issue.
+  // composer remount is a non-issue. Mobile (tier <= 1) ALWAYS runs the lite
+  // pipeline: bloom is what makes the planets read as lit/glowing rather than
+  // dark night-side discs, but the full distortion/grain stack is too heavy for
+  // a phone — so we keep the cheap essentials and drop the rest.
   const postLite = useQualityStore((s) => s.postLite);
+  const tier = useQualityStore((s) => s.tier);
   if (!postEnabled) return null;
 
-  if (postLite) {
+  if (postLite || tier <= 1) {
     return (
       <EffectComposer multisampling={0}>
         <Bloom intensity={0.4} luminanceThreshold={0.92} luminanceSmoothing={0.24} mipmapBlur radius={0.6} />

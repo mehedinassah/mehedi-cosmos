@@ -31,7 +31,7 @@ interface QualityState {
 
 const TIER_PRESETS: Record<GpuTier, Omit<QualityState, 'tier' | 'setTier' | 'reducedMotion' | 'setReducedMotion' | 'perfDpr' | 'perfMinDpr' | 'perfMaxDpr' | 'postLite' | 'initPerf' | 'setPerfDpr' | 'setPostLite'>> = {
   0: { resolutionScale: 0.6, dprClamp: 1, particleScale: 0.1, volumetricSteps: 0, postEnabled: false },
-  1: { resolutionScale: 0.7, dprClamp: 1.5, particleScale: 0.25, volumetricSteps: 16, postEnabled: false },
+  1: { resolutionScale: 0.7, dprClamp: 1.5, particleScale: 0.25, volumetricSteps: 16, postEnabled: true },
   2: { resolutionScale: 0.85, dprClamp: 2, particleScale: 0.6, volumetricSteps: 32, postEnabled: true },
   3: { resolutionScale: 1.0, dprClamp: 2, particleScale: 1.0, volumetricSteps: 64, postEnabled: true },
 };

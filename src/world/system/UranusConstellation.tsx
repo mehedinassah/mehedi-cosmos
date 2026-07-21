@@ -410,7 +410,7 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
     const cur = useUranusUI.getState().hovered;
     useUranusUI.getState().setHovered(cur === i ? null : i);
   };
-  const hitR = radius * 0.3;
+  const hitR = radius * (IS_TOUCH ? 0.68 : 0.3); // fat-finger-friendly tap targets on touch
 
   return (
     <group>
