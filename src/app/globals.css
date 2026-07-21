@@ -1408,3 +1408,80 @@ main { position: fixed; inset: 0; }
   }
   .chapter-panel--mobile .chapter-panel__links { margin-top: 14px; gap: 20px; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Mobile gate — shown instead of the universe on phones. Calm, on-brand,
+   lightly funny. No WebGL behind it; this is the whole screen on mobile.
+   ───────────────────────────────────────────────────────────────────────── */
+.mobile-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top) + 32px) 26px
+           calc(env(safe-area-inset-bottom) + 32px);
+  background:
+    radial-gradient(120% 80% at 50% 8%, rgba(60, 78, 128, 0.22), transparent 60%),
+    radial-gradient(90% 60% at 50% 100%, rgba(120, 70, 130, 0.16), transparent 55%),
+    var(--void);
+  overflow-y: auto;
+  animation: gate-fade 600ms ease-out;
+}
+@keyframes gate-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.mobile-gate__inner {
+  max-width: 440px;
+  text-align: center;
+}
+
+.mobile-gate__eyebrow {
+  margin: 0 0 20px;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(150, 165, 200, 0.7);
+}
+
+.mobile-gate__title {
+  margin: 0 0 22px;
+  font-size: 26px;
+  line-height: 1.28;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.mobile-gate__body {
+  margin: 0 0 18px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(198, 206, 224, 0.72);
+}
+
+.mobile-gate__cta {
+  margin: 0 0 18px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.mobile-gate__cta strong {
+  color: #ffb27a;
+  font-weight: 600;
+}
+
+.mobile-gate__wink {
+  margin: 0 0 28px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(150, 160, 185, 0.55);
+  font-style: italic;
+}
+
+.mobile-gate__signature {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: rgba(180, 190, 215, 0.6);
+}
