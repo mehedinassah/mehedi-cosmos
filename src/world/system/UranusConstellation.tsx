@@ -189,6 +189,8 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
     up: new THREE.Vector3(0, 1, 0),
     toCam: new THREE.Vector3(0, 0, 1),
     hub: center.clone(),
+    rx: radius * 1.34,
+    ry: radius * 0.66,
   });
   const iceAxis = useRef(new THREE.Vector3(0, 0, 1));
   const updateBasis = () => {
@@ -198,17 +200,17 @@ export function UranusConstellation({ center, radius }: { center: THREE.Vector3;
     b.toCam.copy(camera.position).sub(center).normalize();
     b.hub.copy(center).addScaledVector(b.toCam, 1.15 * radius);
     iceAxis.current.copy(b.toCam).applyAxisAngle(b.right, 0.5).normalize();
+    // A wide, flat perspective ring hugging the planet. On a WIDE screen it can
+    // spread out (1.34x); on a narrow PORTRAIT frame that pushes the side icons
+    // off the edges, so we tighten the horizontal amplitude toward the planet.
+    const aspect = size.width / Math.max(1, size.height);
+    b.rx = radius * (aspect >= 1 ? 1.34 : 0.86 + 0.48 * aspect);
+    b.ry = radius * (aspect >= 1 ? 0.66 : 0.74); // a touch taller on portrait so top/bottom icons clear the disc
   };
-
-  // A wide, flat perspective ring hugging the planet — reads as a natural orbit
-  // seen at a shallow tilt (icons sweep across the top and bottom, clearing the
-  // limb left and right). Wider than tall so it never looks like a vertical oval.
-  const Rx = radius * 1.34; // horizontal amplitude (just clears the limb)
-  const Ry = radius * 0.66; // vertical amplitude (foreshortened -> flat ring)
 
   const orbitPos = (a: number, out: THREE.Vector3) => {
     const b = basis.current;
-    return out.copy(b.hub).addScaledVector(b.right, Math.cos(a) * Rx).addScaledVector(b.up, Math.sin(a) * Ry);
+    return out.copy(b.hub).addScaledVector(b.right, Math.cos(a) * b.rx).addScaledVector(b.up, Math.sin(a) * b.ry);
   };
 
   // faint orbit ring — an empty buffer, rebuilt each frame against the live basis
