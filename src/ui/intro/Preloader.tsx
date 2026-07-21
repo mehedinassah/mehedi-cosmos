@@ -192,16 +192,16 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
     let raf = 0;
     const start = performance.now();
     const wait = () => {
-      // Hold until the flash has fully whited-out (~1.15s) AND the galaxy is up,
-      // so we never begin revealing through a half-covered screen.
+      // Hold until the ~2.5s dive has fully whited-out AND the galaxy is up, so
+      // we reveal from the peak flash onto an already-rendered, smooth galaxy.
       const ready = loadSignals.firstFrame && loadSignals.galaxyReady;
-      if (ready && performance.now() - start > 1300) setPhase('fade');
+      if (ready && performance.now() - start > 2500) setPhase('fade');
       else raf = requestAnimationFrame(wait);
     };
     raf = requestAnimationFrame(wait);
     // Hard cap on a timer (fires even if rAF is throttled/paused), so a stuck or
     // never-firing signal can never trap the visitor behind the flash.
-    const capId = window.setTimeout(() => setPhase('fade'), 8500);
+    const capId = window.setTimeout(() => setPhase('fade'), 9000);
 
     return () => {
       window.clearTimeout(mountId);

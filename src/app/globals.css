@@ -265,12 +265,14 @@ main { position: fixed; inset: 0; }
   will-change: transform, opacity;
 }
 .blackhole.diving .gate-dive {
-  animation: gate-dive 1150ms cubic-bezier(0.62, 0, 0.8, 0.25) forwards;
+  /* ~2.5s accelerating fall INTO the hole — slow start, rushing finish. The
+     universe mounts + compiles behind this, so it doubles as load time. */
+  animation: gate-dive 2500ms cubic-bezier(0.66, 0, 0.9, 0.35) forwards;
 }
 @keyframes gate-dive {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.16); }
-  35%  { opacity: 1; }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(8.5); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.12); }
+  12%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(11); }
 }
 
 .gate-flash {
@@ -283,12 +285,13 @@ main { position: fixed; inset: 0; }
   will-change: opacity;
 }
 .blackhole.diving .gate-flash {
-  animation: gate-flash 1150ms ease-in forwards;
+  /* whiteout peaks at the END of the dive — the singularity moment */
+  animation: gate-flash 2500ms cubic-bezier(0.7, 0, 0.85, 0.3) forwards;
 }
 @keyframes gate-flash {
   0%   { opacity: 0; }
-  52%  { opacity: 0; }
-  100% { opacity: 0.95; }
+  64%  { opacity: 0; }
+  100% { opacity: 0.96; }
 }
 
 @media (prefers-reduced-motion: reduce) {
