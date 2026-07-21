@@ -52,12 +52,22 @@ export function SkillCard() {
           }
           const vw = window.innerWidth, vh = window.innerHeight;
           const px = venusBridge.px, py = venusBridge.py;
-          // never cover Venus: prefer opening to the LEFT of the object
-          let left = px - 26 - CARD_W;
-          if (left < 16) left = Math.min(px + 26, vw - CARD_W - 16);
-          left = Math.max(16, Math.min(left, vw - CARD_W - 16));
+          const cw = card.offsetWidth || CARD_W;
           const h = card.offsetHeight || 120;
-          const top = Math.max(16, Math.min(py - h / 2, vh - h - 16));
+          let left: number, top: number;
+          if (vw <= 720) {
+            // Mobile: the node can be anywhere around the planet, so a beside-node
+            // card runs off a narrow screen. Pin it to a fixed, always-on-screen
+            // spot (top-centre); the selected node glows to show what it is.
+            left = (vw - cw) / 2;
+            top = Math.max(10, Math.round(vh * 0.045));
+          } else {
+            // Desktop: open to the LEFT of the node, clamped on-screen.
+            left = px - 26 - cw;
+            if (left < 16) left = Math.min(px + 26, vw - cw - 16);
+            left = Math.max(16, Math.min(left, vw - cw - 16));
+            top = Math.max(16, Math.min(py - h / 2, vh - h - 16));
+          }
           card.style.transform = `translate(${left}px, ${top}px)`;
           panel.style.opacity = String(env);
           panel.style.transform = `translateY(${(1 - env) * 6}px) scale(${0.96 + env * 0.04})`;

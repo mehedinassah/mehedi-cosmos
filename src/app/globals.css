@@ -937,10 +937,20 @@ main { position: fixed; inset: 0; }
   border-bottom: 0.8px solid currentColor;
   will-change: transform, opacity;
 }
-/* The skill card stays available on touch (tap-to-open). On small screens keep
-   it clear of the very edges. */
+/* The node card stays available on touch (tap-to-open). On phones it's pinned
+   top-centre (see the overlay JS) and shrunk so it never dominates or overflows
+   the small screen. */
 @media (max-width: 720px) {
-  .vsk-holo__card { width: min(232px, 78vw); }
+  .vsk-holo__card { width: min(260px, 82vw); }
+  .vsk-holo__panel { padding: 11px 13px 10px; }
+  .vsk-holo__cat { font-size: 8px; }
+  .vsk-holo__title { font-size: 16px; margin-top: 3px; }
+  .vsk-holo__role { font-size: 9.5px; }
+  .vsk-holo__bullets { margin: 9px 0 0; padding-top: 8px; }
+  .vsk-holo__bullets li { font-size: 10.5px; line-height: 1.45; padding-left: 12px; }
+  .vsk-holo__bullets li::before { top: 7px; }
+  .vsk-holo__foot { margin-top: 9px; padding-top: 8px; }
+  .vsk-holo__used, .vsk-holo__years { font-size: 9px; }
 }
 
 /* ---- Mars: Mission Control. Classified mission log — NASA telemetry meets
