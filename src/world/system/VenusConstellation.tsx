@@ -7,7 +7,6 @@ import {
   SKILLS, ORBITS, CATEGORY_ORDER, RELATED, PULSE_PATHS, colorOfSkill, venusBridge, venusFocus, useVenusUI,
   type Category,
 } from '@/state/venusStore';
-import { CHAPTER_SP, systemPose } from '@/world/system/systemSpec';
 import { makeGlowTexture } from '@/world/galaxy/HeroGalaxy';
 
 /**
@@ -54,31 +53,57 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
     [],
   );
 
-  // Parked camera basis + per-orbit plane basis. The rings are CAMERA-FACING:
-  // both axes live in the screen plane (no depth tilt), so no skill ever passes
-  // behind Venus. The whole constellation is offset into the open space beside
-  // the planet (left + a touch up) and pushed in FRONT of the disc, so every
-  // node stays on-screen, unoccluded, and hoverable at all times.
-  const basis = useMemo(() => {
-    const pos = new THREE.Vector3(), quat = new THREE.Quaternion();
-    systemPose(CHAPTER_SP.venus, pos, quat);
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(quat);
-    const toCam = fwd.clone().multiplyScalar(-1);
-    const hub = center.clone()
-      .addScaledVector(right, -0.78 * radius) // straddles the open space + Venus's left face, clear of the panel
-      .addScaledVector(up, 0.12 * radius)
-      .addScaledVector(toCam, 1.3 * radius); // in front of the disc
-    const planes = {} as Record<Category, { u: THREE.Vector3; v: THREE.Vector3; b: number }>;
+  // Live camera-facing basis, recomputed each frame so the skill galaxy faces
+  // the camera however it is aimed (desktop rail pose OR the portrait re-aim that
+  // centres Venus). On DESKTOP the cluster sits in the open space beside the
+  // planet (its authored tilted/elliptical orbits). On a PORTRAIT phone (Venus
+  // centred, panel below) that would run off the narrow frame, so the orbits
+  // become clean concentric rings AROUND the planet, squeezed horizontally to
+  // stay in frame.
+  const basis = useRef({
+    right: new THREE.Vector3(1, 0, 0),
+    up: new THREE.Vector3(0, 1, 0),
+    toCam: new THREE.Vector3(0, 0, 1),
+    hub: center.clone(),
+    hTight: 1,
+    planes: {} as Record<Category, { u: THREE.Vector3; v: THREE.Vector3; R: number; b: number }>,
+  });
+  for (const c of CATEGORY_ORDER) {
+    if (!basis.current.planes[c]) basis.current.planes[c] = { u: new THREE.Vector3(), v: new THREE.Vector3(), R: 0, b: 1 };
+  }
+  const updateBasis = () => {
+    const b = basis.current;
+    b.right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+    b.up.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+    b.toCam.copy(camera.position).sub(center).normalize();
+    const aspect = size.width / Math.max(1, size.height);
+    const portrait = aspect < 1;
+    if (portrait) {
+      b.hub.copy(center).addScaledVector(b.toCam, 1.2 * radius); // centred, in front
+      b.hTight = 0.6 + 0.42 * aspect; // squeeze the rings into the narrow width
+    } else {
+      b.hub.copy(center)
+        .addScaledVector(b.right, -0.78 * radius)
+        .addScaledVector(b.up, 0.12 * radius)
+        .addScaledVector(b.toCam, 1.3 * radius);
+      b.hTight = 1;
+    }
     for (const c of CATEGORY_ORDER) {
       const o = ORBITS[c];
-      const u = right.clone().applyAxisAngle(toCam, o.roll);
-      const v = up.clone().applyAxisAngle(toCam, o.roll); // screen-plane only — never behind
-      planes[c] = { u, v, b: 1 - o.ecc };
+      const pl = b.planes[c];
+      if (portrait) {
+        pl.u.copy(b.right);
+        pl.v.copy(b.up);
+        pl.R = radius * (0.98 + o.radius * 0.92); // concentric rings clearing the limb
+        pl.b = 0.72; // flat perspective ring
+      } else {
+        pl.u.copy(b.right).applyAxisAngle(b.toCam, o.roll);
+        pl.v.copy(b.up).applyAxisAngle(b.toCam, o.roll);
+        pl.R = o.radius * radius;
+        pl.b = 1 - o.ecc;
+      }
     }
-    return { right, up, fwd, toCam, hub, planes };
-  }, [center, radius]);
+  };
 
   const nodes = useMemo(() => {
     const counts = {} as Record<Category, number>;
@@ -94,30 +119,26 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
   }, [radius]);
 
   const orbitPos = (cat: Category, a: number, out: THREE.Vector3) => {
-    const pl = basis.planes[cat]; const R = ORBITS[cat].radius * radius;
-    return out.copy(basis.hub).addScaledVector(pl.u, Math.cos(a) * R).addScaledVector(pl.v, Math.sin(a) * R * pl.b);
+    const b = basis.current; const pl = b.planes[cat];
+    return out.copy(b.hub)
+      .addScaledVector(pl.u, Math.cos(a) * pl.R * b.hTight)
+      .addScaledVector(pl.v, Math.sin(a) * pl.R * pl.b);
   };
 
-  // Dust (jittered) + clean line geometry per orbit.
+  // Dust + clean line geometry per orbit — empty buffers with a STABLE jitter
+  // table, rebuilt each frame against the live basis (so the rings track the
+  // camera aim and the portrait re-layout without the dust shimmering).
   const rings = useMemo(() => CATEGORY_ORDER.map((c) => {
-    const pl = basis.planes[c]; const R = ORBITS[c].radius * radius;
-    const dust = new Float32Array(RING_PTS * 3);
-    const line = new Float32Array(RING_PTS * 3);
-    const v = new THREE.Vector3();
+    const dg = new THREE.BufferGeometry();
+    dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RING_PTS * 3), 3));
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RING_PTS * 3), 3));
     let seed = 4013 + c.length * 131;
     const rng = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < RING_PTS; i++) {
-      const a = (i / RING_PTS) * Math.PI * 2;
-      v.copy(basis.hub).addScaledVector(pl.u, Math.cos(a) * R).addScaledVector(pl.v, Math.sin(a) * R * pl.b);
-      line[i * 3] = v.x; line[i * 3 + 1] = v.y; line[i * 3 + 2] = v.z;
-      const j = 1 + (rng() - 0.5) * 0.06;
-      v.copy(basis.hub).addScaledVector(pl.u, Math.cos(a) * R * j).addScaledVector(pl.v, Math.sin(a) * R * pl.b * j);
-      dust[i * 3] = v.x; dust[i * 3 + 1] = v.y; dust[i * 3 + 2] = v.z;
-    }
-    const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(dust, 3));
-    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(line, 3));
-    return { dg, lg };
-  }), [center, radius, basis]);
+    const jit = new Float32Array(RING_PTS);
+    for (let i = 0; i < RING_PTS; i++) jit[i] = 1 + (rng() - 0.5) * 0.06;
+    return { dg, lg, jit };
+  }), []);
 
   const connGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -158,6 +179,7 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
   const _b = useMemo(() => new THREE.Vector3(), []);
   const _m = useMemo(() => new THREE.Vector3(), []);
   const _c = useMemo(() => new THREE.Color(), []);
+  const _rv = useMemo(() => new THREE.Vector3(), []);
 
   // The constellation now sits beside and IN FRONT of Venus, so nothing is ever
   // occluded — every node is fully lit and hoverable. (Kept as a hook so the
@@ -182,10 +204,36 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
       return;
     }
 
+    updateBasis(); // face the live camera (desktop rail pose or portrait re-aim)
+
     const t = state.clock.elapsedTime;
     appear.current = Math.min(1, appear.current + delta * 0.8);
     const app = THREE.MathUtils.smoothstep(appear.current, 0, 1);
     for (const c of CATEGORY_ORDER) spin.current[c] += delta * ORBITS[c].speed * ORBITS[c].dir;
+
+    // Rebuild the faint dust + line rings against the live basis (tracks the aim
+    // and the portrait re-layout). Line is clean; dust uses the stable jitter.
+    {
+      const b = basis.current;
+      CATEGORY_ORDER.forEach((c, ci) => {
+        const pl = b.planes[c];
+        const { dg, lg, jit } = rings[ci];
+        const la = lg.attributes.position.array as Float32Array;
+        const da = dg.attributes.position.array as Float32Array;
+        for (let i = 0; i < RING_PTS; i++) {
+          const a = (i / RING_PTS) * Math.PI * 2;
+          const cx = Math.cos(a) * pl.R * b.hTight;
+          const sy = Math.sin(a) * pl.R * pl.b;
+          _rv.copy(b.hub).addScaledVector(pl.u, cx).addScaledVector(pl.v, sy);
+          la[i * 3] = _rv.x; la[i * 3 + 1] = _rv.y; la[i * 3 + 2] = _rv.z;
+          const jf = jit[i];
+          _rv.copy(b.hub).addScaledVector(pl.u, cx * jf).addScaledVector(pl.v, sy * jf);
+          da[i * 3] = _rv.x; da[i * 3 + 1] = _rv.y; da[i * 3 + 2] = _rv.z;
+        }
+        lg.attributes.position.needsUpdate = true;
+        dg.attributes.position.needsUpdate = true;
+      });
+    }
 
     const hovered = useVenusUI.getState().hovered;
     const hoverActive = hovered != null;
@@ -212,7 +260,7 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
         const d = Math.hypot(dx, dy);
         if (d < 0.16) {
           const pull = (1 - d / 0.16) * 0.09 * radius;
-          p.addScaledVector(basis.right, dx * pull).addScaledVector(basis.up, dy * pull);
+          p.addScaledVector(basis.current.right, dx * pull).addScaledVector(basis.current.up, dy * pull);
         }
       }
 
@@ -251,7 +299,7 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
       const gT = THREE.MathUtils.smoothstep(connGrow.current, 0, 1);
       for (const r of rel) {
         _b.copy(npos.current[r]);
-        _m.copy(_a).add(_b).multiplyScalar(0.5).addScaledVector(basis.toCam, _a.distanceTo(_b) * 0.18);
+        _m.copy(_a).add(_b).multiplyScalar(0.5).addScaledVector(basis.current.toCam, _a.distanceTo(_b) * 0.18);
         for (let s = 0; s < SEG; s++) {
           bez(_a, _m, _b, (s / SEG) * gT, _p); cp[seg * 6] = _p.x; cp[seg * 6 + 1] = _p.y; cp[seg * 6 + 2] = _p.z;
           bez(_a, _m, _b, ((s + 1) / SEG) * gT, _p); cp[seg * 6 + 3] = _p.x; cp[seg * 6 + 4] = _p.y; cp[seg * 6 + 5] = _p.z;
@@ -295,7 +343,7 @@ export function VenusConstellation({ center, radius }: { center: THREE.Vector3; 
       const rr = radius * ORBITS[SKILLS[hovered!].category].glow * 1.3;
       for (let k = 0; k < N_SWIRL; k++) {
         const a = (k / N_SWIRL) * Math.PI * 2 + t * 1.6;
-        _p.copy(_a).addScaledVector(basis.right, Math.cos(a) * rr).addScaledVector(basis.up, Math.sin(a) * rr * 0.8);
+        _p.copy(_a).addScaledVector(basis.current.right, Math.cos(a) * rr).addScaledVector(basis.current.up, Math.sin(a) * rr * 0.8);
         sw[k * 3] = _p.x; sw[k * 3 + 1] = _p.y; sw[k * 3 + 2] = _p.z;
       }
     } else {

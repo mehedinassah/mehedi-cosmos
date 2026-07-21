@@ -322,6 +322,11 @@ export function CameraDirector() {
         }
         _portraitLook.y -= cam.position.distanceTo(_portraitLook) * 0.14; // raise the body
         cam.up.set(0, 1, 0);
+        // lookAt derives the camera's world position from its matrix, which
+        // systemPose only updated on `.position` this frame — refresh the matrix
+        // first, or lookAt aims from last frame's position and the body drifts
+        // off-centre (worst for far-off-axis worlds like Venus).
+        cam.updateMatrixWorld();
         cam.lookAt(_portraitLook);
       }
       // Jupiter portal dive: the storm opens, then the camera FALLS through it —
