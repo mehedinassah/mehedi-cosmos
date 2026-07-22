@@ -1451,15 +1451,18 @@ main { position: fixed; inset: 0; }
 }
 @keyframes gate-fade { from { opacity: 0; } to { opacity: 1; } }
 
-/* ── Cosmos layer ── */
+/* ── Cosmos layer ── z-index:0 makes this its own stacking context so all the
+   background layers (incl. the dust canvas) stay BELOW the text. */
 .mobile-gate__space {
   position: absolute;
   inset: 0;
+  z-index: 0;
   overflow: hidden;
   pointer-events: none;
 }
 
-/* Starfield — two parallax layers of box-shadow dots that twinkle + drift. */
+/* Starfield — two parallax layers of box-shadow dots, VERY slow drift so it
+   reads as depth, not motion. */
 .stars {
   position: absolute;
   top: 0;
@@ -1471,135 +1474,150 @@ main { position: fixed; inset: 0; }
   will-change: transform, opacity;
 }
 .stars--far {
-  animation: star-twinkle 6s ease-in-out infinite,
-             star-drift 90s linear infinite alternate;
-  opacity: 0.7;
+  animation: star-twinkle 9s ease-in-out infinite,
+             star-drift 260s linear infinite alternate;
+  opacity: 0.6;
 }
 .stars--near {
-  width: 1.6px;
-  height: 1.6px;
-  animation: star-twinkle 4.5s ease-in-out infinite 1s,
-             star-drift 60s linear infinite alternate-reverse;
+  width: 1.5px;
+  height: 1.5px;
+  animation: star-twinkle 7s ease-in-out infinite 1.5s,
+             star-drift 180s linear infinite alternate-reverse;
 }
 @keyframes star-twinkle {
   0%, 100% { opacity: 0.35; }
-  50%      { opacity: 0.9; }
+  50%      { opacity: 0.85; }
 }
 @keyframes star-drift {
   from { transform: translate3d(0, 0, 0); }
-  to   { transform: translate3d(-40px, -24px, 0); }
+  to   { transform: translate3d(-26px, -16px, 0); }
 }
 
-/* Drop-in photoreal hero (Midjourney render) — replaces the CSS black hole.
-   Slow Ken Burns push so the still feels alive. */
-.mobile-gate__hero {
+/* Nebula haze — soft colored fog, biased up-right behind the hole, drifting. */
+.mbh-nebula {
   position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center 32%;
-  background-repeat: no-repeat;
-  transform-origin: center 34%;
-  animation: hero-drift 32s ease-in-out infinite alternate;
+  inset: -12%;
+  background:
+    radial-gradient(38% 30% at 78% 16%, rgba(150, 92, 58, 0.16), transparent 70%),
+    radial-gradient(46% 40% at 88% 8%, rgba(95, 72, 145, 0.14), transparent 72%),
+    radial-gradient(60% 50% at 24% 82%, rgba(40, 58, 108, 0.10), transparent 72%);
+  animation: mbh-neb 46s ease-in-out infinite alternate;
 }
-@keyframes hero-drift {
-  from { transform: scale(1.04) translateY(0); }
-  to   { transform: scale(1.12) translateY(-1.5%); }
-}
-
-/* Bottom vignette — grounds the text zone regardless of what's behind it. */
-.mobile-gate__vignette {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    transparent 34%,
-    rgba(2, 2, 7, 0.55) 58%,
-    rgba(2, 2, 7, 0.9) 78%,
-    var(--void) 94%
-  );
+@keyframes mbh-neb {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-2.5%, 1.5%, 0) scale(1.06); }
 }
 
-/* Black hole — sits in the upper zone; text lives in the dark space below. */
-.bh {
+/* ── The black hole — massive, mostly off the upper-right corner ── */
+.mbh {
+  --size: clamp(1000px, 235vw, 1400px);
   position: absolute;
-  top: 33%;
-  left: 50%;
-  width: min(104vw, 470px);
-  height: min(104vw, 470px);
+  left: var(--hx, 80vw);
+  top: var(--hy, 12vh);
+  width: var(--size);
+  height: var(--size);
   transform: translate(-50%, -50%);
 }
-.bh__glow {
+/* Ambient warm glow — this is what lights the page. */
+.mbh__glow {
   position: absolute;
-  inset: -34%;
+  inset: -16%;
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
-    rgba(255, 150, 80, 0.24),
-    rgba(120, 90, 200, 0.14) 55%,
-    transparent 75%
+    rgba(255, 150, 80, 0.20),
+    rgba(170, 95, 45, 0.10) 42%,
+    rgba(90, 55, 120, 0.05) 62%,
+    transparent 76%
   );
-  filter: blur(22px);
-  animation: bh-breathe 7s ease-in-out infinite;
+  animation: mbh-breathe 9s ease-in-out infinite;
 }
-@keyframes bh-breathe {
-  0%, 100% { opacity: 0.7; transform: scale(1); }
-  50%      { opacity: 1;   transform: scale(1.05); }
-}
-/* Accretion disk — a masked conic ring that rotates. */
-.bh__disk {
+/* Accretion disk — masked conic ring of warm plasma, VERY slow rotation. */
+.mbh__disk {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   background: conic-gradient(
     from 0deg,
-    rgba(255, 180, 90, 0) 0deg,
-    rgba(255, 205, 130, 0.85) 70deg,
-    rgba(255, 255, 255, 0.98) 140deg,
-    rgba(255, 150, 80, 0.7) 210deg,
-    rgba(150, 110, 220, 0.35) 300deg,
-    rgba(255, 180, 90, 0) 360deg
+    rgba(255, 170, 85, 0) 0deg,
+    rgba(255, 200, 120, 0.65) 55deg,
+    rgba(255, 246, 224, 0.95) 125deg,
+    rgba(255, 175, 90, 0.6) 200deg,
+    rgba(165, 110, 205, 0.24) 290deg,
+    rgba(255, 170, 85, 0) 360deg
   );
-  -webkit-mask: radial-gradient(
-    closest-side,
-    transparent 63%,
-    #000 69%,
-    #000 82%,
-    transparent 89%
-  );
-  mask: radial-gradient(
-    closest-side,
-    transparent 63%,
-    #000 69%,
-    #000 82%,
-    transparent 89%
-  );
-  animation: bh-spin 16s linear infinite;
+  -webkit-mask: radial-gradient(closest-side, transparent 51%, #000 56%, #000 77%, transparent 85%);
+          mask: radial-gradient(closest-side, transparent 51%, #000 56%, #000 77%, transparent 85%);
+  animation: mbh-spin 105s linear infinite, mbh-breathe 12s ease-in-out infinite;
 }
-.bh__disk--rev {
+/* A second, fainter, slower counter-rotating disk → turbulence / non-looping. */
+.mbh__disk--2 {
   opacity: 0.4;
   filter: blur(3px);
-  animation: bh-spin 26s linear infinite reverse;
+  animation: mbh-spin 165s linear infinite reverse, mbh-breathe 8s ease-in-out infinite;
 }
-@keyframes bh-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-/* Event horizon — black core with a thin hot photon rim; backs the text. */
-.bh__core {
+/* Photon ring — a thin bright rim hugging the event horizon. */
+.mbh__ring {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
-    #000 54%,
-    rgba(0, 0, 0, 0.92) 61%,
-    rgba(255, 214, 170, 0.9) 65%,
-    rgba(255, 170, 110, 0) 71%
+    transparent 49.5%,
+    rgba(255, 232, 195, 0.9) 52%,
+    rgba(255, 205, 155, 0) 56%
   );
 }
+/* Faux gravitational lensing — a brighter arc bent over the top of the hole. */
+.mbh__lens {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side at 50% 44%,
+    transparent 49%,
+    rgba(255, 244, 214, 0.7) 52%,
+    transparent 57%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  animation: mbh-breathe 14s ease-in-out infinite;
+}
+/* Event horizon — the big black core. */
+.mbh__core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #000 50%, #000 51%, rgba(255, 205, 155, 0) 55%);
+}
+@keyframes mbh-spin { to { transform: rotate(360deg); } }
+@keyframes mbh-breathe {
+  0%, 100% { opacity: 0.82; }
+  50%      { opacity: 1; }
+}
 
+/* Drifting dust particles (canvas) — falling toward the hole. */
+.mbh-dust {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* Ambient rim light on the right edge + a soft scrim that keeps text legible. */
+.mobile-gate__rim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to left, rgba(255, 158, 92, 0.06), transparent 32%),
+    linear-gradient(to top, rgba(2, 2, 7, 0.86) 3%, rgba(2, 2, 7, 0.4) 24%, transparent 46%);
+}
+
+/* Reduced motion → a still frame: freeze every layer (dust is skipped in JS). */
 @media (prefers-reduced-motion: reduce) {
-  .stars--far, .stars--near, .bh__glow, .bh__disk, .bh__disk--rev {
+  .stars--far, .stars--near, .mbh-nebula,
+  .mbh__glow, .mbh__disk, .mbh__disk--2, .mbh__lens {
     animation: none;
   }
 }
