@@ -128,8 +128,25 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
             if (this.y < this.hoverPos - 4) this.y += 2.5;
           }
         } else {
-          this.rotation = this.startRotation + currentTime * (this.speed / 2);
-          if (this.y > this.expansePos) this.y -= Math.floor(this.expansePos - this.y) / -140;
+          // DIVE — break orbit and sprint radially outward (warp): the radius
+          // accelerates so stars streak past the edges, then respawn near the
+          // center so the stream is continuous. This is the "falling in" feel.
+          let r = this.y - centery;
+          r = r * 1.05 + 4;
+          const lim = Math.max(centerx, centery) * 1.6;
+          let respawned = false;
+          if (r > lim) {
+            r = Math.random() * 26 + 3;
+            this.startRotation = Math.random() * Math.PI * 2;
+            respawned = true;
+          }
+          this.y = centery + r;
+          this.rotation = this.startRotation + currentTime * this.speed * 0.4;
+          if (respawned) {
+            // land the trail on the new spot so there's no streak across the reset
+            this.prevY = this.y;
+            this.prevR = this.rotation;
+          }
         }
 
         const a = tp(this.prevX, this.prevY, this.prevR);
@@ -187,17 +204,17 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
   useEffect(() => {
     if (phase !== 'burst') return;
     collapseRef.current = false;
+    expanseRef.current = true; // stars break orbit and sprint outward (warp)
 
-    // Let the spiral keep spinning for a beat (smooth, alone) while the CSS
-    // scale-up "dive" is already carrying the motion, then mount the universe
-    // and freeze the sim — the compositor keeps zooming the frozen field, so the
-    // compile freeze hides inside the dive. No white needed to cover it.
+    // The warp runs ALONE for most of the dive so it's perfectly smooth. Only
+    // near the end do we mount the universe (compile) and freeze the sim — by
+    // then the flash is climaxing and covers the frozen frame + the compile.
     const mountId = window.setTimeout(
       () => {
         onEnter(); // mount UniverseCanvas → shader compile starts now
-        frozenRef.current = true; // freeze the spiral; the CSS zoom carries on
+        frozenRef.current = true; // freeze the warp; the flash covers the rest
       },
-      reducedRef.current ? 0 : 700,
+      reducedRef.current ? 0 : 1600,
     );
 
     let raf = 0;

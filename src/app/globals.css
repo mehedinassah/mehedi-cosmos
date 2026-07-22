@@ -245,19 +245,9 @@ main { position: fixed; inset: 0; }
    them smoothly even while the main thread is frozen compiling the universe's
    shaders. Started at ENTER (before the freeze), they whiteout the screen right
    as the compile hits — the stall happens behind an unbroken motion. */
-/* THE DIVE — the whole starfield scales up toward you, so the particles enlarge
-   and rush past as if you're falling into the hole. It's a transform on the
-   compositor thread, so it keeps moving smoothly even while the main thread is
-   frozen compiling the universe. This is what dominates for ~2s. */
-.blackhole.diving .blackhole__canvas {
-  transform-origin: 50% 50%;
-  will-change: transform;
-  animation: bh-dive-zoom 2000ms cubic-bezier(0.5, 0, 0.82, 0.4) forwards;
-}
-@keyframes bh-dive-zoom {
-  0%   { transform: scale(1); }
-  100% { transform: scale(4); }
-}
+/* THE DIVE is done in the canvas itself — the stars break orbit and sprint
+   outward (see the Preloader draw's "expanse" branch), streaking past like
+   warp speed. That real particle motion is what dominates for ~2s. */
 
 /* Final whiteout — a brief climax only in the last ~third of the dive, so the
    particles (not the white) own the moment; then the reveal fades from it. */
@@ -279,11 +269,8 @@ main { position: fixed; inset: 0; }
   100% { opacity: 0.95; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  /* Drop the zoom (vestibular); keep the opacity flash, which still covers the
-     transition without any motion. */
-  .blackhole.diving .blackhole__canvas { animation: none; }
-}
+/* Reduced motion skips the black-hole canvas entirely (see Preloader), so there
+   is no warp for those visitors — just the opacity flash into the reveal. */
 
 /* Expanse hand-off — fade the whole overlay (incl. the flash) to reveal the
    galaxy emerging underneath. Opacity only → compositor-smooth. */
