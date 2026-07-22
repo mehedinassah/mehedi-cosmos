@@ -17,7 +17,7 @@ type Phase = 'load' | 'ready' | 'burst' | 'fade' | 'done';
  * thread) once the galaxy is genuinely up. Ported from a jQuery pen to plain
  * React — no jQuery, no deps.
  */
-export function Preloader({ onEnter }: { onEnter: () => void }) {
+export function Preloader({ onReveal }: { onReveal: () => void }) {
   const [phase, setPhase] = useState<Phase>('load');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const collapseRef = useRef(false); // ENTER hovered → stars pull toward the rim
@@ -162,7 +162,7 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
       currentTime = (Date.now() - startTime) / 50;
       // Spin the vortex up while diving (capped so it swirls, never blurs out).
       if (expanseRef.current) {
-        swirlVel = Math.min(swirlVel + 0.0009, 0.045);
+        swirlVel = Math.min(swirlVel + 0.0006, 0.03);
         swirl += swirlVel;
       }
       context!.globalCompositeOperation = 'source-over';
@@ -203,49 +203,39 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
   useEffect(() => {
     if (phase !== 'burst') return;
     collapseRef.current = false;
-    expanseRef.current = true; // stars break orbit and sprint outward (warp)
+    expanseRef.current = true; // stars break orbit and dive (see draw)
 
-    // The warp runs ALONE for most of the dive so it's perfectly smooth. Only
-    // near the end do we mount the universe (compile) and freeze the sim — by
-    // then the flash is climaxing and covers the frozen frame + the compile.
-    const mountId = window.setTimeout(
-      () => {
-        onEnter(); // mount UniverseCanvas → shader compile starts now
-        frozenRef.current = true; // freeze the warp; the flash covers the rest
-      },
-      reducedRef.current ? 0 : 1600,
-    );
-
+    const minDive = reducedRef.current ? 300 : 2000;
     let raf = 0;
     const start = performance.now();
     const wait = () => {
-      // Let the ~2s particle dive dominate, then reveal onto the ready galaxy.
-      const ready = loadSignals.firstFrame && loadSignals.galaxyReady;
-      if (ready && performance.now() - start > 2000) setPhase('fade');
+      // The universe pre-compiled in the background during the spin (see
+      // Warmup + loadSignals.warmed), so once it's warmed AND the dive has had
+      // its ~2s, we reveal with no compile freeze left to hide.
+      if (loadSignals.warmed && performance.now() - start > minDive) setPhase('fade');
       else raf = requestAnimationFrame(wait);
     };
     raf = requestAnimationFrame(wait);
-    // Hard cap on a timer (fires even if rAF is throttled/paused), so a stuck or
-    // never-firing signal can never trap the visitor behind the flash.
+    // Hard cap on a timer (fires even if rAF is throttled), so a stuck or
+    // never-firing signal can never trap the visitor behind the dive.
     const capId = window.setTimeout(() => setPhase('fade'), 9000);
 
     return () => {
-      window.clearTimeout(mountId);
       window.clearTimeout(capId);
       cancelAnimationFrame(raf);
     };
-  }, [phase, onEnter]);
+  }, [phase]);
 
   // ── fade: galaxy is up → dissolve the overlay (CSS opacity, compositor thread,
   //    smooth through any residual compile), then unmount + release the scene. ──
   useEffect(() => {
     if (phase !== 'fade') return;
-    const id = window.setTimeout(() => {
-      loadSignals.revealed = true;
-      setPhase('done');
-    }, 1650);
+    frozenRef.current = true; // stop the 2D canvas; free the thread for the bloom
+    loadSignals.revealed = true; // resume the (already-compiled) WebGL → galaxy blooms in
+    onReveal(); // mount the intro / HUD overlays
+    const id = window.setTimeout(() => setPhase('done'), 1650);
     return () => window.clearTimeout(id);
-  }, [phase]);
+  }, [phase, onReveal]);
 
   if (phase === 'done') return null;
 

@@ -16,11 +16,12 @@ const UniverseCanvas = dynamic(
 
 export function UniverseShell() {
   const device = useDeviceClass();
-  // The heavy WebGL universe is not mounted until the visitor presses ENTER, so
-  // the black-hole preloader spins alone (no shader compile competing for the
-  // main thread) and stays smooth. The Preloader triggers this on ENTER, then
-  // holds its overlay until the galaxy is genuinely up before fading.
-  const [entered, setEntered] = useState(false);
+  // The universe canvas mounts immediately but stays PAUSED (frameloop="never")
+  // and compiles its shaders in the background while the black-hole preloader
+  // spins — so the spin/dive keep the main thread and stay smooth, and the
+  // reveal lands on an already-compiled scene with no freeze. The intro/HUD
+  // overlays mount only at reveal (so the galaxy forms as the overlay fades).
+  const [revealed, setRevealed] = useState(false);
 
   // Phones get the gate — never mount the heavy WebGL universe there. While the
   // class is still 'unknown' (SSR + first paint) we render the full shell, so
@@ -29,16 +30,16 @@ export function UniverseShell() {
 
   return (
     <>
-      {entered && (
+      <UniverseCanvas />
+      {revealed && (
         <>
-          <UniverseCanvas />
           <IntroSequence />
           <DescentOverlay />
           <JourneyHud />
           <MissionLog />
         </>
       )}
-      <Preloader onEnter={() => setEntered(true)} />
+      <Preloader onReveal={() => setRevealed(true)} />
     </>
   );
 }

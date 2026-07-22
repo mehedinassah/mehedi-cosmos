@@ -20,4 +20,8 @@ export const loadSignals = {
   // flips true when the preloader finishes revealing — the cue to mount the
   // heavy solar system + Sun in the background, once the galaxy is already up.
   revealed: false,
+  // flips true when the universe's shaders have finished compiling in the
+  // background (via renderer.compileAsync) while the black-hole preloader spins
+  // — so the ENTER dive can reveal an already-compiled scene with no freeze.
+  warmed: false,
 };
