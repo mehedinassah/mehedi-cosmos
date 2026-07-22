@@ -88,17 +88,6 @@ The edge of the system. Dhaka, Bangladesh — and every way to reach me.
 
 ---
 
-## Run it locally
-
-```bash
-npm install
-npm run dev              # universe at localhost:3000
-
-npm run typecheck        # strict TS, no emit
-npm run content:validate # Zod-validate world content (runs in CI)
-npm run build            # production build
-```
-
 > Best experienced on a desktop or laptop with a discrete GPU. It's WebGL-heavy by design.
 
 ---
