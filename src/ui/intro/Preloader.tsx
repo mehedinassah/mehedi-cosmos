@@ -128,24 +128,14 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
             if (this.y < this.hoverPos - 4) this.y += 2.5;
           }
         } else {
-          // DIVE — break orbit and sprint radially outward (warp): the radius
-          // accelerates so stars streak past the edges, then respawn near the
-          // center so the stream is continuous. This is the "falling in" feel.
-          let r = this.y - centery;
-          r = r * 1.05 + 4;
-          const lim = Math.max(centerx, centery) * 1.6;
-          let respawned = false;
-          if (r > lim) {
-            r = Math.random() * 26 + 3;
-            this.startRotation = Math.random() * Math.PI * 2;
-            respawned = true;
-          }
-          this.y = centery + r;
-          this.rotation = this.startRotation + currentTime * this.speed * 0.4;
-          if (respawned) {
-            // land the trail on the new spot so there's no streak across the reset
-            this.prevY = this.y;
-            this.prevR = this.rotation;
+          // DIVE — faithful to the reference pen: the field glides outward past
+          // the camera toward fixed targets with a gentle EASE-OUT (fast, then
+          // decelerating to a settle), rotating at half speed. The step is
+          // proportional to remaining distance, so it never rushes — this is the
+          // premium, un-hurried feel (not an accelerating sprint).
+          this.rotation = this.startRotation + currentTime * (this.speed / 2);
+          if (this.y > this.expansePos) {
+            this.y -= Math.floor(this.expansePos - this.y) / -140;
           }
         }
 
