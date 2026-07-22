@@ -45,11 +45,21 @@ function starShadow(count: number, range: number): string {
 }
 
 /**
- * The event-horizon center as a fraction of the viewport — kept in ONE place so
- * the CSS placement and the dust gravity agree. Upper-right, mostly off-screen.
+ * Drop-in photoreal black hole. Save a render (e.g. the Interstellar-style
+ * image) to `public/gate-blackhole.png` and set this to `true` — it replaces
+ * the CSS black hole with that exact image (the dust, glow drift and slow float
+ * stay on top). This is the way to get a true lensed black hole; CSS only
+ * approximates it. Use a PNG with transparency, or a JPG with a dark surround.
  */
-const HOLE_X = 0.8; // 80% across
-const HOLE_Y = 0.12; // 12% down
+const USE_HERO_IMAGE = false;
+const HERO_IMAGE_SRC = '/gate-blackhole.png';
+
+/**
+ * The event-horizon center as a fraction of the viewport — kept in ONE place so
+ * the CSS placement and the dust gravity agree. Upper-right, partly off-screen.
+ */
+const HOLE_X = 0.7; // 70% across
+const HOLE_Y = 0.26; // 26% down
 
 /**
  * Dust drifting toward the (off-screen) event horizon — gravity sells the
@@ -214,13 +224,27 @@ export function MobileGate() {
         <div className="mbh-nebula" />
 
         {/* Massive black hole, placed via --hx/--hy (must match HOLE_X/Y). */}
-        <div className="mbh" style={{ ['--hx' as string]: `${HOLE_X * 100}vw`, ['--hy' as string]: `${HOLE_Y * 100}vh` }}>
-          <div className="mbh__glow" />
-          <div className="mbh__disk" />
-          <div className="mbh__disk mbh__disk--2" />
-          <div className="mbh__ring" />
-          <div className="mbh__lens" />
-          <div className="mbh__core" />
+        <div
+          className={`mbh${USE_HERO_IMAGE ? ' mbh--image' : ''}`}
+          style={{
+            ['--hx' as string]: `${HOLE_X * 100}vw`,
+            ['--hy' as string]: `${HOLE_Y * 100}vh`,
+            ...(USE_HERO_IMAGE ? { backgroundImage: `url(${HERO_IMAGE_SRC})` } : {}),
+          }}
+        >
+          {!USE_HERO_IMAGE && (
+            <>
+              {/* Interstellar/Gargantua structure: a black sphere, the edge-on
+                  accretion disk (wings), the lensed Einstein ring wrapping it,
+                  and the near disk edge crossing in front. */}
+              <div className="mbh__glow" />
+              <div className="mbh__disk" />
+              <div className="mbh__disk mbh__disk--2" />
+              <div className="mbh__core" />
+              <div className="mbh__halo" />
+              <div className="mbh__diskfront" />
+            </>
+          )}
         </div>
 
         <DustField />
