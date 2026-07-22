@@ -49,8 +49,11 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
     canvas.height = Math.ceil(ch * dpr);
     context.scale(dpr, dpr);
     context.globalCompositeOperation = 'lighter';
+    context.lineWidth = 1.4;
 
-    const maxorbit = 255;
+    // Scale the black hole to the viewport so it fills the screen instead of
+    // sitting as a tiny puddle in the void.
+    const maxorbit = Math.round(Math.min(cw, ch) * 0.46);
     const centerx = cw / 2;
     const centery = ch / 2;
     const BG = '6,6,11';
@@ -99,7 +102,10 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
         this.startRotation = ((Math.floor(Math.random() * 360) + 1) * Math.PI) / 180;
         this.id = stars.length;
         this.collapseBonus = Math.max(0, this.orbital - maxorbit * 0.7);
-        this.color = 'rgba(255,255,255,' + (1 - this.orbital / 255) + ')';
+        // Brighter, with a lit core that falls off toward the rim (was capped
+        // near 0.5, which read as faded).
+        const a = Math.min(0.95, 0.18 + 1.7 * (1 - this.orbital / maxorbit));
+        this.color = 'rgba(255,255,255,' + a.toFixed(3) + ')';
         this.hoverPos = centery + maxorbit / 2 + this.collapseBonus;
         this.expansePos =
           centery + (this.id % 100) * -10 + (Math.floor(Math.random() * 20) + 1);
@@ -153,7 +159,9 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
 
     context.fillStyle = 'rgba(' + BG + ',1)';
     context.fillRect(0, 0, cw, ch);
-    for (let i = 0; i < 1200; i++) new Star();
+    // The spin runs alone (universe mounts on ENTER), so we can afford a dense,
+    // vivid field — more stars to keep the now-larger disk from looking sparse.
+    for (let i = 0; i < 2400; i++) new Star();
     loop();
 
     return () => {
