@@ -17,7 +17,7 @@ type Phase = 'load' | 'ready' | 'burst' | 'fade' | 'done';
  * thread) once the galaxy is genuinely up. Ported from a jQuery pen to plain
  * React — no jQuery, no deps.
  */
-export function Preloader({ onReveal }: { onReveal: () => void }) {
+export function Preloader({ onMount }: { onMount: () => void }) {
   const [phase, setPhase] = useState<Phase>('load');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const collapseRef = useRef(false); // ENTER hovered → stars pull toward the rim
@@ -205,37 +205,43 @@ export function Preloader({ onReveal }: { onReveal: () => void }) {
     collapseRef.current = false;
     expanseRef.current = true; // stars break orbit and dive (see draw)
 
-    const minDive = reducedRef.current ? 300 : 2000;
+    const dive = reducedRef.current ? 300 : 2000;
+    // Once the screen has closed to darkness, freeze the 2D canvas and mount the
+    // universe. It builds/compiles behind that still, opaque dark cover — nothing
+    // is animating, so the freeze can't be seen. We fade only once the galaxy is
+    // actually up, so it emerges already-rendered.
+    const mountId = window.setTimeout(() => {
+      frozenRef.current = true;
+      onMount();
+    }, dive);
+
     let raf = 0;
     const start = performance.now();
     const wait = () => {
-      // The universe pre-compiled in the background during the spin (see
-      // Warmup + loadSignals.warmed), so once it's warmed AND the dive has had
-      // its ~2s, we reveal with no compile freeze left to hide.
-      if (loadSignals.warmed && performance.now() - start > minDive) setPhase('fade');
+      const ready = loadSignals.firstFrame && loadSignals.galaxyReady;
+      if (ready && performance.now() - start > dive) setPhase('fade');
       else raf = requestAnimationFrame(wait);
     };
     raf = requestAnimationFrame(wait);
-    // Hard cap on a timer (fires even if rAF is throttled), so a stuck or
-    // never-firing signal can never trap the visitor behind the dive.
+    // Hard cap so a missing signal can never trap the visitor behind the cover.
     const capId = window.setTimeout(() => setPhase('fade'), 9000);
 
     return () => {
+      window.clearTimeout(mountId);
       window.clearTimeout(capId);
       cancelAnimationFrame(raf);
     };
-  }, [phase]);
+  }, [phase, onMount]);
 
   // ── fade: galaxy is up → dissolve the overlay (CSS opacity, compositor thread,
   //    smooth through any residual compile), then unmount + release the scene. ──
   useEffect(() => {
     if (phase !== 'fade') return;
-    frozenRef.current = true; // stop the 2D canvas; free the thread for the bloom
-    loadSignals.revealed = true; // resume the (already-compiled) WebGL → galaxy blooms in
-    onReveal(); // mount the intro / HUD overlays
+    frozenRef.current = true;
+    loadSignals.revealed = true; // cue the heavy solar system to mount later
     const id = window.setTimeout(() => setPhase('done'), 1650);
     return () => window.clearTimeout(id);
-  }, [phase, onReveal]);
+  }, [phase]);
 
   if (phase === 'done') return null;
 

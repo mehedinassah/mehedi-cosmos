@@ -249,12 +249,15 @@ main { position: fixed; inset: 0; }
    outward (see the Preloader draw's "expanse" branch), streaking past like
    warp speed. That real particle motion is what dominates for ~2s. */
 
-/* Final whiteout — a brief climax only in the last ~third of the dive, so the
-   particles (not the white) own the moment; then the reveal fades from it. */
+/* Event horizon — the screen closes to darkness in the last stretch of the dive
+   (you're swallowed by the hole). At full opacity it's a solid, opaque cover, so
+   the universe can build behind it with nothing animating → the compile freeze
+   is invisible. The reveal then fades this away and the galaxy emerges. All
+   stops are opaque (no translucent center) so the building scene never shows. */
 .gate-flash {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 50%, #fff8ef 0%, #ffeacf 55%, #ffdeb8 100%);
+  background: radial-gradient(circle at 50% 50%, #0b0b14 0%, #050509 55%, #010104 100%);
   opacity: 0;
   pointer-events: none;
   z-index: 5;
@@ -265,8 +268,8 @@ main { position: fixed; inset: 0; }
 }
 @keyframes gate-flash {
   0%   { opacity: 0; }
-  68%  { opacity: 0; }
-  100% { opacity: 0.95; }
+  58%  { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* Reduced motion skips the black-hole canvas entirely (see Preloader), so there

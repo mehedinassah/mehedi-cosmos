@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Starfield } from '@/world/ambient/Starfield';
 import { DeepSpace } from '@/world/ambient/DeepSpace';
@@ -50,44 +50,6 @@ const PRELOAD_TEXTURES = [
   '/textures/2k_neptune.jpg',
 ];
 
-/**
- * Compile the scene's shaders in the BACKGROUND while the black-hole preloader
- * spins. renderer.compileAsync uses KHR_parallel_shader_compile, so the shader
- * linking happens on GPU driver threads — the main thread stays free and the
- * 2D preloader stays smooth. We wait ~900ms first so the galaxy's async build
- * has populated the scene, then flag `warmed` so the dive can reveal an
- * already-compiled universe with no compile freeze.
- */
-function Warmup() {
-  const gl = useThree((s) => s.gl);
-  const scene = useThree((s) => s.scene);
-  const camera = useThree((s) => s.camera);
-  useEffect(() => {
-    let cancelled = false;
-    const done = () => {
-      if (!cancelled) loadSignals.warmed = true;
-    };
-    const compileAsync = (
-      gl as unknown as {
-        compileAsync?: (s: unknown, c: unknown) => Promise<unknown>;
-      }
-    ).compileAsync;
-    const startId = window.setTimeout(() => {
-      if (cancelled) return;
-      if (compileAsync) compileAsync.call(gl, scene, camera).then(done, done);
-      else done();
-    }, 900);
-    // safety: never block the reveal if the compile stalls or never resolves
-    const capId = window.setTimeout(done, 6000);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(startId);
-      window.clearTimeout(capId);
-    };
-  }, [gl, scene, camera]);
-  return null;
-}
-
 export function UniverseCanvas() {
   // Live, adaptively-tuned pixel ratio (see AdaptiveQuality). Capped well below
   // raw retina DPR — the biggest single per-frame GPU saving.
@@ -129,23 +91,6 @@ export function UniverseCanvas() {
   const showGalaxy = true;
   const showDescentField = stage === 'DORMANT' || stage === 'DESCENDING';
 
-  // Render nothing until the preloader reveals. While paused the scene still
-  // mounts + builds + compiles (see Warmup), but no frames draw — so the 2D
-  // black-hole preloader has the main thread to itself and stays smooth. At
-  // reveal we resume the loop on an already-compiled scene: no freeze, and the
-  // galaxy blooms in as the overlay fades.
-  const [frameloop, setFrameloop] = useState<'never' | 'always'>('never');
-  useEffect(() => {
-    if (frameloop === 'always') return;
-    let raf = 0;
-    const check = () => {
-      if (loadSignals.revealed) setFrameloop('always');
-      else raf = requestAnimationFrame(check);
-    };
-    raf = requestAnimationFrame(check);
-    return () => cancelAnimationFrame(raf);
-  }, [frameloop]);
-
   useEffect(() => {
     const { tier } = probeCapabilities();
     useQualityStore.getState().setTier(tier);
@@ -170,7 +115,6 @@ export function UniverseCanvas() {
         outputColorSpace: THREE.SRGBColorSpace,
       }}
       dpr={perfDpr}
-      frameloop={frameloop}
       camera={{ fov: 50, near: 1, far: 120000, position: [0, 120, 1400] }}
       onPointerMissed={clearNodeSelections}
       onCreated={({ gl }) => {
@@ -178,7 +122,6 @@ export function UniverseCanvas() {
         gl.toneMappingExposure = 1.18;
       }}
     >
-      <Warmup />
       <CameraDirector />
       <ambientLight intensity={ambient} />
       <Starfield />
