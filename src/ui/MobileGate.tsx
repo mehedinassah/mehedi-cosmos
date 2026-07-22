@@ -58,8 +58,8 @@ const HERO_IMAGE_SRC = '/gate-blackhole.png';
  * The event-horizon center as a fraction of the viewport — kept in ONE place so
  * the CSS placement and the dust gravity agree. Upper-right, partly off-screen.
  */
-const HOLE_X = 0.7; // 70% across
-const HOLE_Y = 0.26; // 26% down
+const HOLE_X = 0.82; // 82% across — pushed off the upper-right
+const HOLE_Y = 0.06; // 6% down — high, so only ~40% is on screen, clear of text
 
 /**
  * Dust drifting toward the (off-screen) event horizon — gravity sells the
@@ -100,7 +100,7 @@ function DustField() {
       p.vy = 0;
       p.r = Math.random() * 1.1 + 0.4;
       p.a = Math.random() * 0.35 + 0.15;
-      p.spin = Math.random() < 0.4 ? (Math.random() < 0.5 ? 1 : -1) : 0; // some orbit
+      p.spin = Math.random() < 0.55 ? (Math.random() < 0.5 ? 1 : -1) : 0; // many orbit
       p.life = 0;
       p.max = 500 + Math.random() * 700;
       return p;
@@ -118,27 +118,41 @@ function DustField() {
         const dx = cx - p.x;
         const dy = cy - p.y;
         const d = Math.hypot(dx, dy) || 1;
-        const g = Math.min(0.05, 2600 / (d * d) + 0.0016); // gentle far, stronger near
+        const g = Math.min(0.032, 2000 / (d * d) + 0.0009); // very gentle pull
         p.vx += (dx / d) * g;
         p.vy += (dy / d) * g;
         if (p.spin) {
-          p.vx += (-dy / d) * g * 1.7 * p.spin; // tangential → orbit
-          p.vy += (dx / d) * g * 1.7 * p.spin;
+          p.vx += (-dy / d) * g * 2.1 * p.spin; // tangential → orbit
+          p.vy += (dx / d) * g * 2.1 * p.spin;
         }
-        p.vx *= 0.994;
-        p.vy *= 0.994;
+        p.vx *= 0.995;
+        p.vy *= 0.995;
         p.x += p.vx;
         p.y += p.vy;
         p.life++;
 
         const near = Math.max(0, 1 - d / Math.max(W, H));
-        ctx.globalAlpha = p.a * (0.45 + 0.55 * near);
-        ctx.fillStyle = near > 0.62 ? 'rgba(255,196,140,1)' : 'rgba(206,216,238,1)';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
+        const warm = near > 0.6;
+        ctx.globalAlpha = p.a * (0.4 + 0.6 * near);
+        if (d < 260) {
+          // near the hole → draw a short tangential streak: bent, orbiting light
+          const sp = Math.hypot(p.vx, p.vy) || 0.001;
+          const k = Math.min(16, 26 * sp);
+          ctx.strokeStyle = warm ? 'rgba(255,206,150,0.95)' : 'rgba(216,224,246,0.75)';
+          ctx.lineWidth = p.r * 1.1;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(p.x - p.vx * k, p.y - p.vy * k);
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = warm ? 'rgba(255,196,140,1)' : 'rgba(206,216,238,1)';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
-        if (d < 46 || p.life > p.max || p.x < -60 || p.x > W + 60 || p.y < -60 || p.y > H + 60) {
+        if (d < 40 || p.life > p.max || p.x < -60 || p.x > W + 60 || p.y < -60 || p.y > H + 60) {
           reset(p);
         }
       }
@@ -240,6 +254,7 @@ export function MobileGate() {
               <div className="mbh__glow" />
               <div className="mbh__disk" />
               <div className="mbh__disk mbh__disk--2" />
+              <div className="mbh__disktex" />
               <div className="mbh__core" />
               <div className="mbh__halo" />
               <div className="mbh__diskfront" />

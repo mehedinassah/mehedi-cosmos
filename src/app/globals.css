@@ -1514,13 +1514,19 @@ main { position: fixed; inset: 0; }
    bottom), and the bright lensed Einstein RING wrapping the sphere. That ring +
    edge-on disk is what reads as a black hole (not a flat donut). */
 .mbh {
-  --size: clamp(720px, 175vw, 1080px);
+  --size: clamp(880px, 230vw, 1400px);
   position: absolute;
-  left: var(--hx, 70vw);
-  top: var(--hy, 26vh);
+  left: var(--hx, 82vw);
+  top: var(--hy, 6vh);
   width: var(--size);
   height: var(--size);
   transform: translate(-50%, -50%);
+  /* Barely-there drift + breathing scale — felt, not seen (~110s). */
+  animation: mbh-drift 110s ease-in-out infinite alternate;
+}
+@keyframes mbh-drift {
+  from { transform: translate(-50%, -50%) scale(1); }
+  to   { transform: translate(calc(-50% - 5px), calc(-50% + 4px)) scale(1.02); }
 }
 .mbh--image {
   background-size: contain;
@@ -1533,18 +1539,19 @@ main { position: fixed; inset: 0; }
   to   { transform: translate(-51%, -49%) scale(1.05); }
 }
 
-/* Ambient warm glow — lights the page. */
+/* Ambient warm glow — brightest at the horizon, fades FAST (not uniform). */
 .mbh__glow {
   position: absolute;
-  inset: -8%;
+  inset: -6%;
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
-    rgba(255, 150, 80, 0.16),
-    rgba(160, 92, 48, 0.07) 44%,
-    transparent 70%
+    rgba(255, 152, 82, 0.24),
+    rgba(190, 104, 52, 0.10) 30%,
+    rgba(120, 70, 60, 0.03) 48%,
+    transparent 62%
   );
-  animation: mbh-breathe 9s ease-in-out infinite;
+  animation: mbh-breathe 18s ease-in-out infinite;
 }
 
 /* Accretion disk EDGE-ON — a wide, flattened glowing band. Its middle hides
@@ -1565,7 +1572,7 @@ main { position: fixed; inset: 0; }
     transparent 78%
   );
   z-index: 1;
-  animation: mbh-breathe 12s ease-in-out infinite;
+  animation: mbh-breathe 17s ease-in-out infinite;
 }
 /* A thinner, offset second band → turbulence, keeps it from looking flat. */
 .mbh__disk--2 {
@@ -1573,7 +1580,31 @@ main { position: fixed; inset: 0; }
   height: 28%;
   opacity: 0.5;
   filter: blur(2px);
-  animation: mbh-breathe 8s ease-in-out infinite;
+  animation: mbh-breathe 16s ease-in-out infinite;
+}
+
+/* Disk TEXTURE — bright plasma knots + dark dust lanes so it reads as a "river
+   of fire", not a smooth strip. Static (cheap); masked to the disk band. */
+.mbh__disktex {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 190%;
+  height: 40%;
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(closest-side 22% 62% at 16% 44%, rgba(255, 252, 240, 0.55), transparent 70%),
+    radial-gradient(closest-side 15% 52% at 33% 56%, rgba(90, 52, 34, 0.55), transparent 72%),
+    radial-gradient(closest-side 20% 58% at 47% 45%, rgba(255, 240, 214, 0.5), transparent 70%),
+    radial-gradient(closest-side 13% 48% at 61% 57%, rgba(80, 46, 30, 0.5), transparent 72%),
+    radial-gradient(closest-side 22% 60% at 73% 44%, rgba(255, 246, 224, 0.5), transparent 70%),
+    radial-gradient(closest-side 16% 50% at 88% 53%, rgba(255, 232, 200, 0.42), transparent 72%);
+  -webkit-mask: radial-gradient(ellipse 52% 50% at 50% 50%, #000 58%, transparent 82%);
+          mask: radial-gradient(ellipse 52% 50% at 50% 50%, #000 58%, transparent 82%);
+  mix-blend-mode: overlay;
+  opacity: 0.75;
+  z-index: 2;
+  animation: mbh-breathe 13s ease-in-out infinite;
 }
 
 /* Event horizon — the black sphere, over the disk's middle. */
@@ -1608,7 +1639,7 @@ main { position: fixed; inset: 0; }
   );
   box-shadow: 0 0 34px rgba(255, 220, 175, 0.45);
   z-index: 4;
-  animation: mbh-breathe 11s ease-in-out infinite;
+  animation: mbh-breathe 21s ease-in-out infinite;
 }
 
 /* Near edge of the disk — crosses in FRONT of the lower half of the sphere. */
@@ -1626,10 +1657,10 @@ main { position: fixed; inset: 0; }
     transparent 70%
   );
   z-index: 5;
-  animation: mbh-breathe 10s ease-in-out infinite;
+  animation: mbh-breathe 15s ease-in-out infinite;
 }
 @keyframes mbh-breathe {
-  0%, 100% { opacity: 0.85; }
+  0%, 100% { opacity: 0.93; }
   50%      { opacity: 1; }
 }
 
@@ -1653,8 +1684,9 @@ main { position: fixed; inset: 0; }
 
 /* Reduced motion → a still frame: freeze every layer (dust is skipped in JS). */
 @media (prefers-reduced-motion: reduce) {
-  .stars--far, .stars--near, .mbh-nebula, .mbh--image,
-  .mbh__glow, .mbh__disk, .mbh__disk--2, .mbh__halo, .mbh__diskfront {
+  .stars--far, .stars--near, .mbh-nebula, .mbh, .mbh--image,
+  .mbh__glow, .mbh__disk, .mbh__disk--2, .mbh__disktex,
+  .mbh__halo, .mbh__diskfront {
     animation: none;
   }
 }
