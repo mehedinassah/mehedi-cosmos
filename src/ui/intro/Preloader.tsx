@@ -61,6 +61,10 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
     let currentTime = 0;
     let raf = 0;
     let stopped = false;
+    // Vortex swirl — during the dive the whole field spins up (accelerating),
+    // so you feel pulled THROUGH a spinning black hole, not just outward.
+    let swirl = 0;
+    let swirlVel = 0;
     const stars: Star[] = [];
 
     // Transform a point by canvas rotate(ang) about the center — done in math so
@@ -133,7 +137,7 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
           // decelerating to a settle), rotating at half speed. The step is
           // proportional to remaining distance, so it never rushes — this is the
           // premium, un-hurried feel (not an accelerating sprint).
-          this.rotation = this.startRotation + currentTime * (this.speed / 2);
+          this.rotation = this.startRotation + currentTime * (this.speed / 2) + swirl;
           if (this.y > this.expansePos) {
             this.y -= Math.floor(this.expansePos - this.y) / -140;
           }
@@ -156,6 +160,11 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
     function loop() {
       if (stopped || frozenRef.current) return; // freeze → nothing to stutter
       currentTime = (Date.now() - startTime) / 50;
+      // Spin the vortex up while diving (capped so it swirls, never blurs out).
+      if (expanseRef.current) {
+        swirlVel = Math.min(swirlVel + 0.0009, 0.045);
+        swirl += swirlVel;
+      }
       context!.globalCompositeOperation = 'source-over';
       context!.fillStyle = 'rgba(' + BG + ',0.22)';
       context!.fillRect(0, 0, cw, ch);
