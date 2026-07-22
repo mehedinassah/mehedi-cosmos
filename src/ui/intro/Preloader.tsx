@@ -186,24 +186,26 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
   //    heavy universe + freeze the canvas, and wait until the galaxy is up. ──
   useEffect(() => {
     if (phase !== 'burst') return;
-    expanseRef.current = true;
     collapseRef.current = false;
 
+    // Let the spiral keep spinning for a beat (smooth, alone) while the CSS
+    // scale-up "dive" is already carrying the motion, then mount the universe
+    // and freeze the sim — the compositor keeps zooming the frozen field, so the
+    // compile freeze hides inside the dive. No white needed to cover it.
     const mountId = window.setTimeout(
       () => {
         onEnter(); // mount UniverseCanvas → shader compile starts now
-        frozenRef.current = true; // freeze the spiral so the compile can't jank it
+        frozenRef.current = true; // freeze the spiral; the CSS zoom carries on
       },
-      reducedRef.current ? 0 : 480,
+      reducedRef.current ? 0 : 700,
     );
 
     let raf = 0;
     const start = performance.now();
     const wait = () => {
-      // Hold until the ~2.5s dive has fully whited-out AND the galaxy is up, so
-      // we reveal from the peak flash onto an already-rendered, smooth galaxy.
+      // Let the ~2s particle dive dominate, then reveal onto the ready galaxy.
       const ready = loadSignals.firstFrame && loadSignals.galaxyReady;
-      if (ready && performance.now() - start > 2500) setPhase('fade');
+      if (ready && performance.now() - start > 2000) setPhase('fade');
       else raf = requestAnimationFrame(wait);
     };
     raf = requestAnimationFrame(wait);
@@ -245,9 +247,8 @@ export function Preloader({ onEnter }: { onEnter: () => void }) {
       }
     >
       <canvas ref={canvasRef} className="blackhole__canvas" aria-hidden="true" />
-      {/* Dive + flash cover — pure transform/opacity, so it keeps animating on
-          the compositor thread right through the main-thread compile freeze. */}
-      <div className="gate-dive" aria-hidden="true" />
+      {/* Final whiteout — a brief climax at the very end of the dive; the dive
+          itself is the starfield scaling up (see .blackhole.diving canvas). */}
       <div className="gate-flash" aria-hidden="true" />
       <button
         type="button"

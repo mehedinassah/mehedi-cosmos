@@ -151,6 +151,7 @@ main { position: fixed; inset: 0; }
   background: #06060b;
   opacity: 1;
   pointer-events: none;
+  overflow: hidden; /* the dive scales the canvas past the viewport */
   /* long enough that the fade lingers WHILE the galaxy blooms up underneath */
   transition: opacity 1.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -244,40 +245,22 @@ main { position: fixed; inset: 0; }
    them smoothly even while the main thread is frozen compiling the universe's
    shaders. Started at ENTER (before the freeze), they whiteout the screen right
    as the compile hits — the stall happens behind an unbroken motion. */
-.gate-dive {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 60vmax;
-  height: 60vmax;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    #ffffff 0%,
-    #fff3de 32%,
-    #ffdcac 58%,
-    rgba(255, 196, 132, 0.55) 76%,
-    rgba(255, 176, 110, 0) 90%
-  );
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.1);
-  pointer-events: none;
-  z-index: 3;
-  will-change: transform, opacity;
+/* THE DIVE — the whole starfield scales up toward you, so the particles enlarge
+   and rush past as if you're falling into the hole. It's a transform on the
+   compositor thread, so it keeps moving smoothly even while the main thread is
+   frozen compiling the universe. This is what dominates for ~2s. */
+.blackhole.diving .blackhole__canvas {
+  transform-origin: 50% 50%;
+  will-change: transform;
+  animation: bh-dive-zoom 2000ms cubic-bezier(0.5, 0, 0.82, 0.4) forwards;
 }
-.blackhole.diving .gate-dive {
-  /* ~2.5s accelerating fall INTO the hole — the bright core rushes toward you. */
-  animation: gate-dive 2500ms cubic-bezier(0.52, 0, 0.72, 0.5) forwards;
-}
-@keyframes gate-dive {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
-  12%  { opacity: 1; }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(13); }
+@keyframes bh-dive-zoom {
+  0%   { transform: scale(1); }
+  100% { transform: scale(4); }
 }
 
-/* Full-screen warm wash that fills the WHOLE frame progressively across the
-   dive (not just at the end), so there's never a black void around the core —
-   you get bathed in light as you fall in, ending in a whiteout. */
+/* Final whiteout — a brief climax only in the last ~third of the dive, so the
+   particles (not the white) own the moment; then the reveal fades from it. */
 .gate-flash {
   position: absolute;
   inset: 0;
@@ -288,17 +271,18 @@ main { position: fixed; inset: 0; }
   will-change: opacity;
 }
 .blackhole.diving .gate-flash {
-  animation: gate-flash 2500ms cubic-bezier(0.42, 0, 0.72, 0.6) forwards;
+  animation: gate-flash 2000ms ease-in forwards;
 }
 @keyframes gate-flash {
   0%   { opacity: 0; }
-  100% { opacity: 0.98; }
+  68%  { opacity: 0; }
+  100% { opacity: 0.95; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Drop the zoom (vestibular), keep the opacity flash — it still covers the
-     compile stall without any motion. */
-  .blackhole.diving .gate-dive { animation: none; opacity: 0; }
+  /* Drop the zoom (vestibular); keep the opacity flash, which still covers the
+     transition without any motion. */
+  .blackhole.diving .blackhole__canvas { animation: none; }
 }
 
 /* Expanse hand-off — fade the whole overlay (incl. the flash) to reveal the
